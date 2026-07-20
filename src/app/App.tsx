@@ -20,6 +20,7 @@ import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
+import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
 import { DocumentLibrary } from "@/app/components/pm/DocumentLibrary";
 import { RiskManagement } from "@/app/components/pm/RiskManagement";
@@ -42,6 +43,11 @@ import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
 import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
 import type { Role } from "@/app/api/projectRepository";
+import {
+  clearAuthSession,
+  saveAuthSession,
+  type StoredAuthSession,
+} from "@/app/auth/authSession";
 import { slackApi } from "@/app/api/slackApi";
 import {
   PROJECTS,
@@ -89,6 +95,7 @@ export default function App() {
       typeof window !== "undefined" ? localStorage.getItem("app-role") : null;
     return saved === "pm" || saved === "staff" ? saved : null;
   });
+  const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
   const [taskOpen, setTaskOpen] = useState(false);
@@ -117,10 +124,11 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = (r: Role) => {
-    setRole(r);
+  const handleLogin = (session: StoredAuthSession) => {
+    setRole(session.role);
     try {
-      localStorage.setItem("app-role", r);
+      localStorage.setItem("app-role", session.role);
+      saveAuthSession(session);
     } catch {
       /* ignore */
     }
@@ -133,6 +141,7 @@ export default function App() {
     setRole(null);
     try {
       localStorage.removeItem("app-role");
+      clearAuthSession();
     } catch {
       /* ignore */
     }
@@ -141,7 +150,14 @@ export default function App() {
   if (!role) {
     return (
       <>
-        <LoginScreen onLogin={handleLogin} />
+        {authView === "signup" ? (
+          <SignupScreen onBackToLogin={() => setAuthView("login")} />
+        ) : (
+          <LoginScreen
+            onLogin={handleLogin}
+            onSignupClick={() => setAuthView("signup")}
+          />
+        )}
         <Toaster />
       </>
     );

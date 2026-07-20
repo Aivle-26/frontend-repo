@@ -9,6 +9,7 @@ import {
   ChevronRight,
   MoreHorizontal,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
@@ -172,9 +173,8 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
           })}
         </div>
 
-        {/* 우측 컬럼: 커뮤니케이션 리스크 + 선택한 리스크 상세 */}
-        <div className="space-y-4">
-          <CommunicationRiskCard projectId={project.id} />
+        {/* 상세 패널 */}
+        <div>
           {selected ? (
             <Card className="sticky top-4">
               <CardContent className="space-y-4 pt-5">
@@ -261,6 +261,9 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
           )}
         </div>
       </div>
+
+      {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) */}
+      <CommunicationRiskCard projectId={project.id} />
 
       <p className="text-muted-foreground text-xs">
         {project.name} 기준 · AI가 탐지한 리스크를 검토합니다.

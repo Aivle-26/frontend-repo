@@ -9,12 +9,14 @@ import {
   ChevronRight,
   MoreHorizontal,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
+import { CommunicationRiskCard } from "@/app/components/common/CommunicationRiskCard";
 import {
   MANAGED_RISKS,
   type ManagedRisk,
@@ -259,6 +261,9 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
           )}
         </div>
       </div>
+
+      {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) */}
+      <CommunicationRiskCard projectId={project.id} />
 
       <p className="text-muted-foreground text-xs">
         {project.name} 기준 · AI가 탐지한 리스크를 검토합니다.

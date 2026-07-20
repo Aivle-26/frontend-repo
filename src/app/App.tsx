@@ -346,7 +346,7 @@ export default function App() {
       body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
-      body = <StaffRisk />;
+      body = <StaffRisk projectId={selectedProjectId} />;
       actions = <StaffRiskActions />;
     } else if (staffMenu === "context") {
       subtitle = "RFP 맥락";

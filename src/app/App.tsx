@@ -13,6 +13,7 @@ import {
   MessageSquareReply,
   MessagesSquare,
   FolderKanban,
+  Search,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
@@ -20,8 +21,9 @@ import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
-import { PmDocuments } from "@/app/components/pm/PmDocuments";
-import { PmRisk } from "@/app/components/pm/PmRisk";
+import { DocumentLibrary } from "@/app/components/pm/DocumentLibrary";
+import { RiskManagement } from "@/app/components/pm/RiskManagement";
+import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmReview } from "@/app/components/pm/PmReview";
 import { PmRequirements } from "@/app/components/pm/PmRequirements";
@@ -53,8 +55,9 @@ const PM_MENU: SidebarItem[] = [
   { key: "analysis", label: "AI 분석", icon: Sparkles },
   { key: "requirements", label: "요구사항", icon: FileText },
   { key: "assign", label: "업무 배정", icon: Users },
-  { key: "documents", label: "문서 통합 관리", icon: FolderKanban },
-  { key: "risk", label: "리스크", icon: AlertTriangle },
+  { key: "documents", label: "문서함", icon: FolderKanban },
+  { key: "search", label: "AI 문서 검색", icon: Search },
+  { key: "risk", label: "리스크 관리", icon: AlertTriangle },
   { key: "review", label: "검토", icon: ClipboardCheck },
 ];
 
@@ -75,6 +78,7 @@ const SCOPED_PM = new Set([
   "requirements",
   "assign",
   "documents",
+  "search",
   "risk",
   "review",
 ]);
@@ -174,11 +178,14 @@ export default function App() {
       subtitle = "공고문 업로드";
       body = <PmUpload key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "documents") {
-      subtitle = "문서 통합 관리";
-      body = <PmDocuments key={selectedProject?.id} project={selectedProject!} />;
+      subtitle = "문서함";
+      body = <DocumentLibrary key={selectedProject?.id} project={selectedProject!} />;
+    } else if (pmMenu === "search") {
+      subtitle = "AI 문서 검색";
+      body = <AiDocSearch key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "risk") {
       subtitle = "리스크 관리";
-      body = <PmRisk key={selectedProject?.id} project={selectedProject!} />;
+      body = <RiskManagement key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "review") {
       subtitle = "산출물 검토";
       body = <PmReview key={selectedProject?.id} project={selectedProject!} />;

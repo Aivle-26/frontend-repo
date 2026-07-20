@@ -16,6 +16,7 @@ import {
   Search,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
@@ -42,17 +43,20 @@ import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
 import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
 import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
-import type { Role } from "@/app/api/projectRepository";
 import {
-  clearAuthSession,
-  saveAuthSession,
-  type StoredAuthSession,
-} from "@/app/auth/authSession";
+  ApiError,
+  projectRepository,
+  toFrontendRole,
+  type LoginVerifyResponse,
+  type ProjectSummary as ApiProjectSummary,
+  type Role,
+} from "@/app/api/projectRepository";
 import { slackApi } from "@/app/api/slackApi";
 import {
   PROJECTS,
   type ProjectRequirement,
-  type ProjectSummary,
+  type ProjectStatus,
+  type ProjectSummary as FrontendProjectSummary,
 } from "@/app/data/demoData";
 
 const PM_MENU: SidebarItem[] = [
@@ -89,23 +93,33 @@ const SCOPED_PM = new Set([
   "review",
 ]);
 
+type ProjectLoadStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "empty"
+  | "unauthorized"
+  | "forbidden"
+  | "error";
+
 export default function App() {
-  const [role, setRole] = useState<Role | null>(() => {
-    const saved =
-      typeof window !== "undefined" ? localStorage.getItem("app-role") : null;
-    return saved === "pm" || saved === "staff" ? saved : null;
-  });
+  const [authSession, setAuthSession] = useState(() =>
+    projectRepository.getStoredSession(),
+  );
   const [authView, setAuthView] = useState<"login" | "signup">("login");
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
   const [taskOpen, setTaskOpen] = useState(false);
-  const [projects, setProjects] = useState<ProjectSummary[]>(PROJECTS);
-  const [pmDetail, setPmDetail] = useState<ProjectSummary | null>(null);
-  const [pmWizard, setPmWizard] = useState<ProjectSummary | null>(null);
-  const [pmExtract, setPmExtract] = useState<ProjectSummary | null>(null);
+  const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
+  const [projectLoadStatus, setProjectLoadStatus] = useState<ProjectLoadStatus>("idle");
+  const [projectLoadError, setProjectLoadError] = useState("");
+  const [pmDetail, setPmDetail] = useState<FrontendProjectSummary | null>(null);
+  const [pmWizard, setPmWizard] = useState<FrontendProjectSummary | null>(null);
+  const [pmExtract, setPmExtract] = useState<FrontendProjectSummary | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    () => PROJECTS[0]?.id ?? "",
+    "",
   );
+  const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
 
   const startProject = (id: string) =>
     setProjects((prev) =>
@@ -124,27 +138,58 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = (session: StoredAuthSession) => {
-    setRole(session.role);
-    try {
-      localStorage.setItem("app-role", session.role);
-      saveAuthSession(session);
-    } catch {
-      /* ignore */
+  useEffect(() => {
+    const handleAuthExpired = () => setAuthSession(null);
+    window.addEventListener("aipm:auth-expired", handleAuthExpired);
+    return () => window.removeEventListener("aipm:auth-expired", handleAuthExpired);
+  }, []);
+
+  useEffect(() => {
+    if (role !== "pm") {
+      setProjectLoadStatus("idle");
+      return;
     }
+
+    let ignore = false;
+    setProjectLoadStatus("loading");
+    setProjectLoadError("");
+
+    projectRepository
+      .listProjects()
+      .then((items) => {
+        if (ignore) return;
+        const mapped = items.map(mapApiProject);
+        setProjects(mapped);
+        setSelectedProjectId((current) =>
+          mapped.some((project) => project.id === current)
+            ? current
+            : mapped[0]?.id ?? "",
+        );
+        setProjectLoadStatus(mapped.length > 0 ? "ready" : "empty");
+      })
+      .catch((caught) => {
+        if (ignore) return;
+        setProjects([]);
+        setSelectedProjectId("");
+        setProjectLoadStatus(getProjectLoadStatus(caught));
+        setProjectLoadError(getProjectLoadError(caught));
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [role]);
+
+  const handleLogin = (session: LoginVerifyResponse) => {
+    setAuthSession(session);
     setPmMenu("dashboard");
     setStaffMenu("tasks");
     setTaskOpen(false);
   };
 
   const handleLogout = () => {
-    setRole(null);
-    try {
-      localStorage.removeItem("app-role");
-      clearAuthSession();
-    } catch {
-      /* ignore */
-    }
+    projectRepository.logout();
+    setAuthSession(null);
   };
 
   if (!role) {
@@ -187,7 +232,10 @@ export default function App() {
     projects.find((p) => p.id === selectedProjectId) ?? projects[0];
 
   if (isPm) {
-    if (pmMenu === "slack") {
+    if (SCOPED_PM.has(pmMenu) && !selectedProject) {
+      subtitle = "프로젝트 선택";
+      body = <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />;
+    } else if (pmMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
     } else if (pmMenu === "upload") {
@@ -221,7 +269,7 @@ export default function App() {
           project={pmExtract}
           onBack={() => setPmExtract(null)}
           onConfirm={(requirements: ProjectRequirement[]) => {
-            const updated: ProjectSummary = {
+            const updated: FrontendProjectSummary = {
               ...pmExtract,
               status: "준비",
               requirements,
@@ -256,7 +304,7 @@ export default function App() {
           project={pmDetail}
           onBack={() => setPmDetail(null)}
           onUpdateDocs={(docs) => {
-            const updated: ProjectSummary = { ...pmDetail, docs, updatedAt: "방금" };
+            const updated: FrontendProjectSummary = { ...pmDetail, docs, updatedAt: "방금" };
             setProjects((prev) =>
               prev.map((p) => (p.id === updated.id ? updated : p)),
             );
@@ -267,23 +315,26 @@ export default function App() {
     } else {
       subtitle = "프로젝트";
       body = (
-        <ProjectBoard
-          projects={projects}
-          setProjects={setProjects}
-          onOpenOperational={(p) => {
-            setPmWizard(null);
-            setPmDetail(p);
-          }}
-          onOpenWizard={(p) => {
-            setPmDetail(null);
-            setPmWizard(p);
-          }}
-          onExtract={(p) => {
-            setPmDetail(null);
-            setPmWizard(null);
-            setPmExtract(p);
-          }}
-        />
+        <div className="space-y-4">
+          <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
+          <ProjectBoard
+            projects={projects}
+            setProjects={setProjects}
+            onOpenOperational={(p) => {
+              setPmWizard(null);
+              setPmDetail(p);
+            }}
+            onOpenWizard={(p) => {
+              setPmDetail(null);
+              setPmWizard(p);
+            }}
+            onExtract={(p) => {
+              setPmDetail(null);
+              setPmWizard(null);
+              setPmExtract(p);
+            }}
+          />
+        </div>
       );
     }
   } else {
@@ -337,7 +388,7 @@ export default function App() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           title={subtitle}
-          userName={isPm ? "정하늘" : "나"}
+          userName={authSession?.name || (isPm ? "PM" : "Staff")}
           roleLabel={isPm ? "PM" : "직원"}
           onLogout={handleLogout}
           actions={actions}
@@ -347,4 +398,104 @@ export default function App() {
       <Toaster />
     </div>
   );
+}
+
+function mapApiProject(project: ApiProjectSummary): FrontendProjectSummary {
+  return {
+    id: String(project.projectId),
+    name: project.name,
+    client: project.pmEmployeeNumber ? `PM ${project.pmEmployeeNumber}` : "PM 미지정",
+    status: mapProjectStatus(project.status),
+    progress: project.status?.toUpperCase() === "COMPLETED" ? 100 : 0,
+    dueDate: project.plannedEndDate ?? "-",
+    riskCount: 0,
+    reqCount: 0,
+    wizardStep: 0,
+    estimate: "-",
+    updatedAt: formatUpdatedAt(project.plannedStartDate, project.plannedEndDate),
+    docs: [],
+  };
+}
+
+function mapProjectStatus(status: string): ProjectStatus {
+  const normalized = status.trim().toUpperCase();
+  if (normalized === "ACTIVE" || normalized === "IN_PROGRESS" || normalized === "진행중") {
+    return "진행중";
+  }
+  if (normalized === "COMPLETED" || normalized === "완료") return "완료";
+  if (normalized === "PENDING_APPROVAL" || normalized === "승인대기") return "승인대기";
+  if (normalized === "ANALYZING" || normalized === "분석중") return "분석중";
+  return "준비";
+}
+
+function formatUpdatedAt(startDate: string | null, endDate: string | null) {
+  if (startDate && endDate) return `${startDate} ~ ${endDate}`;
+  if (startDate) return `${startDate} 시작`;
+  if (endDate) return `${endDate} 종료 예정`;
+  return "-";
+}
+
+function getProjectLoadStatus(caught: unknown): ProjectLoadStatus {
+  if (caught instanceof ApiError) {
+    if (caught.status === 401) return "unauthorized";
+    if (caught.status === 403) return "forbidden";
+  }
+  return "error";
+}
+
+function getProjectLoadError(caught: unknown) {
+  if (caught instanceof ApiError && caught.status !== 401 && caught.status !== 403) {
+    return caught.message;
+  }
+  return "프로젝트 목록을 불러오지 못했습니다.";
+}
+
+function ProjectListNotice({
+  status,
+  error,
+}: {
+  status: ProjectLoadStatus;
+  error: string;
+}) {
+  if (status === "loading") {
+    return (
+      <Alert>
+        <AlertDescription>프로젝트 목록을 불러오는 중입니다.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (status === "empty") {
+    return (
+      <Alert>
+        <AlertDescription>등록된 프로젝트가 없습니다.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (status === "unauthorized") {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>세션이 만료되어 다시 로그인이 필요합니다.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (status === "forbidden") {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>프로젝트 목록을 조회할 권한이 없습니다.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error || "프로젝트 목록을 불러오지 못했습니다."}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return null;
 }

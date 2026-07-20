@@ -230,6 +230,153 @@ export function projectRequirements(p: ProjectSummary): Requirement[] {
   }));
 }
 
+/* =====================================================================
+ * 문서함 (프로젝트 산출물) · 리스크 관리 · AI 문서 검색
+ * ===================================================================*/
+
+export type DocCategory =
+  | "요구사항"
+  | "프로젝트 계획"
+  | "일정 및 WBS"
+  | "구조도"
+  | "화면 설계"
+  | "리스크";
+
+export type DocStatus =
+  | "AI 생성"
+  | "PM 승인"
+  | "최종 확정"
+  | "검토 대기"
+  | "재생성 필요"
+  | "PM 수정";
+
+export type DocTone =
+  | "green"
+  | "teal"
+  | "purple"
+  | "yellow"
+  | "red"
+  | "orange"
+  | "blue";
+
+export interface DocItem {
+  id: string;
+  title: string;
+  category: DocCategory;
+  status: DocStatus;
+  version: string;
+  updatedAt: string;
+  tone: DocTone;
+}
+
+export const DOC_CATEGORIES: DocCategory[] = [
+  "요구사항",
+  "프로젝트 계획",
+  "일정 및 WBS",
+  "구조도",
+  "화면 설계",
+  "리스크",
+];
+
+export const PROJECT_DOCS: DocItem[] = [
+  { id: "d1", title: "AI 요구사항 초안", category: "요구사항", status: "PM 승인", version: "v1.2", updatedAt: "2025-07-14", tone: "green" },
+  { id: "d2", title: "PM 확정 요구사항", category: "요구사항", status: "최종 확정", version: "v1.0", updatedAt: "2025-07-14", tone: "teal" },
+  { id: "d3", title: "WBS (업무 분류 체계)", category: "프로젝트 계획", status: "AI 생성", version: "v1.0", updatedAt: "2025-07-15", tone: "purple" },
+  { id: "d4", title: "프로젝트 간트 차트", category: "일정 및 WBS", status: "검토 대기", version: "v1.0", updatedAt: "2025-07-15", tone: "yellow" },
+  { id: "d5", title: "시스템 아키텍처", category: "구조도", status: "재생성 필요", version: "v1.0", updatedAt: "2025-07-13", tone: "red" },
+  { id: "d6", title: "기능 구조도", category: "구조도", status: "AI 생성", version: "v1.0", updatedAt: "2025-07-15", tone: "purple" },
+  { id: "d7", title: "사용자 흐름도", category: "화면 설계", status: "PM 승인", version: "v2.0", updatedAt: "2025-07-12", tone: "green" },
+  { id: "d8", title: "리스크 분석 보고서", category: "리스크", status: "검토 대기", version: "v1.1", updatedAt: "2025-07-15", tone: "orange" },
+  { id: "d9", title: "역할 및 책임표 (RACI)", category: "프로젝트 계획", status: "PM 수정", version: "v1.0", updatedAt: "2025-07-14", tone: "blue" },
+];
+
+export type ManagedRiskSeverity = "심각" | "높음" | "보통";
+export type ManagedRiskCategory =
+  | "요구사항 불명확"
+  | "요구사항 충돌"
+  | "일정 과다"
+  | "산출물 간 불일치";
+export type ManagedRiskStatus = "검토 대기" | "PM 수정" | "AI 생성" | "해결 완료";
+export type RiskLevel = "높음" | "보통" | "낮음";
+
+export interface ManagedRisk {
+  id: string;
+  title: string;
+  severity: ManagedRiskSeverity;
+  category: ManagedRiskCategory;
+  status: ManagedRiskStatus;
+  description: string;
+  impact: RiskLevel;
+  likelihood: RiskLevel;
+  cause: string;
+  aiSolution: string;
+  evidence: string[];
+}
+
+export const MANAGED_RISKS: ManagedRisk[] = [
+  {
+    id: "mr1",
+    title: "레거시 ERP 데이터 이관 범위 불명확",
+    severity: "심각",
+    category: "요구사항 불명확",
+    status: "검토 대기",
+    description: "현행 SAP 시스템의 데이터 이관 범위(5년? 전체?)가 RFP와 회의록 간에 상충합니다.",
+    impact: "높음",
+    likelihood: "높음",
+    cause: "현행 SAP 시스템의 데이터 이관 범위(5년? 전체?)가 RFP와 회의록 간에 상충합니다.",
+    aiSolution:
+      "이해관계자 회의를 통해 이관 데이터 범위와 방식을 명문화하고, 기술 검토 후 WBS에 반영",
+    evidence: ["현행시스템_분석보고서.docx", "2025_07_킥오프_회의록.pdf"],
+  },
+  {
+    id: "mr2",
+    title: "결제 단계 수 불일치 (2단계 vs 3단계)",
+    severity: "높음",
+    category: "요구사항 충돌",
+    status: "PM 수정",
+    description: "RFP에서는 2단계 결재를 기술했으나, 킥오프 회의록에서는 3단계를 명시.",
+    impact: "높음",
+    likelihood: "보통",
+    cause: "RFP 문서와 킥오프 회의록의 결재 프로세스 정의가 서로 다릅니다.",
+    aiSolution: "결재 라인 최종안을 발주사와 확정하고, 요구사항 문서 v1.3으로 갱신",
+    evidence: ["RFP_신제품출시_v2.pdf", "2025_07_킥오프_회의록.pdf"],
+  },
+  {
+    id: "mr3",
+    title: "성능 요구사항과 4개월 일정의 충돌",
+    severity: "높음",
+    category: "일정 과다",
+    status: "검토 대기",
+    description: "RFP 일정(4개월)에서 성능 테스트 및 부하 검증 기간이 충분히 확보되지 않았습니다.",
+    impact: "보통",
+    likelihood: "높음",
+    cause: "성능 검증에 필요한 최소 기간이 전체 일정에 반영되지 않았습니다.",
+    aiSolution: "성능 테스트 2주를 WBS에 추가하고, 오픈 일정을 2주 조정하는 안을 제시",
+    evidence: ["프로젝트_간트차트.pdf"],
+  },
+  {
+    id: "mr4",
+    title: "보안 요구사항이 아키텍처 산출물에 미반영",
+    severity: "보통",
+    category: "산출물 간 불일치",
+    status: "AI 생성",
+    description: "ISMS 기준 암호화 요구사항이 시스템 아키텍처 산출물에 아직 반영되지 않았습니다.",
+    impact: "높음",
+    likelihood: "낮음",
+    cause: "요구사항 문서에는 있으나 아키텍처 문서 v1.0에 암호화 계층이 없습니다.",
+    aiSolution: "아키텍처 산출물을 재생성하고 암호화/키관리 계층을 명시",
+    evidence: ["시스템_아키텍처.pdf", "보안정책_검토안.pdf"],
+  },
+];
+
+export const AI_SEARCH_EXAMPLES: string[] = [
+  "이 프로젝트의 핵심 기능 요구사항을 보여줘",
+  "보안과 관련된 모든 문서를 찾아줘",
+  "요구사항과 WBS가 일치하지 않는 부분을 찾아줘",
+  "최신 화면 설계 문서를 보여줘",
+  "리스크가 가장 높은 산출물은 무엇인지 분석해줘",
+];
+
 export const KPI_PM = {
   progress: 62,
   daysLeft: 14,

@@ -43,26 +43,42 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
+
     setError("");
     setMessage("");
+
+    if (step === "verification") {
+      const normalizedCode = verificationCode.trim();
+      if (!/^\d{6}$/.test(normalizedCode)) {
+        setError("6자리 인증번호를 입력해 주세요.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       if (step === "credentials") {
         const response = await projectRepository.login({
-          email,
+          email: email.trim(),
           password,
           role: toApiRole(role),
         });
-        setMessage(response.message || "인증번호를 전송했습니다.");
+        setMessage(response.message || "인증번호를 보냈습니다.");
         setStep("verification");
         return;
       }
 
       const response = await projectRepository.verifyLogin({
-        email,
-        verificationCode,
+        email: email.trim(),
+        verificationCode: verificationCode.trim(),
       });
+
+      if (!response.accessToken?.trim()) {
+        throw new ApiError(401, "인증이 완료되지 않았습니다.");
+      }
+
       onLogin(response);
     } catch (caught) {
       setError(getLoginError(caught));
@@ -72,13 +88,15 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
   };
 
   const handleResend = async () => {
+    if (isSubmitting) return;
+
     setError("");
     setMessage("");
     setIsSubmitting(true);
 
     try {
-      const response = await projectRepository.resendLoginVerification(email);
-      setMessage(response.message || "인증번호를 다시 전송했습니다.");
+      const response = await projectRepository.resendLoginVerification(email.trim());
+      setMessage(response.message || "인증번호를 다시 보냈습니다.");
     } catch (caught) {
       setError(getLoginError(caught));
     } finally {
@@ -239,15 +257,6 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
 
 function getLoginError(caught: unknown) {
   if (caught instanceof ApiError) {
-    if (caught.status === 401) {
-      return "이메일, 비밀번호, 역할 또는 인증번호를 확인해 주세요.";
-    }
-    if (caught.status === 403) {
-      return "로그인 권한이 없습니다.";
-    }
-    if (caught.status === 429) {
-      return "잠시 후 다시 인증번호를 요청해 주세요.";
-    }
     return caught.message || "로그인 요청에 실패했습니다.";
   }
 

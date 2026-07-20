@@ -173,6 +173,11 @@ function normalizeSession(response: LoginVerifyResponse | AuthSessionResponse): 
 }
 
 function saveSession(response: LoginVerifyResponse | AuthSessionResponse) {
+  if (!isAuthenticatedSessionResponse(response)) {
+    clearSession();
+    throw new ApiError(401, "인증이 완료되지 않았습니다.");
+  }
+
   const session = normalizeSession(response);
   if (canUseStorage()) {
     window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
@@ -191,8 +196,8 @@ function readSession() {
   }
 
   try {
-    const session = JSON.parse(raw) as AuthSession;
-    if (!session.accessToken || session.absoluteExpiresAt <= Date.now()) {
+    const session = JSON.parse(raw) as unknown;
+    if (!isStoredSession(session) || session.absoluteExpiresAt <= Date.now()) {
       window.localStorage.removeItem(AUTH_SESSION_KEY);
       return null;
     }
@@ -207,6 +212,50 @@ function clearSession() {
   if (canUseStorage()) {
     window.localStorage.removeItem(AUTH_SESSION_KEY);
   }
+}
+
+function isStoredSession(session: unknown): session is AuthSession {
+  if (!session || typeof session !== "object") {
+    return false;
+  }
+
+  const candidate = session as Partial<AuthSession>;
+  return (
+    typeof candidate.employeeNumber === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.role === "string" &&
+    typeof candidate.accessToken === "string" &&
+    candidate.accessToken.trim().length > 0 &&
+    (candidate.refreshToken === null || typeof candidate.refreshToken === "string") &&
+    typeof candidate.accessTokenExpiresAt === "number" &&
+    Number.isFinite(candidate.accessTokenExpiresAt) &&
+    typeof candidate.absoluteExpiresAt === "number" &&
+    Number.isFinite(candidate.absoluteExpiresAt) &&
+    typeof candidate.lastActivityAt === "number" &&
+    Number.isFinite(candidate.lastActivityAt) &&
+    typeof candidate.serverTime === "number" &&
+    Number.isFinite(candidate.serverTime) &&
+    typeof candidate.inactivityTimeoutMinutes === "number" &&
+    Number.isFinite(candidate.inactivityTimeoutMinutes)
+  );
+}
+
+function isAuthenticatedSessionResponse(
+  response: LoginVerifyResponse | AuthSessionResponse,
+): response is LoginVerifyResponse | AuthSessionResponse {
+  const markedAsAuthenticated =
+    ("success" in response && response.success === true) ||
+    ("authenticated" in response && response.authenticated === true);
+
+  return markedAsAuthenticated && isStoredSession(response);
+}
+
+function ensureLoginStepReady(response: LoginResponse) {
+  if (response.success && response.verificationRequired) {
+    return response;
+  }
+
+  throw new ApiError(401, response.message || "로그인 요청에 실패했습니다.", response);
 }
 
 function getErrorMessage(payload: unknown, fallback: string) {
@@ -308,7 +357,7 @@ export const projectRepository = {
     return apiFetch<LoginResponse>("/users/login", {
       method: "POST",
       body: JSON.stringify(input),
-    });
+    }).then(ensureLoginStepReady);
   },
 
   verifyLogin(input: LoginVerifyRequest) {
@@ -316,8 +365,11 @@ export const projectRepository = {
       method: "POST",
       body: JSON.stringify(input),
     }).then((response) => {
-      saveSession(response);
-      return response;
+      const session = saveSession(response);
+      return {
+        ...response,
+        ...session,
+      };
     });
   },
 
@@ -325,7 +377,7 @@ export const projectRepository = {
     return apiFetch<LoginResponse>("/users/login/resend", {
       method: "POST",
       body: JSON.stringify({ email }),
-    });
+    }).then(ensureLoginStepReady);
   },
 
   getStoredSession() {

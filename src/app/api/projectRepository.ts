@@ -13,6 +13,34 @@ import {
   TASK_CHECKLIST,
   TEAM,
   WORKFLOW_STEPS,
+  PM_AI_FILES,
+  PM_LIBRARY_FILES,
+  PM_PLANNING_AGENTS,
+  PM_REPORT_AGENTS,
+  PM_GENERATED_ARTIFACTS,
+  PM_ANALYSIS_STATS,
+  PM_CHAT_HISTORY,
+  STAFF_SHARED_DOCS,
+  STAFF_MY_DOCS,
+  STAFF_ASSET_ICONS,
+  STAFF_REVIEW_ACTIVITY,
+  RISK_DETECTIONS,
+  TEAM_COMMS,
+  OPEN_RISKS,
+  RISK_SOLUTIONS,
+  PM_RISK_KPIS,
+  PM_RISK_ROWS,
+  PM_RISK_COMMENT,
+  PM_RISK_COMMENT_TAGS,
+  PM_LABOR_CHECKS,
+  PM_PRIVACY_ITEMS,
+  PM_HANDOVER_CHECKS,
+  PM_RISK_ACTIONS,
+  PM_QUICK_TOOLS,
+  UPLOADED_RFPS,
+  REVIEW_SUBMISSIONS,
+  STAFF_SUBMITTABLE,
+  PROJECTS,
   type Role,
   type Task,
   type TaskColumn,
@@ -46,6 +74,10 @@ export const projectRepository = {
     return WORKFLOW_STEPS;
   },
 
+  getProjects() {
+    return { projects: PROJECTS };
+  },
+
   getPmDashboard() {
     return {
       kpis: KPI_PM,
@@ -60,6 +92,20 @@ export const projectRepository = {
     return {
       requirements: REQUIREMENTS,
       risks: RISKS,
+      assignees: ASSIGNEES,
+    };
+  },
+
+  getPmRequirements() {
+    return {
+      requirements: REQUIREMENTS,
+    };
+  },
+
+  getPmAssign() {
+    return {
+      requirements: REQUIREMENTS,
+      team: TEAM,
       assignees: ASSIGNEES,
     };
   },
@@ -80,6 +126,70 @@ export const projectRepository = {
       aiSummary: AI_TASK_SUMMARY,
       feedback: STAFF_FEEDBACK,
     };
+  },
+
+  getPmDocuments() {
+    return {
+      aiFiles: PM_AI_FILES,
+      libraryFiles: PM_LIBRARY_FILES,
+      planningAgents: PM_PLANNING_AGENTS,
+      reportAgents: PM_REPORT_AGENTS,
+      artifacts: PM_GENERATED_ARTIFACTS,
+      stats: PM_ANALYSIS_STATS,
+      chatHistory: PM_CHAT_HISTORY,
+    };
+  },
+
+  getStaffDocuments() {
+    return {
+      sharedDocs: STAFF_SHARED_DOCS,
+      myDocs: STAFF_MY_DOCS,
+      assetIcons: STAFF_ASSET_ICONS,
+      reviewActivity: STAFF_REVIEW_ACTIVITY,
+    };
+  },
+
+  getRiskBoard() {
+    return {
+      detections: RISK_DETECTIONS,
+      teamComms: TEAM_COMMS,
+      openRisks: OPEN_RISKS,
+      solutions: RISK_SOLUTIONS,
+    };
+  },
+
+  getPmRisk() {
+    return {
+      kpis: PM_RISK_KPIS,
+      rows: PM_RISK_ROWS,
+      comment: PM_RISK_COMMENT,
+      commentTags: PM_RISK_COMMENT_TAGS,
+      laborChecks: PM_LABOR_CHECKS,
+      privacyItems: PM_PRIVACY_ITEMS,
+      handoverChecks: PM_HANDOVER_CHECKS,
+      actions: PM_RISK_ACTIONS,
+      quickTools: PM_QUICK_TOOLS,
+    };
+  },
+
+  getPmUpload() {
+    return { uploaded: UPLOADED_RFPS };
+  },
+
+  getPmReview() {
+    return { submissions: REVIEW_SUBMISSIONS, feedback: STAFF_FEEDBACK };
+  },
+
+  getStaffContext() {
+    return { requirements: REQUIREMENTS };
+  },
+
+  getStaffSubmit() {
+    return { tasks: STAFF_SUBMITTABLE, checklist: TASK_CHECKLIST };
+  },
+
+  getStaffFeedback() {
+    return { feedback: STAFF_FEEDBACK };
   },
 
   async uploadRfp() {

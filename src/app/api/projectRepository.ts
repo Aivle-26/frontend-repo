@@ -48,6 +48,83 @@ import {
 
 export type { Role, Task, TaskColumn };
 
+const API_BASE = "/api";
+const AUTH_SESSION_KEY = "aipm.authSession";
+
+export class ApiError extends Error {
+  status: number;
+  payload: unknown;
+
+  constructor(status: number, message: string, payload?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+  role: string;
+}
+
+export interface LoginResponse {
+  success: boolean;
+  verificationRequired: boolean;
+  message: string;
+  expiresIn: number;
+}
+
+export interface LoginVerifyRequest {
+  email: string;
+  verificationCode: string;
+}
+
+export interface LoginVerifyResponse {
+  success: boolean;
+  message: string;
+  employeeNumber: string;
+  name: string;
+  role: string;
+  accessToken: string;
+  refreshToken: string | null;
+  accessTokenExpiresAt: number;
+  absoluteExpiresAt: number;
+  lastActivityAt: number;
+  serverTime: number;
+  inactivityTimeoutMinutes: number;
+}
+
+export interface AuthSession {
+  employeeNumber: string;
+  name: string;
+  role: string;
+  accessToken: string;
+  refreshToken: string | null;
+  accessTokenExpiresAt: number;
+  absoluteExpiresAt: number;
+  lastActivityAt: number;
+  serverTime: number;
+  inactivityTimeoutMinutes: number;
+}
+
+export interface AuthSessionResponse extends AuthSession {
+  authenticated: boolean;
+}
+
+export interface ProjectSummary {
+  projectId: number;
+  name: string;
+  description: string | null;
+  pmEmployeeNumber: string;
+  status: string;
+  plannedStartDate: string | null;
+  plannedEndDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AssignRequirementInput {
   requirementId: number;
   assignee: string;
@@ -65,7 +142,212 @@ export interface AddCommentInput {
   text: string;
 }
 
+interface ApiRequestInit extends RequestInit {
+  auth?: boolean;
+  retryOnUnauthorized?: boolean;
+}
+
+function canUseStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function emitAuthExpired() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("aipm:auth-expired"));
+  }
+}
+
+function normalizeSession(response: LoginVerifyResponse | AuthSessionResponse): AuthSession {
+  return {
+    employeeNumber: response.employeeNumber,
+    name: response.name,
+    role: response.role,
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    accessTokenExpiresAt: response.accessTokenExpiresAt,
+    absoluteExpiresAt: response.absoluteExpiresAt,
+    lastActivityAt: response.lastActivityAt,
+    serverTime: response.serverTime,
+    inactivityTimeoutMinutes: response.inactivityTimeoutMinutes,
+  };
+}
+
+function saveSession(response: LoginVerifyResponse | AuthSessionResponse) {
+  const session = normalizeSession(response);
+  if (canUseStorage()) {
+    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  }
+  return session;
+}
+
+function readSession() {
+  if (!canUseStorage()) {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(raw) as AuthSession;
+    if (!session.accessToken || session.absoluteExpiresAt <= Date.now()) {
+      window.localStorage.removeItem(AUTH_SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    window.localStorage.removeItem(AUTH_SESSION_KEY);
+    return null;
+  }
+}
+
+function clearSession() {
+  if (canUseStorage()) {
+    window.localStorage.removeItem(AUTH_SESSION_KEY);
+  }
+}
+
+function getErrorMessage(payload: unknown, fallback: string) {
+  if (payload && typeof payload === "object" && "message" in payload) {
+    const message = (payload as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+  return fallback;
+}
+
+async function parseResponse(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+async function refreshSession() {
+  const session = readSession();
+  if (!session?.refreshToken) {
+    return null;
+  }
+
+  try {
+    const refreshed = await apiFetch<AuthSessionResponse>("/users/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+      retryOnUnauthorized: false,
+    });
+    return saveSession(refreshed);
+  } catch {
+    clearSession();
+    return null;
+  }
+}
+
+async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { auth = false, retryOnUnauthorized = true, headers, ...requestInit } = init;
+  const requestHeaders = new Headers(headers);
+
+  if (
+    requestInit.body &&
+    typeof FormData !== "undefined" &&
+    !(requestInit.body instanceof FormData) &&
+    !requestHeaders.has("Content-Type")
+  ) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (auth) {
+    const session = readSession();
+    if (session?.accessToken) {
+      requestHeaders.set("Authorization", `Bearer ${session.accessToken}`);
+    }
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...requestInit,
+    headers: requestHeaders,
+  });
+  const payload = await parseResponse(response);
+
+  if (!response.ok) {
+    if (auth && response.status === 401 && retryOnUnauthorized) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        return apiFetch<T>(path, {
+          ...init,
+          retryOnUnauthorized: false,
+        });
+      }
+    }
+
+    if (auth && response.status === 401) {
+      clearSession();
+      emitAuthExpired();
+    }
+
+    throw new ApiError(response.status, getErrorMessage(payload, response.statusText), payload);
+  }
+
+  return payload as T;
+}
+
+export function toFrontendRole(role?: string): Role {
+  return role?.trim().toLowerCase() === "pm" ? "pm" : "staff";
+}
+
 export const projectRepository = {
+  login(input: LoginRequest) {
+    return apiFetch<LoginResponse>("/users/login", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  verifyLogin(input: LoginVerifyRequest) {
+    return apiFetch<LoginVerifyResponse>("/users/login/verify", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then((response) => {
+      saveSession(response);
+      return response;
+    });
+  },
+
+  resendLoginVerification(email: string) {
+    return apiFetch<LoginResponse>("/users/login/resend", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  getStoredSession() {
+    return readSession();
+  },
+
+  logout() {
+    const refreshToken = readSession()?.refreshToken;
+    clearSession();
+
+    if (refreshToken) {
+      void apiFetch("/users/logout", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => undefined);
+    }
+  },
+
+  listProjects() {
+    return apiFetch<ProjectSummary[]>("/projects", { auth: true });
+  },
+
   getProjectName() {
     return PROJECT_NAME;
   },

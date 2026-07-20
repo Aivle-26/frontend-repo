@@ -107,6 +107,8 @@ export default function App() {
     projectRepository.getStoredSession(),
   );
   const [authView, setAuthView] = useState<"login" | "signup">("login");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
   const [taskOpen, setTaskOpen] = useState(false);
@@ -192,15 +194,27 @@ export default function App() {
     setAuthSession(null);
   };
 
+  const openLogin = (options?: { email?: string; message?: string }) => {
+    setAuthView("login");
+    setLoginEmail(options?.email ?? "");
+    setLoginMessage(options?.message ?? "");
+  };
+
   if (!role) {
     return (
       <>
         {authView === "signup" ? (
-          <SignupScreen onBackToLogin={() => setAuthView("login")} />
+          <SignupScreen onBackToLogin={openLogin} />
         ) : (
           <LoginScreen
+            key={`${loginEmail}:${loginMessage}`}
+            initialEmail={loginEmail}
+            initialMessage={loginMessage}
             onLogin={handleLogin}
-            onSignupClick={() => setAuthView("signup")}
+            onSignupClick={() => {
+              setLoginMessage("");
+              setAuthView("signup");
+            }}
           />
         )}
         <Toaster />

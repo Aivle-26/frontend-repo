@@ -81,6 +81,22 @@ export interface LoginVerifyRequest {
   verificationCode: string;
 }
 
+export interface SignupRequest {
+  employeeNumber: string;
+  name: string;
+  email: string;
+  password: string;
+  role: "PM" | "STAFF";
+}
+
+export interface SignupResponse {
+  employeeNumber: string;
+  name: string;
+  email: string;
+  role: "PM" | "STAFF";
+  status: string;
+}
+
 export interface LoginVerifyResponse {
   success: boolean;
   message: string;
@@ -144,6 +160,7 @@ export interface AddCommentInput {
 
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
+  expectedStatuses?: number[];
   retryOnUnauthorized?: boolean;
 }
 
@@ -258,6 +275,25 @@ function ensureLoginStepReady(response: LoginResponse) {
   throw new ApiError(401, response.message || "로그인 요청에 실패했습니다.", response);
 }
 
+function ensureSignupCompleted(response: SignupResponse) {
+  const hasRequiredFields =
+    typeof response.employeeNumber === "string" &&
+    response.employeeNumber.trim().length > 0 &&
+    typeof response.name === "string" &&
+    response.name.trim().length > 0 &&
+    typeof response.email === "string" &&
+    response.email.trim().length > 0 &&
+    (response.role === "PM" || response.role === "STAFF") &&
+    typeof response.status === "string" &&
+    response.status.trim().length > 0;
+
+  if (hasRequiredFields) {
+    return response;
+  }
+
+  throw new ApiError(500, "회원가입 응답 형식이 올바르지 않습니다.", response);
+}
+
 function getErrorMessage(payload: unknown, fallback: string) {
   if (payload && typeof payload === "object" && "message" in payload) {
     const message = (payload as { message?: unknown }).message;
@@ -301,7 +337,13 @@ async function refreshSession() {
 }
 
 async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
-  const { auth = false, retryOnUnauthorized = true, headers, ...requestInit } = init;
+  const {
+    auth = false,
+    expectedStatuses,
+    retryOnUnauthorized = true,
+    headers,
+    ...requestInit
+  } = init;
   const requestHeaders = new Headers(headers);
 
   if (
@@ -345,6 +387,14 @@ async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> 
     throw new ApiError(response.status, getErrorMessage(payload, response.statusText), payload);
   }
 
+  if (expectedStatuses && !expectedStatuses.includes(response.status)) {
+    throw new ApiError(
+      response.status,
+      getErrorMessage(payload, "예상하지 못한 응답입니다."),
+      payload,
+    );
+  }
+
   return payload as T;
 }
 
@@ -353,6 +403,14 @@ export function toFrontendRole(role?: string): Role {
 }
 
 export const projectRepository = {
+  signup(input: SignupRequest) {
+    return apiFetch<SignupResponse>("/users/signup", {
+      method: "POST",
+      body: JSON.stringify(input),
+      expectedStatuses: [201],
+    }).then(ensureSignupCompleted);
+  },
+
   login(input: LoginRequest) {
     return apiFetch<LoginResponse>("/users/login", {
       method: "POST",

@@ -22,6 +22,8 @@ import { cn } from "@/app/components/ui/utils";
 interface LoginScreenProps {
   onLogin: (session: LoginVerifyResponse) => void;
   onSignupClick: () => void;
+  initialEmail?: string;
+  initialMessage?: string;
 }
 
 type LoginStep = "credentials" | "verification";
@@ -30,15 +32,20 @@ function toApiRole(role: Role) {
   return role === "pm" ? "PM" : "STAFF";
 }
 
-export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
-  const [email, setEmail] = useState("");
+export function LoginScreen({
+  onLogin,
+  onSignupClick,
+  initialEmail = "",
+  initialMessage = "",
+}: LoginScreenProps) {
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("pm");
   const [verificationCode, setVerificationCode] = useState("");
   const [step, setStep] = useState<LoginStep>("credentials");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [error, setError] = useState("");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {

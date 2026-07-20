@@ -1,6 +1,12 @@
-import { useState } from "react";
-import { Briefcase, CheckCircle2, Eye, EyeOff, UserRound } from "lucide-react";
-import type { Role } from "@/app/api/projectRepository";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { Briefcase, Eye, EyeOff, UserRound } from "lucide-react";
+import {
+  ApiError,
+  projectRepository,
+  type Role,
+  type SignupRequest,
+} from "@/app/api/projectRepository";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Input } from "@/app/components/ui/input";
 import {
   AuthShell,
@@ -14,41 +20,43 @@ import {
 import { cn } from "@/app/components/ui/utils";
 
 interface SignupScreenProps {
-  /** 로그인 화면으로 돌아가기 */
-  onBackToLogin: () => void;
+  onBackToLogin: (options?: { email?: string; message?: string }) => void;
 }
 
 interface SignupForm {
-  name: string;
   employeeNumber: string;
+  name: string;
   email: string;
-  department: string;
   password: string;
   passwordConfirm: string;
 }
 
-type FormErrors = Partial<Record<keyof SignupForm | "agreed", string>>;
+type FormErrors = Partial<Record<keyof SignupForm, string>>;
 
 const EMPTY_FORM: SignupForm = {
-  name: "",
   employeeNumber: "",
+  name: "",
   email: "",
-  department: "",
   password: "",
   passwordConfirm: "",
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
 
-function validate(form: SignupForm, agreed: boolean): FormErrors {
+function toApiRole(role: Role): SignupRequest["role"] {
+  return role === "pm" ? "PM" : "STAFF";
+}
+
+function validate(form: SignupForm): FormErrors {
   const errors: FormErrors = {};
-
-  if (!form.name.trim()) {
-    errors.name = "이름을 입력해 주세요.";
-  }
 
   if (!form.employeeNumber.trim()) {
     errors.employeeNumber = "사번을 입력해 주세요.";
+  }
+
+  if (!form.name.trim()) {
+    errors.name = "이름을 입력해 주세요.";
   }
 
   if (!form.email.trim()) {
@@ -59,16 +67,14 @@ function validate(form: SignupForm, agreed: boolean): FormErrors {
 
   if (!form.password) {
     errors.password = "비밀번호를 입력해 주세요.";
-  } else if (form.password.length < 8) {
-    errors.password = "비밀번호는 8자 이상이어야 합니다.";
+  } else if (!PASSWORD_PATTERN.test(form.password)) {
+    errors.password = "비밀번호는 8~72자이며 영문과 숫자를 포함해야 합니다.";
   }
 
-  if (form.passwordConfirm !== form.password) {
+  if (!form.passwordConfirm) {
+    errors.passwordConfirm = "비밀번호 확인을 입력해 주세요.";
+  } else if (form.passwordConfirm !== form.password) {
     errors.passwordConfirm = "비밀번호가 일치하지 않습니다.";
-  }
-
-  if (!agreed) {
-    errors.agreed = "약관에 동의해 주세요.";
   }
 
   return errors;
@@ -77,52 +83,59 @@ function validate(form: SignupForm, agreed: boolean): FormErrors {
 export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [role, setRole] = useState<Role>("pm");
-  const [agreed, setAgreed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const update =
-    (field: keyof SignupForm) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    (field: keyof SignupForm) => (event: ChangeEvent<HTMLInputElement>) => {
       setForm((current) => ({ ...current, [field]: event.target.value }));
       setErrors((current) => ({ ...current, [field]: undefined }));
+      setErrorMessage("");
     };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
 
-    const nextErrors = validate(form, agreed);
+    const normalizedForm: SignupForm = {
+      ...form,
+      employeeNumber: form.employeeNumber.trim(),
+      name: form.name.trim(),
+      email: form.email.trim(),
+    };
+
+    const nextErrors = validate(normalizedForm);
     setErrors(nextErrors);
+    setErrorMessage("");
 
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
 
-    // TODO: 백엔드 연동 시 authApi.signup(...) 호출로 교체
-    setSubmitted(true);
-  };
+    setIsSubmitting(true);
 
-  if (submitted) {
-    return (
-      <AuthShell title="가입 신청 완료" subtitle="관리자 승인 후 이용할 수 있습니다">
-        <div className="space-y-5 text-center">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#eef4ff]">
-            <CheckCircle2 className="size-7 text-[#2F6FF2]" />
-          </div>
-          <p className="text-[15px] leading-7 text-slate-600">
-            <span className="font-semibold text-slate-900">{form.name}</span>님의 가입
-            신청이 접수되었습니다.
-            <br />
-            승인 결과는 <span className="font-semibold">{form.email}</span> 로
-            안내드립니다.
-          </p>
-          <PrimaryButton type="button" onClick={onBackToLogin}>
-            로그인 화면으로
-          </PrimaryButton>
-        </div>
-      </AuthShell>
-    );
-  }
+    try {
+      await projectRepository.signup({
+        employeeNumber: normalizedForm.employeeNumber,
+        name: normalizedForm.name,
+        email: normalizedForm.email,
+        password: normalizedForm.password,
+        role: toApiRole(role),
+      });
+
+      setForm(EMPTY_FORM);
+      onBackToLogin({
+        email: normalizedForm.email,
+        message: "회원가입이 완료되었습니다. 로그인해주세요.",
+      });
+    } catch (caught) {
+      setErrorMessage(getSignupError(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <AuthShell
@@ -133,7 +146,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           이미 계정이 있으신가요?{" "}
           <button
             type="button"
-            onClick={onBackToLogin}
+            onClick={() => onBackToLogin()}
             className="font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80"
           >
             로그인
@@ -143,6 +156,18 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
     >
       <form className="space-y-3.5" onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <FormField label="사번" error={errors.employeeNumber}>
+            <Input
+              id="employeeNumber"
+              placeholder="PM100"
+              value={form.employeeNumber}
+              onChange={update("employeeNumber")}
+              className={INPUT_CLASS}
+              style={INPUT_STYLE}
+              disabled={isSubmitting}
+            />
+          </FormField>
+
           <FormField label="이름" error={errors.name}>
             <Input
               id="name"
@@ -151,41 +176,22 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
               onChange={update("name")}
               className={INPUT_CLASS}
               style={INPUT_STYLE}
-            />
-          </FormField>
-
-          <FormField label="사번" error={errors.employeeNumber}>
-            <Input
-              id="employeeNumber"
-              placeholder="PM-0001"
-              value={form.employeeNumber}
-              onChange={update("employeeNumber")}
-              className={INPUT_CLASS}
-              style={INPUT_STYLE}
+              disabled={isSubmitting}
             />
           </FormField>
         </div>
 
-        <FormField label="회사 이메일" error={errors.email}>
+        <FormField label="이메일" error={errors.email}>
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder={EMAIL_EXAMPLE}
             value={form.email}
             onChange={update("email")}
             className={INPUT_CLASS}
             style={INPUT_STYLE}
-          />
-        </FormField>
-
-        <FormField label="부서 (선택)">
-          <Input
-            id="department"
-            placeholder="사업기획팀"
-            value={form.department}
-            onChange={update("department")}
-            className={INPUT_CLASS}
-            style={INPUT_STYLE}
+            disabled={isSubmitting}
           />
         </FormField>
 
@@ -194,17 +200,20 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
-              placeholder="8자 이상 입력해 주세요"
+              autoComplete="new-password"
+              placeholder="영문과 숫자를 포함해 8~72자"
               value={form.password}
               onChange={update("password")}
               className={cn(INPUT_CLASS, "pr-11")}
               style={INPUT_STYLE}
+              disabled={isSubmitting}
             />
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+              disabled={isSubmitting}
             >
               {showPassword ? (
                 <EyeOff className="size-4.5" />
@@ -219,11 +228,13 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           <Input
             id="passwordConfirm"
             type={showPassword ? "text" : "password"}
+            autoComplete="new-password"
             placeholder="비밀번호를 다시 입력해 주세요"
             value={form.passwordConfirm}
             onChange={update("passwordConfirm")}
             className={INPUT_CLASS}
             style={INPUT_STYLE}
+            disabled={isSubmitting}
           />
         </FormField>
 
@@ -231,6 +242,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <RoleCard
               active={role === "pm"}
+              disabled={isSubmitting}
               onClick={() => setRole("pm")}
               icon={<Briefcase className="size-4" />}
               title="PM"
@@ -238,6 +250,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             />
             <RoleCard
               active={role === "staff"}
+              disabled={isSubmitting}
               onClick={() => setRole("staff")}
               icon={<UserRound className="size-4" />}
               title="직원"
@@ -246,31 +259,26 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           </div>
         </FormField>
 
-        <div className="space-y-1.5 pt-0.5">
-          <label className="flex cursor-pointer items-start gap-2.5 text-[14px] leading-6 text-slate-600">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(event) => {
-                setAgreed(event.target.checked);
-                setErrors((current) => ({ ...current, agreed: undefined }));
-              }}
-              className="mt-1 size-4 shrink-0 rounded border-slate-300 accent-[#2F6FF2]"
-            />
-            <span>
-              서비스 이용약관 및 개인정보 처리방침에 동의합니다.{" "}
-              <span className="text-[#2F6FF2]">(필수)</span>
-            </span>
-          </label>
-          {errors.agreed ? (
-            <p className="text-[13px] text-rose-600">{errors.agreed}</p>
-          ) : null}
-        </div>
+        {errorMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
         <div className="pt-1">
-          <PrimaryButton>가입 신청</PrimaryButton>
+          <PrimaryButton disabled={isSubmitting}>
+            {isSubmitting ? "회원가입 처리 중..." : "회원가입"}
+          </PrimaryButton>
         </div>
       </form>
     </AuthShell>
   );
+}
+
+function getSignupError(caught: unknown) {
+  if (caught instanceof ApiError) {
+    return caught.message || "회원가입에 실패했습니다.";
+  }
+
+  return "네트워크 오류가 발생했습니다. 다시 시도해 주세요.";
 }

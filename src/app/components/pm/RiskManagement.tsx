@@ -15,6 +15,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
+import { CommunicationRiskCard } from "@/app/components/common/CommunicationRiskCard";
 import {
   MANAGED_RISKS,
   type ManagedRisk,
@@ -171,8 +172,9 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
           })}
         </div>
 
-        {/* 상세 패널 */}
-        <div>
+        {/* 우측 컬럼: 커뮤니케이션 리스크 + 선택한 리스크 상세 */}
+        <div className="space-y-4">
+          <CommunicationRiskCard projectId={project.id} />
           {selected ? (
             <Card className="sticky top-4">
               <CardContent className="space-y-4 pt-5">

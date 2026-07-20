@@ -1,13 +1,10 @@
-import { useMemo, useState } from "react";
 import {
   Search,
   ShieldCheck,
   Share2,
   Download,
   Plus,
-  MessageSquare,
   Settings,
-  Megaphone,
   Github,
   Cloud,
   Bot,
@@ -27,11 +24,8 @@ import {
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
 import { projectRepository } from "@/app/api/projectRepository";
-import type {
-  RiskSeverity,
-  TeamCommItem,
-  OpenRiskState,
-} from "@/app/data/demoData";
+import { CommunicationRiskCard } from "@/app/components/common/CommunicationRiskCard";
+import type { RiskSeverity, OpenRiskState } from "@/app/data/demoData";
 
 function severityBadge(s: RiskSeverity) {
   const map: Record<RiskSeverity, string> = {
@@ -52,32 +46,19 @@ function stateBadge(s: OpenRiskState) {
   return map[s];
 }
 
-const COMM_ICON: Record<TeamCommItem["kind"], React.ComponentType<{ className?: string }>> = {
-  message: MessageSquare,
-  system: Settings,
-  notice: Megaphone,
-};
-
 const SERVICE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   github: Github,
   jira: Share2,
   cloudwatch: Cloud,
 };
 
-type CommFilter = "전체" | "안읽음" | "공지";
+interface StaffRiskProps {
+  /** 대상 프로젝트. 커뮤니케이션 리스크 분석 단위. */
+  projectId: string;
+}
 
-export function StaffRisk() {
-  const { detections, teamComms, openRisks, solutions } =
-    projectRepository.getRiskBoard();
-
-  const [filter, setFilter] = useState<CommFilter>("전체");
-  const unreadCount = teamComms.filter((c) => c.unread).length;
-
-  const filteredComms = useMemo(() => {
-    if (filter === "안읽음") return teamComms.filter((c) => c.unread);
-    if (filter === "공지") return teamComms.filter((c) => c.kind === "notice");
-    return teamComms;
-  }, [filter, teamComms]);
+export function StaffRisk({ projectId }: StaffRiskProps) {
+  const { detections, openRisks, solutions } = projectRepository.getRiskBoard();
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -122,75 +103,8 @@ export function StaffRisk() {
         </CardContent>
       </Card>
 
-      {/* 팀 커뮤니케이션 */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="mb-4">
-            <span className="text-foreground">팀 커뮤니케이션</span>
-          </div>
-          <div className="mb-3 flex items-center gap-2">
-            {(["전체", "안읽음", "공지"] as CommFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors",
-                  filter === f
-                    ? "bg-blue-600 text-white"
-                    : "bg-muted text-muted-foreground hover:bg-muted/70",
-                )}
-              >
-                {f}
-                {f === "안읽음" && (
-                  <span
-                    className={cn(
-                      "flex size-5 items-center justify-center rounded-full text-[11px]",
-                      filter === f ? "bg-white/20 text-white" : "bg-red-500 text-white",
-                    )}
-                  >
-                    {unreadCount}
-                  </span>
-                )}
-                {f === "공지" && <Megaphone className="size-3.5" />}
-              </button>
-            ))}
-          </div>
-          <div className="divide-y divide-border">
-            {filteredComms.map((c) => {
-              const Icon = COMM_ICON[c.kind];
-              return (
-                <div key={c.id} className="flex items-start gap-3 py-3">
-                  <span
-                    className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-full",
-                      c.kind === "notice"
-                        ? "bg-amber-50 text-amber-600"
-                        : c.kind === "system"
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-blue-50 text-blue-600",
-                    )}
-                  >
-                    <Icon className="size-4" />
-                  </span>
-                  <div className="flex-1 leading-tight">
-                    <div className="flex items-center gap-2">
-                      <span className="text-foreground text-sm">{c.title}</span>
-                      {c.unread && <span className="size-1.5 rounded-full bg-red-500" />}
-                    </div>
-                    <p className="text-muted-foreground text-xs mt-0.5">{c.body}</p>
-                  </div>
-                  <span className="shrink-0 text-muted-foreground text-xs">{c.time}</span>
-                </div>
-              );
-            })}
-            {filteredComms.length === 0 && (
-              <p className="py-6 text-center text-muted-foreground text-sm">
-                해당하는 항목이 없습니다.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) */}
+      <CommunicationRiskCard projectId={projectId} />
 
       {/* 미해결 주요 리스크 */}
       <Card className="border-red-100 bg-red-50/30">

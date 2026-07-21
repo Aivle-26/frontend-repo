@@ -97,6 +97,18 @@ export interface SignupResponse {
   status: string;
 }
 
+export interface SignupStartResponse {
+  success: boolean;
+  verificationRequired: boolean;
+  message: string;
+  expiresIn: number;
+}
+
+export interface SignupVerifyRequest {
+  email: string;
+  verificationCode: string;
+}
+
 export interface LoginVerifyResponse {
   success: boolean;
   message: string;
@@ -275,6 +287,14 @@ function ensureLoginStepReady(response: LoginResponse) {
   throw new ApiError(401, response.message || "로그인 요청에 실패했습니다.", response);
 }
 
+function ensureSignupStepReady(response: SignupStartResponse) {
+  if (response.success && response.verificationRequired) {
+    return response;
+  }
+
+  throw new ApiError(401, response.message || "회원가입 인증 요청에 실패했습니다.", response);
+}
+
 function ensureSignupCompleted(response: SignupResponse) {
   const hasRequiredFields =
     typeof response.employeeNumber === "string" &&
@@ -404,7 +424,14 @@ export function toFrontendRole(role?: string): Role {
 
 export const projectRepository = {
   signup(input: SignupRequest) {
-    return apiFetch<SignupResponse>("/users/signup", {
+    return apiFetch<SignupStartResponse>("/users/signup", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then(ensureSignupStepReady);
+  },
+
+  verifySignup(input: SignupVerifyRequest) {
+    return apiFetch<SignupResponse>("/users/signup/verify", {
       method: "POST",
       body: JSON.stringify(input),
       expectedStatuses: [201],

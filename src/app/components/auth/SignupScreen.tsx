@@ -29,9 +29,11 @@ interface SignupForm {
   email: string;
   password: string;
   passwordConfirm: string;
+  verificationCode: string;
 }
 
 type FormErrors = Partial<Record<keyof SignupForm, string>>;
+type SignupStep = "details" | "verification";
 
 const EMPTY_FORM: SignupForm = {
   employeeNumber: "",
@@ -39,6 +41,7 @@ const EMPTY_FORM: SignupForm = {
   email: "",
   password: "",
   passwordConfirm: "",
+  verificationCode: "",
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -84,7 +87,9 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [role, setRole] = useState<Role>("pm");
   const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState<SignupStep>("details");
   const [errors, setErrors] = useState<FormErrors>({});
+  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -92,12 +97,18 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
     (field: keyof SignupForm) => (event: ChangeEvent<HTMLInputElement>) => {
       setForm((current) => ({ ...current, [field]: event.target.value }));
       setErrors((current) => ({ ...current, [field]: undefined }));
+      setMessage("");
       setErrorMessage("");
     };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmitting) return;
+
+    if (step === "verification") {
+      await handleVerifySignup();
+      return;
+    }
 
     const normalizedForm: SignupForm = {
       ...form,
@@ -108,6 +119,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
 
     const nextErrors = validate(normalizedForm);
     setErrors(nextErrors);
+    setMessage("");
     setErrorMessage("");
 
     if (Object.keys(nextErrors).length > 0) {
@@ -125,9 +137,48 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
         role: toApiRole(role),
       });
 
-      setForm(EMPTY_FORM);
-      onBackToLogin({
+      setForm((current) => ({
+        ...current,
+        employeeNumber: normalizedForm.employeeNumber,
+        name: normalizedForm.name,
         email: normalizedForm.email,
+        password: normalizedForm.password,
+        passwordConfirm: normalizedForm.passwordConfirm,
+        verificationCode: "",
+      }));
+      setStep("verification");
+      setMessage("이메일로 발송된 6자리 인증번호를 입력해 주세요.");
+    } catch (caught) {
+      setErrorMessage(getSignupError(caught));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifySignup = async () => {
+    const verificationCode = form.verificationCode.trim();
+    setMessage("");
+    setErrorMessage("");
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setErrors((current) => ({
+        ...current,
+        verificationCode: "6자리 인증번호를 입력해 주세요.",
+      }));
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await projectRepository.verifySignup({
+        email: form.email.trim(),
+        verificationCode,
+      });
+      setForm(EMPTY_FORM);
+      setStep("details");
+      onBackToLogin({
+        email: form.email.trim(),
         message: "회원가입이 완료되었습니다. 로그인해주세요.",
       });
     } catch (caught) {
@@ -136,6 +187,16 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
       setIsSubmitting(false);
     }
   };
+
+  const handleEditDetails = () => {
+    setStep("details");
+    setMessage("");
+    setErrorMessage("");
+    setErrors({});
+    setForm((current) => ({ ...current, verificationCode: "" }));
+  };
+
+  const isVerificationStep = step === "verification";
 
   return (
     <AuthShell
@@ -164,7 +225,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
               onChange={update("employeeNumber")}
               className={INPUT_CLASS}
               style={INPUT_STYLE}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
             />
           </FormField>
 
@@ -176,7 +237,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
               onChange={update("name")}
               className={INPUT_CLASS}
               style={INPUT_STYLE}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
             />
           </FormField>
         </div>
@@ -191,7 +252,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             onChange={update("email")}
             className={INPUT_CLASS}
             style={INPUT_STYLE}
-            disabled={isSubmitting}
+            disabled={isVerificationStep || isSubmitting}
           />
         </FormField>
 
@@ -206,14 +267,14 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
               onChange={update("password")}
               className={cn(INPUT_CLASS, "pr-11")}
               style={INPUT_STYLE}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
             />
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
             >
               {showPassword ? (
                 <EyeOff className="size-4.5" />
@@ -234,7 +295,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             onChange={update("passwordConfirm")}
             className={INPUT_CLASS}
             style={INPUT_STYLE}
-            disabled={isSubmitting}
+            disabled={isVerificationStep || isSubmitting}
           />
         </FormField>
 
@@ -242,7 +303,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <RoleCard
               active={role === "pm"}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
               onClick={() => setRole("pm")}
               icon={<Briefcase className="size-4" />}
               title="PM"
@@ -250,7 +311,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             />
             <RoleCard
               active={role === "staff"}
-              disabled={isSubmitting}
+              disabled={isVerificationStep || isSubmitting}
               onClick={() => setRole("staff")}
               icon={<UserRound className="size-4" />}
               title="직원"
@@ -258,6 +319,44 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             />
           </div>
         </FormField>
+
+        {isVerificationStep ? (
+          <FormField label="이메일 인증번호" error={errors.verificationCode}>
+            <Input
+              id="signupVerificationCode"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              autoComplete="one-time-code"
+              placeholder="6자리 인증번호"
+              value={form.verificationCode}
+              onChange={(event) => {
+                const value = event.target.value.replace(/\D/g, "");
+                setForm((current) => ({ ...current, verificationCode: value }));
+                setErrors((current) => ({ ...current, verificationCode: undefined }));
+                setMessage("");
+                setErrorMessage("");
+              }}
+              className={INPUT_CLASS}
+              style={INPUT_STYLE}
+              disabled={isSubmitting}
+            />
+            <button
+              type="button"
+              className="mt-2 text-sm font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isSubmitting}
+              onClick={handleEditDetails}
+            >
+              회원가입 정보 수정
+            </button>
+          </FormField>
+        ) : null}
+
+        {message ? (
+          <Alert>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {errorMessage ? (
           <Alert variant="destructive">
@@ -267,7 +366,13 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
 
         <div className="pt-1">
           <PrimaryButton disabled={isSubmitting}>
-            {isSubmitting ? "회원가입 처리 중..." : "회원가입"}
+            {isSubmitting
+              ? isVerificationStep
+                ? "인증 확인 중..."
+                : "인증번호 발송 중..."
+              : isVerificationStep
+                ? "인증 후 회원가입 완료"
+                : "인증번호 받기"}
           </PrimaryButton>
         </div>
       </form>

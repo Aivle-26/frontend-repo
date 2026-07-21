@@ -26,8 +26,6 @@ interface LoginScreenProps {
   initialMessage?: string;
 }
 
-type LoginStep = "credentials" | "verification";
-
 function toApiRole(role: Role) {
   return role === "pm" ? "PM" : "STAFF";
 }
@@ -41,8 +39,6 @@ export function LoginScreen({
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("pm");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [step, setStep] = useState<LoginStep>("credentials");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(initialMessage);
@@ -55,35 +51,17 @@ export function LoginScreen({
     setError("");
     setMessage("");
 
-    if (step === "verification") {
-      const normalizedCode = verificationCode.trim();
-      if (!/^\d{6}$/.test(normalizedCode)) {
-        setError("6자리 인증번호를 입력해 주세요.");
-        return;
-      }
-    }
-
     setIsSubmitting(true);
 
     try {
-      if (step === "credentials") {
-        const response = await projectRepository.login({
-          email: email.trim(),
-          password,
-          role: toApiRole(role),
-        });
-        setMessage(response.message || "인증번호를 보냈습니다.");
-        setStep("verification");
-        return;
-      }
-
-      const response = await projectRepository.verifyLogin({
+      const response = await projectRepository.login({
         email: email.trim(),
-        verificationCode: verificationCode.trim(),
+        password,
+        role: toApiRole(role),
       });
 
       if (!response.accessToken?.trim()) {
-        throw new ApiError(401, "인증이 완료되지 않았습니다.");
+        throw new ApiError(401, "로그인에 실패했습니다.");
       }
 
       onLogin(response);
@@ -93,25 +71,6 @@ export function LoginScreen({
       setIsSubmitting(false);
     }
   };
-
-  const handleResend = async () => {
-    if (isSubmitting) return;
-
-    setError("");
-    setMessage("");
-    setIsSubmitting(true);
-
-    try {
-      const response = await projectRepository.resendLoginVerification(email.trim());
-      setMessage(response.message || "인증번호를 다시 보냈습니다.");
-    } catch (caught) {
-      setError(getLoginError(caught));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const isVerificationStep = step === "verification";
 
   return (
     <AuthShell
@@ -139,7 +98,7 @@ export function LoginScreen({
             placeholder={EMAIL_EXAMPLE}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            disabled={isVerificationStep || isSubmitting}
+            disabled={isSubmitting}
             className={INPUT_CLASS}
             style={INPUT_STYLE}
             required
@@ -155,7 +114,7 @@ export function LoginScreen({
               placeholder="비밀번호를 입력해 주세요"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              disabled={isVerificationStep || isSubmitting}
+              disabled={isSubmitting}
               className={cn(INPUT_CLASS, "pr-11")}
               style={INPUT_STYLE}
               required
@@ -165,7 +124,7 @@ export function LoginScreen({
               onClick={() => setShowPassword((current) => !current)}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-              disabled={isVerificationStep || isSubmitting}
+              disabled={isSubmitting}
             >
               {showPassword ? (
                 <EyeOff className="size-4.5" />
@@ -180,7 +139,7 @@ export function LoginScreen({
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <RoleCard
               active={role === "pm"}
-              disabled={isVerificationStep || isSubmitting}
+              disabled={isSubmitting}
               onClick={() => setRole("pm")}
               icon={<Briefcase className="size-4" />}
               title="PM"
@@ -188,7 +147,7 @@ export function LoginScreen({
             />
             <RoleCard
               active={role === "staff"}
-              disabled={isVerificationStep || isSubmitting}
+              disabled={isSubmitting}
               onClick={() => setRole("staff")}
               icon={<UserRound className="size-4" />}
               title="직원"
@@ -196,35 +155,6 @@ export function LoginScreen({
             />
           </div>
         </FormField>
-
-        {isVerificationStep ? (
-          <FormField label="인증번호">
-            <Input
-              id="verificationCode"
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              autoComplete="one-time-code"
-              placeholder="6자리 인증번호"
-              value={verificationCode}
-              onChange={(event) =>
-                setVerificationCode(event.target.value.replace(/\D/g, ""))
-              }
-              disabled={isSubmitting}
-              className={INPUT_CLASS}
-              style={INPUT_STYLE}
-              required
-            />
-            <button
-              type="button"
-              className="mt-2 text-sm font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isSubmitting}
-              onClick={handleResend}
-            >
-              인증번호 다시 받기
-            </button>
-          </FormField>
-        ) : null}
 
         {message ? (
           <Alert>
@@ -240,22 +170,8 @@ export function LoginScreen({
 
         <div className="space-y-2 pt-0.5">
           <PrimaryButton disabled={isSubmitting}>
-            {isVerificationStep ? "인증 후 로그인" : "인증번호 요청"}
+            {isSubmitting ? "로그인 중..." : "로그인"}
           </PrimaryButton>
-          {isVerificationStep ? (
-            <PrimaryButton
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => {
-                setStep("credentials");
-                setVerificationCode("");
-                setError("");
-                setMessage("");
-              }}
-            >
-              로그인 정보 수정
-            </PrimaryButton>
-          ) : null}
         </div>
       </form>
     </AuthShell>

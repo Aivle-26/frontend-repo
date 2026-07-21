@@ -439,10 +439,16 @@ export const projectRepository = {
   },
 
   login(input: LoginRequest) {
-    return apiFetch<LoginResponse>("/users/login", {
+    return apiFetch<LoginVerifyResponse>("/users/login", {
       method: "POST",
       body: JSON.stringify(input),
-    }).then(ensureLoginStepReady);
+    }).then((response) => {
+      const session = saveSession(response);
+      return {
+        ...response,
+        ...session,
+      };
+    });
   },
 
   verifyLogin(input: LoginVerifyRequest) {

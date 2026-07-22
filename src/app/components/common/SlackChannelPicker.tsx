@@ -10,10 +10,10 @@ import {
   slackChannelApi,
   type SlackChannelCandidate,
 } from "@/app/api/slackChannelApi";
-import { loadAuthSession } from "@/app/auth/authSession";
+import { getAccessToken } from "@/app/api/authToken";
 
 function currentAccessToken(): string | null {
-  return loadAuthSession()?.accessToken ?? null;
+  return getAccessToken();
 }
 
 interface SlackChannelPickerProps {

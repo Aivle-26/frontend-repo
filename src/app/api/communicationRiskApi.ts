@@ -21,6 +21,24 @@ const API_BASE: string =
   (import.meta as unknown as { env?: Record<string, string> }).env
     ?.VITE_COMMUNICATION_RISK_API || "http://localhost:8080";
 
+/**
+ * 과도기 임시 매핑.
+ *
+ * 프론트의 프로젝트 목록은 아직 데모 데이터라 id가 "prj-launch" 같은 slug다.
+ * 반면 백엔드 프로젝트는 숫자 id를 쓴다. VITE_COMMUNICATION_RISK_PROJECT_ID 를
+ * 설정하면 모든 커뮤니케이션 리스크 호출이 그 숫자 id로 고정된다.
+ *
+ * 프로젝트 목록까지 실제 API로 교체하면 이 상수와 resolveProjectId를 삭제하고
+ * 호출부에서 projectId를 그대로 쓰면 된다.
+ */
+const OVERRIDE_PROJECT_ID: string | undefined =
+  (import.meta as unknown as { env?: Record<string, string> }).env
+    ?.VITE_COMMUNICATION_RISK_PROJECT_ID;
+
+function resolveProjectId(projectId: string): string {
+  return OVERRIDE_PROJECT_ID ?? projectId;
+}
+
 /** AI 서버 판정 등급. 화면 표기는 severityLabel()로 변환한다. */
 export type CommunicationRiskLevel = "HIGH" | "MEDIUM" | "LOW";
 
@@ -126,7 +144,7 @@ export const communicationRiskApi = {
     accessToken?: string | null,
   ): Promise<CommunicationRiskResult> {
     const res = await fetch(
-      `${API_BASE}/api/projects/${encodeURIComponent(projectId)}/communication-risks`,
+      `${API_BASE}/api/projects/${encodeURIComponent(resolveProjectId(projectId))}/communication-risks`,
       { headers: authHeaders(accessToken) },
     );
     if (!res.ok) throw await parseError(res);
@@ -142,7 +160,7 @@ export const communicationRiskApi = {
     accessToken?: string | null,
   ): Promise<CommunicationRiskResult> {
     const res = await fetch(
-      `${API_BASE}/api/projects/${encodeURIComponent(projectId)}/communication-risks/refresh`,
+      `${API_BASE}/api/projects/${encodeURIComponent(resolveProjectId(projectId))}/communication-risks/refresh`,
       { method: "POST", headers: authHeaders(accessToken) },
     );
     if (!res.ok) throw await parseError(res);

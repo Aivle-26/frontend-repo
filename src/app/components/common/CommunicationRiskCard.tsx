@@ -25,6 +25,15 @@ import {
   DEMO_COMMUNICATION_RISK,
   type CommunicationRiskResult,
 } from "@/app/api/communicationRiskApi";
+import { loadAuthSession } from "@/app/auth/authSession";
+import { slackChannelApi } from "@/app/api/slackChannelApi";
+import { SlackChannelPicker } from "@/app/components/common/SlackChannelPicker";
+import { Settings2 } from "lucide-react";
+
+/** 로그인 세션에서 accessToken을 꺼낸다. /api/projects/** 는 인증이 필요하다. */
+function currentAccessToken(): string | null {
+  return loadAuthSession()?.accessToken ?? null;
+}
 
 interface CommunicationRiskCardProps {
   projectId: string;
@@ -61,17 +70,32 @@ export function CommunicationRiskCard({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  /** null = 아직 확인 전, 0 = 미연결(채널 선택 화면), 1+ = 연결됨 */
+  const [linkedCount, setLinkedCount] = useState<number | null>(null);
+  /** 채널 편집(연결된 뒤에도 다시 고르기) 모드 */
+  const [editingChannels, setEditingChannels] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await communicationRiskApi.get(projectId);
-      setData(result);
+      const token = currentAccessToken();
+      // 먼저 채널이 연결돼 있는지 본다. 없으면 분석 이전에 채널 선택부터 해야 한다.
+      const channels = await slackChannelApi.list(projectId, token);
+      setLinkedCount(channels.length);
+
+      if (channels.length === 0) {
+        setData(null);
+      } else {
+        const result = await communicationRiskApi.get(projectId, token);
+        setData(result);
+      }
       setIsDemo(false);
     } catch (e) {
       if (fallbackToDemo) {
+        // 백엔드 미연결 상태: 더미로 화면 유지. 채널 단계는 건너뛴다.
         setData(DEMO_COMMUNICATION_RISK);
+        setLinkedCount(1);
         setIsDemo(true);
       } else {
         setError(e instanceof Error ? e.message : "알 수 없는 오류");
@@ -86,10 +110,15 @@ export function CommunicationRiskCard({
     void load();
   }, [load]);
 
+  const handleChannelsSaved = useCallback(() => {
+    setEditingChannels(false);
+    void load();
+  }, [load]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const result = await communicationRiskApi.refresh(projectId);
+      const result = await communicationRiskApi.refresh(projectId, currentAccessToken());
       setData(result);
       setIsDemo(false);
       toast.success("커뮤니케이션 리스크를 다시 분석했습니다.");
@@ -116,25 +145,55 @@ export function CommunicationRiskCard({
               </Badge>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void handleRefresh()}
-            disabled={loading || refreshing}
-          >
-            <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
-            재분석
-          </Button>
+          {/* 분석 결과가 있을 때만 상단에 재분석 + 채널편집 노출 */}
+          {!loading && !error && linkedCount !== 0 && data && !isDemo && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditingChannels(true)}
+                disabled={refreshing}
+              >
+                <Settings2 className="size-4" />
+                채널 편집
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+              >
+                <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
+                재분석
+              </Button>
+            </div>
+          )}
+          {isDemo && (
+            <Button variant="outline" size="sm" disabled>
+              <RefreshCw className="size-4" />
+              재분석
+            </Button>
+          )}
         </div>
 
         {loading ? (
           <LoadingState />
         ) : error ? (
           <ErrorState message={error} onRetry={() => void load()} />
+        ) : editingChannels || linkedCount === 0 ? (
+          <SlackChannelPicker projectId={projectId} onSaved={handleChannelsSaved} />
         ) : !data || data.status === "NEVER_ANALYZED" ? (
           <EmptyState onAnalyze={() => void handleRefresh()} busy={refreshing} />
         ) : (
           <ResultView data={data} />
+        )}
+
+        {editingChannels && (
+          <div className="mt-3 flex justify-start">
+            <Button variant="ghost" size="sm" onClick={() => setEditingChannels(false)}>
+              취소
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

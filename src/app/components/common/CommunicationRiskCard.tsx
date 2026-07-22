@@ -22,27 +22,20 @@ import {
   severityLabel,
   severityTone,
   llmStatusLabel,
-  DEMO_COMMUNICATION_RISK,
   type CommunicationRiskResult,
 } from "@/app/api/communicationRiskApi";
-import { loadAuthSession } from "@/app/auth/authSession";
 import { slackChannelApi } from "@/app/api/slackChannelApi";
 import { SlackChannelPicker } from "@/app/components/common/SlackChannelPicker";
+import { getAccessToken } from "@/app/api/authToken";
 import { Settings2 } from "lucide-react";
 
 /** 로그인 세션에서 accessToken을 꺼낸다. /api/projects/** 는 인증이 필요하다. */
 function currentAccessToken(): string | null {
-  return loadAuthSession()?.accessToken ?? null;
+  return getAccessToken();
 }
 
 interface CommunicationRiskCardProps {
   projectId: string;
-  /**
-   * 백엔드 미구현 상태에서 화면을 확인하기 위한 스위치.
-   * 네트워크 오류가 나면 더미 데이터로 대체하고 배지로 명시한다.
-   * 백엔드 연동이 끝나면 이 prop과 관련 분기를 삭제할 것.
-   */
-  fallbackToDemo?: boolean;
 }
 
 function formatKst(iso: string): string {
@@ -61,15 +54,11 @@ function formatRelative(iso: string): string {
   }
 }
 
-export function CommunicationRiskCard({
-  projectId,
-  fallbackToDemo = true,
-}: CommunicationRiskCardProps) {
+export function CommunicationRiskCard({ projectId }: CommunicationRiskCardProps) {
   const [data, setData] = useState<CommunicationRiskResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
   /** null = 아직 확인 전, 0 = 미연결(채널 선택 화면), 1+ = 연결됨 */
   const [linkedCount, setLinkedCount] = useState<number | null>(null);
   /** 채널 편집(연결된 뒤에도 다시 고르기) 모드 */
@@ -90,21 +79,13 @@ export function CommunicationRiskCard({
         const result = await communicationRiskApi.get(projectId, token);
         setData(result);
       }
-      setIsDemo(false);
     } catch (e) {
-      if (fallbackToDemo) {
-        // 백엔드 미연결 상태: 더미로 화면 유지. 채널 단계는 건너뛴다.
-        setData(DEMO_COMMUNICATION_RISK);
-        setLinkedCount(1);
-        setIsDemo(true);
-      } else {
-        setError(e instanceof Error ? e.message : "알 수 없는 오류");
-        setData(null);
-      }
+      setError(e instanceof Error ? e.message : "알 수 없는 오류");
+      setData(null);
     } finally {
       setLoading(false);
     }
-  }, [projectId, fallbackToDemo]);
+  }, [projectId]);
 
   useEffect(() => {
     void load();
@@ -120,7 +101,6 @@ export function CommunicationRiskCard({
     try {
       const result = await communicationRiskApi.refresh(projectId, currentAccessToken());
       setData(result);
-      setIsDemo(false);
       toast.success("커뮤니케이션 리스크를 다시 분석했습니다.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "재분석에 실패했습니다.");
@@ -136,17 +116,9 @@ export function CommunicationRiskCard({
           <div className="flex items-center gap-2">
             <MessagesSquare className="size-4 text-blue-600" />
             <span className="text-foreground">Slack 커뮤니케이션 리스크</span>
-            {isDemo && (
-              <Badge
-                variant="outline"
-                className="border-dashed font-normal text-muted-foreground"
-              >
-                데모 데이터
-              </Badge>
-            )}
           </div>
           {/* 분석 결과가 있을 때만 상단에 재분석 + 채널편집 노출 */}
-          {!loading && !error && linkedCount !== 0 && data && !isDemo && (
+          {!loading && !error && linkedCount !== 0 && data && (
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -167,12 +139,6 @@ export function CommunicationRiskCard({
                 재분석
               </Button>
             </div>
-          )}
-          {isDemo && (
-            <Button variant="outline" size="sm" disabled>
-              <RefreshCw className="size-4" />
-              재분석
-            </Button>
           )}
         </div>
 

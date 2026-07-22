@@ -48,7 +48,11 @@ import {
 
 export type { Role, Task, TaskColumn };
 
-const API_BASE = "/api";
+// 백엔드 주소 + /api. 다른 API 클라이언트(authApi 등)와 동일한 규칙을 쓴다.
+// "/api"만 두면 요청이 프론트 dev 서버(5173)로 새서 404가 난다.
+const API_BASE: string =
+  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_AUTH_API ||
+    "http://localhost:8080") + "/api";
 const AUTH_SESSION_KEY = "aipm.authSession";
 
 export class ApiError extends Error {

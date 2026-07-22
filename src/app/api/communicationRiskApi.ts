@@ -17,9 +17,12 @@
  * (스키마 협의 문서: docs/API-커뮤니케이션리스크-스펙초안.md)
  */
 
+// 배포(vercel.json)는 /api/* 를 EC2로 넘기므로 env 없이 상대경로 요청이 프록시를 탄다.
+// 로컬은 프록시가 없으니 VITE_COMMUNICATION_RISK_API(=http://localhost:8080)를 지정한다.
+// env가 있으면 절대경로, 없으면(배포) 상대경로("")로 /api/... 를 그대로 부른다.
 const API_BASE: string =
   (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.VITE_COMMUNICATION_RISK_API || "http://localhost:8080";
+    ?.VITE_COMMUNICATION_RISK_API || "";
 
 /**
  * 과도기 임시 매핑.

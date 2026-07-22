@@ -48,11 +48,12 @@ import {
 
 export type { Role, Task, TaskColumn };
 
-// 백엔드 주소 + /api. 다른 API 클라이언트(authApi 등)와 동일한 규칙을 쓴다.
-// "/api"만 두면 요청이 프론트 dev 서버(5173)로 새서 404가 난다.
-const API_BASE: string =
-  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_AUTH_API ||
-    "http://localhost:8080") + "/api";
+// 배포 환경(vercel.json)은 /api/* 를 EC2로 넘기는 rewrite가 있어 상대경로 "/api"가 맞다.
+// 로컬 개발은 그 프록시가 없으므로 VITE_AUTH_API(=http://localhost:8080)를 지정해 절대경로로 쓴다.
+// 즉 env가 있으면 그걸 붙이고, 없으면(배포) 상대경로 "/api"를 쓴다.
+const AUTH_API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_AUTH_API;
+const API_BASE: string = AUTH_API_BASE ? `${AUTH_API_BASE}/api` : "/api";
 const AUTH_SESSION_KEY = "aipm.authSession";
 
 export class ApiError extends Error {

@@ -11,9 +11,11 @@
  *   DELETE /api/projects/{projectId}/slack-channels/{channelId} 해제
  */
 
+// 배포(vercel.json)는 /api/* 를 EC2로 넘기므로 env 없이 상대경로 요청이 프록시를 탄다.
+// 로컬은 VITE_COMMUNICATION_RISK_API(=http://localhost:8080)를 지정한다.
 const API_BASE: string =
   (import.meta as unknown as { env?: Record<string, string> }).env
-    ?.VITE_COMMUNICATION_RISK_API || "http://localhost:8080";
+    ?.VITE_COMMUNICATION_RISK_API || "";
 
 /**
  * 과도기 임시 매핑. 프론트 프로젝트 목록이 아직 데모라 id가 slug다.

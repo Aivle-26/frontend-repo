@@ -85,7 +85,6 @@ const STAFF_MENU: SidebarItem[] = [
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
-const BYPASS_LOGIN = true; // 로그인 임시 우회 (PM화면 진입)
 
 const SCOPED_PM = new Set([
   "upload",
@@ -119,34 +118,20 @@ export default function App() {
   const [taskOpen, setTaskOpen] = useState(false);
   // const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
 
-  // 로그인 임시 우회 (PM화면 진입)
-  const [projects, setProjects] = useState<FrontendProjectSummary[]>(
-    BYPASS_LOGIN ? PROJECTS : [],
-  );
+  const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
 
   const [projectLoadStatus, setProjectLoadStatus] = useState<ProjectLoadStatus>("idle");
   const [projectLoadError, setProjectLoadError] = useState("");
   const [pmDetail, setPmDetail] = useState<FrontendProjectSummary | null>(null);
   const [pmWizard, setPmWizard] = useState<FrontendProjectSummary | null>(null);
   const [pmExtract, setPmExtract] = useState<FrontendProjectSummary | null>(null);
-  /* const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    "",
-  ); */
-
-  // 로그인 임시 우회 (PM화면 진입)
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    BYPASS_LOGIN ? PROJECTS[0]?.id ?? "" : "",
+    "",
   );
 
-  // const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
 
+  const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
 
-  // 로그인 임시 우회 (PM화면 진입)
-  const role: Role | null = BYPASS_LOGIN
-    ? "staff" // 직원화면은 staff로 지정
-    : authSession
-      ? toFrontendRole(authSession.role)
-      : null;
 
   const startProject = (id: string) =>
     setProjects((prev) =>
@@ -176,14 +161,6 @@ export default function App() {
       setProjectLoadStatus("idle");
       return;
     }
-
-    // 로그인 임시 우회(PM화면 진입)
-    if (BYPASS_LOGIN) {
-        setProjects(PROJECTS);
-        setSelectedProjectId(PROJECTS[0]?.id ?? "");
-        setProjectLoadStatus(PROJECTS.length > 0 ? "ready" : "empty");
-        return;
-      }
 
     let ignore = false;
     setProjectLoadStatus("loading");

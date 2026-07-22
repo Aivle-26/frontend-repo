@@ -461,6 +461,25 @@ export const TEAM: TeamMember[] = [
   { id: "m4", name: "최예나", role: "운영 담당", done: 3, total: 4 },
 ];
 
+/** 프로젝트별 참여 직원 목록. PM 문서 열람 권한과 보고서 생성 요청에서 사용합니다. */
+const PROJECT_MEMBER_IDS: Record<string, string[]> = {
+  "prj-launch": ["m1", "m2", "m3", "m4"],
+  "prj-renewal": ["m2", "m4"],
+  "prj-traffic": ["m1", "m3", "m4"],
+  "prj-internal": ["m1", "m3"],
+  "prj-migration": ["m2", "m4"],
+};
+
+export function projectMembers(projectId: string): TeamMember[] {
+  const memberIds = PROJECT_MEMBER_IDS[projectId];
+
+  if (!memberIds) {
+    return TEAM;
+  }
+
+  return TEAM.filter((member) => memberIds.includes(member.id));
+}
+
 export const RISKS: RiskItem[] = [
   {
     id: "r1",

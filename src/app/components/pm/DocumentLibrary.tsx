@@ -9,6 +9,9 @@ import {
   Sparkles,
   RefreshCw,
   Download,
+  ArrowRight,
+  ShieldCheck,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -16,14 +19,33 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/components/ui/utils";
+import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
+import { Checkbox } from "@/app/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
 import {
   DOC_CATEGORIES,
   PROJECT_DOCS,
+  projectMembers,
   type DocCategory,
   type DocItem,
   type DocStatus,
   type DocTone,
   type ProjectSummary,
+  type TeamMember,
 } from "@/app/data/demoData";
 
 const TONE_BG: Record<DocTone, string> = {
@@ -59,12 +81,34 @@ function ribbon(s: DocStatus) {
   return null;
 }
 
-export function DocumentLibrary({ project }: { project: ProjectSummary }) {
+interface DocumentLibraryProps {
+  project: ProjectSummary;
+  onOpenAiGeneration: () => void;
+}
+
+export function DocumentLibrary({
+  project,
+  onOpenAiGeneration,
+}: DocumentLibraryProps) {
   const [category, setCategory] = useState<"전체" | DocCategory>("전체");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
 
   const docs = PROJECT_DOCS;
+  const members = useMemo(() => projectMembers(project.id), [project.id]);
+
+  const [reportAssigneeId, setReportAssigneeId] = useState(
+    () => projectMembers(project.id)[0]?.id ?? "",
+  );
+
+  const [accessByDocument, setAccessByDocument] = useState<
+    Record<string, string[]>
+  >(() => createInitialAccess(PROJECT_DOCS, projectMembers(project.id)));
+
+  const [permissionDocument, setPermissionDocument] =
+    useState<DocItem | null>(null);
+
+  const [permissionDraft, setPermissionDraft] = useState<string[]>([]);
 
   const counts = useMemo(() => {
     const c = new Map<DocCategory, number>();
@@ -82,134 +126,395 @@ export function DocumentLibrary({ project }: { project: ProjectSummary }) {
     });
   }, [docs, category, query]);
 
+  const openPermissionDialog = (doc: DocItem) => {
+    setPermissionDocument(doc);
+    setPermissionDraft(accessByDocument[doc.id] ?? []);
+  };
+
+  const togglePermission = (memberId: string, checked: boolean) => {
+    setPermissionDraft((current) =>
+      checked
+        ? Array.from(new Set([...current, memberId]))
+        : current.filter((id) => id !== memberId),
+    );
+  };
+
+  const savePermissions = () => {
+    if (!permissionDocument) {
+      return;
+    }
+
+    setAccessByDocument((current) => ({
+      ...current,
+      [permissionDocument.id]: permissionDraft,
+    }));
+
+    toast.success(
+      `“${permissionDocument.title}” 열람 권한을 ${permissionDraft.length}명에게 부여했습니다.`,
+    );
+
+    setPermissionDocument(null);
+  };
+const requestReport = () => {
+  const assignee = members.find(
+    (member) => member.id === reportAssigneeId,
+  );
+
+  if (!assignee) {
+    toast.error("보고서 생성을 요청할 직원을 선택해 주세요.");
+    return;
+  }
+
+  toast.success(
+    `${assignee.name}님에게 보고서 생성을 요청했습니다.`,
+  );
+};
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
-      {/* 문서 분류 */}
-      <Card className="h-fit">
-        <CardContent className="pt-5">
-          <div className="mb-3 text-foreground text-sm">문서 분류</div>
-          <div className="space-y-0.5">
-            <CategoryRow
-              icon={<Layers className="size-4" />}
-              label="전체 문서"
-              count={docs.length}
-              active={category === "전체"}
-              onClick={() => setCategory("전체")}
-            />
-            {DOC_CATEGORIES.map((c) => (
-              <CategoryRow
-                key={c}
-                icon={<FileText className="size-4" />}
-                label={c}
-                count={counts.get(c) ?? 0}
-                active={category === c}
-                onClick={() => setCategory(c)}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 문서 목록 */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="leading-tight">
-            <h2 className="text-foreground">문서함</h2>
-            <p className="text-muted-foreground text-sm">
-              {project.name} · {category === "전체" ? "전체 산출물" : category}{" "}
-              {filtered.length}건
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="문서 검색"
-                className="h-9 w-56 pl-8"
-              />
-            </div>
-            <div className="flex rounded-lg border border-border p-0.5">
-              <button
-                onClick={() => setView("grid")}
-                aria-label="그리드 보기"
-                className={cn(
-                  "rounded-md p-1.5",
-                  view === "grid" ? "bg-muted text-foreground" : "text-muted-foreground",
-                )}
-              >
-                <LayoutGrid className="size-4" />
-              </button>
-              <button
-                onClick={() => setView("list")}
-                aria-label="리스트 보기"
-                className={cn(
-                  "rounded-md p-1.5",
-                  view === "list" ? "bg-muted text-foreground" : "text-muted-foreground",
-                )}
-              >
-                <List className="size-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {filtered.length === 0 && (
-          <Card>
-            <CardContent className="py-16 text-center text-muted-foreground text-sm">
-              조건에 맞는 문서가 없습니다.
+      <>
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
+          {/* 문서 분류 */}
+          <Card className="h-fit">
+            <CardContent className="pt-5">
+              <div className="mb-3 text-foreground text-sm">문서 분류</div>
+              <div className="space-y-0.5">
+                <CategoryRow
+                  icon={<Layers className="size-4" />}
+                  label="전체 문서"
+                  count={docs.length}
+                  active={category === "전체"}
+                  onClick={() => setCategory("전체")}
+                />
+                {DOC_CATEGORIES.map((c) => (
+                  <CategoryRow
+                    key={c}
+                    icon={<FileText className="size-4" />}
+                    label={c}
+                    count={counts.get(c) ?? 0}
+                    active={category === c}
+                    onClick={() => setCategory(c)}
+                  />
+                ))}
+              </div>
             </CardContent>
           </Card>
-        )}
 
-        {view === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((d) => (
-              <DocCard key={d.id} doc={d} />
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="divide-y divide-border pt-2">
-              {filtered.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 py-3">
-                  <span
+                {/* 보고서 생성 요청 + 문서 목록 */}
+                <div className="space-y-4">
+                  <ReportRequestPanel
+                    members={members}
+                    assigneeId={reportAssigneeId}
+                    onAssigneeChange={setReportAssigneeId}
+                    onRequest={requestReport}
+                    onOpenAiGeneration={onOpenAiGeneration}
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="leading-tight">
+                <h2 className="text-foreground">문서함</h2>
+                <p className="text-muted-foreground text-sm">
+                  {project.name} · {category === "전체" ? "전체 산출물" : category}{" "}
+                  {filtered.length}건
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="문서 검색"
+                    className="h-9 w-56 pl-8"
+                  />
+                </div>
+                <div className="flex rounded-lg border border-border p-0.5">
+                  <button
+                    onClick={() => setView("grid")}
+                    aria-label="그리드 보기"
                     className={cn(
-                      "flex size-9 items-center justify-center rounded-md",
-                      TONE_BG[d.tone],
+                      "rounded-md p-1.5",
+                      view === "grid" ? "bg-muted text-foreground" : "text-muted-foreground",
                     )}
                   >
-                    <FileText className="size-4 text-foreground/60" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-foreground text-sm">{d.title}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {d.version} · {d.updatedAt}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="font-normal">
-                    {d.category}
-                  </Badge>
-                  <Badge variant="outline" className={cn("font-normal", statusClass(d.status))}>
-                    {d.status}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    aria-label="다운로드"
-                    onClick={() => toast(`'${d.title}' 다운로드`)}
+                    <LayoutGrid className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => setView("list")}
+                    aria-label="리스트 보기"
+                    className={cn(
+                      "rounded-md p-1.5",
+                      view === "list" ? "bg-muted text-foreground" : "text-muted-foreground",
+                    )}
                   >
-                    <Download className="size-4" />
-                  </Button>
+                    <List className="size-4" />
+                  </button>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+              </div>
+            </div>
+
+            {filtered.length === 0 && (
+              <Card>
+                <CardContent className="py-16 text-center text-muted-foreground text-sm">
+                  조건에 맞는 문서가 없습니다.
+                </CardContent>
+              </Card>
+            )}
+
+            {view === "grid" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map((d) => (
+                  <DocCard
+                    key={d.id}
+                    doc={d}
+                    accessCount={(accessByDocument[d.id] ?? []).length}
+                    onDownload={() => downloadDocument(d, project)}
+                    onManageAccess={() => openPermissionDialog(d)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="divide-y divide-border pt-2">
+                  {filtered.map((d) => (
+                    <div key={d.id} className="flex items-center gap-3 py-3">
+                      <span
+                        className={cn(
+                          "flex size-9 items-center justify-center rounded-md",
+                          TONE_BG[d.tone],
+                        )}
+                      >
+                        <FileText className="size-4 text-foreground/60" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-foreground text-sm">{d.title}</div>
+                        <div className="text-muted-foreground text-xs">
+                          {d.version} · {d.updatedAt}
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="font-normal">
+                        {d.category}
+                      </Badge>
+                      <Badge variant="outline" className={cn("font-normal", statusClass(d.status))}>
+                        {d.status}
+                      </Badge>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openPermissionDialog(d)}
+                      >
+                        <ShieldCheck className="size-4" />
+                        열람 권한 {(accessByDocument[d.id] ?? []).length}명
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => downloadDocument(d, project)}
+                      >
+                        <Download className="size-4" />
+                        다운로드
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label="다운로드"
+                        onClick={() => toast(`'${d.title}' 다운로드`)}
+                      >
+                        <Download className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                              </CardContent>
+                            </Card>
+                          )}
+                        </div>
+                      </div>
+
+                      <Dialog
+                        open={Boolean(permissionDocument)}
+                        onOpenChange={(open) => {
+                          if (!open) setPermissionDocument(null);
+                        }}
+                      >
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>문서 열람 권한</DialogTitle>
+
+                            <DialogDescription>
+                              “{permissionDocument?.title}”을 열람할 수 있는{" "}
+                              {project.name} 참여 직원을 선택하세요.
+                            </DialogDescription>
+                          </DialogHeader>
+
+                          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                            <span className="text-sm text-muted-foreground">
+                              선택된 직원 {permissionDraft.length}명
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setPermissionDraft(
+                                    members.map((member) => member.id),
+                                  )
+                                }
+                              >
+                                전체 선택
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPermissionDraft([])}
+                              >
+                                전체 해제
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                            {members.map((member) => {
+                              const checked = permissionDraft.includes(member.id);
+
+                              return (
+                                <label
+                                  key={member.id}
+                                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-muted/60"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(value) =>
+                                      togglePermission(member.id, value === true)
+                                    }
+                                    aria-label={`${member.name} 열람 권한`}
+                                  />
+
+                                  <Avatar className="size-8">
+                                    <AvatarFallback className="text-xs">
+                                      {member.name.slice(0, 1)}
+                                    </AvatarFallback>
+                                  </Avatar>
+
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block text-sm text-foreground">
+                                      {member.name}
+                                    </span>
+
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                      {member.role}
+                                    </span>
+                                  </span>
+
+                                  <Badge
+                                    variant={checked ? "secondary" : "outline"}
+                                    className="font-normal"
+                                  >
+                                    {checked ? "열람 가능" : "권한 없음"}
+                                  </Badge>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => setPermissionDocument(null)}
+                            >
+                              취소
+                            </Button>
+
+                            <Button onClick={savePermissions}>
+                              권한 저장
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  );
+
+}
+
+function ReportRequestPanel({
+  members,
+  assigneeId,
+  onAssigneeChange,
+  onRequest,
+  onOpenAiGeneration,
+}: {
+  members: TeamMember[];
+  assigneeId: string;
+  onAssigneeChange: (value: string) => void;
+  onRequest: () => void;
+  onOpenAiGeneration: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 py-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <FileText className="size-5" />
+          </span>
+
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              보고서 생성 요청
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              프로젝트 담당 직원에게 보고서 작성을 요청합니다.
+            </div>
+          </div>
+
+          <Button
+            onClick={onRequest}
+            disabled={members.length === 0}
+          >
+            보고서 생성 요청
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <div className="flex items-center gap-2">
+            <Users className="size-4 text-muted-foreground" />
+
+            <Select
+              value={assigneeId}
+              onValueChange={onAssigneeChange}
+              disabled={members.length === 0}
+            >
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="직원 선택" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {members.map((member) => (
+                  <SelectItem
+                    key={member.id}
+                    value={member.id}
+                  >
+                    {member.name} · {member.role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={onOpenAiGeneration}
+          >
+            <Sparkles className="size-4" />
+            AI 생성 바로가기
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -243,14 +548,26 @@ function CategoryRow({
   );
 }
 
-function DocCard({ doc: d }: { doc: DocItem }) {
+function DocCard({
+  doc: d,
+  accessCount,
+  onDownload,
+  onManageAccess,
+}: {
+  doc: DocItem;
+  accessCount: number;
+  onDownload: () => void;
+  onManageAccess: () => void;
+}) {
   const rb = ribbon(d.status);
   const RibbonIcon = rb?.icon;
   return (
-    <button
-      onClick={() => toast(`'${d.title}' 열기`)}
-      className="overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-md"
-    >
+    <article className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md">
+      <button
+        type="button"
+        onClick={() => toast(`“${d.title}” 열기`)}
+        className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
       {/* 썸네일 */}
       <div className={cn("relative flex h-32 items-center justify-center", TONE_BG[d.tone])}>
         <FileText className="size-9 text-foreground/25" />
@@ -282,5 +599,93 @@ function DocCard({ doc: d }: { doc: DocItem }) {
         </div>
       </div>
     </button>
+          <div className="grid grid-cols-2 gap-2 border-t border-border p-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onManageAccess}
+            >
+              <ShieldCheck className="size-4" />
+              열람 권한 {accessCount}명
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={onDownload}
+            >
+              <Download className="size-4" />
+              다운로드
+            </Button>
+          </div>
+        </article>
   );
+}
+function createInitialAccess(
+  docs: DocItem[],
+  members: TeamMember[],
+) {
+  return docs.reduce<Record<string, string[]>>(
+    (result, doc) => {
+      result[doc.id] = members.map(
+        (member) => member.id,
+      );
+
+  //위 3줄 초기 권한 인원 삭제하려면 result[doc.id] = [];
+
+      return result;
+    },
+    {},
+  );
+}
+
+function downloadDocument(
+  doc: DocItem,
+  project: ProjectSummary,
+) {
+  const fileName =
+    `${sanitizeFileName(doc.title)}_${doc.version}.txt`;
+
+  const content = [
+    `프로젝트: ${project.name}`,
+    `문서명: ${doc.title}`,
+    `분류: ${doc.category}`,
+    `상태: ${doc.status}`,
+    `버전: ${doc.version}`,
+    `최종 수정일: ${doc.updatedAt}`,
+    "",
+    "현재 문서함은 데모 데이터로 구성되어 있어 문서 메타데이터를 내려받습니다.",
+    "백엔드 문서 API가 연결되면 실제 파일 URL로 교체할 수 있습니다.",
+  ].join("\n");
+
+  const blob = new Blob(
+    [content],
+    {
+      type: "text/plain;charset=utf-8",
+    },
+  );
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.setTimeout(
+    () => URL.revokeObjectURL(url),
+    0,
+  );
+
+  toast.success(
+    `“${doc.title}” 다운로드를 시작했습니다.`,
+  );
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .trim();
 }

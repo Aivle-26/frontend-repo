@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   UploadCloud,
+  Bot,
   Sparkles,
   FileText,
   Users,
@@ -58,10 +59,12 @@ import {
   type ProjectStatus,
   type ProjectSummary as FrontendProjectSummary,
 } from "@/app/data/demoData";
+import { PmGeneration } from "@/app/components/pm/PmGeneration";
 
 const PM_MENU: SidebarItem[] = [
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard },
   { key: "upload", label: "공고문 업로드", icon: UploadCloud },
+  { key: "generation", label: "AI 생성", icon: Bot },
   { key: "analysis", label: "AI 분석", icon: Sparkles },
   { key: "requirements", label: "요구사항", icon: FileText },
   { key: "assign", label: "업무 배정", icon: Users },
@@ -82,6 +85,8 @@ const STAFF_MENU: SidebarItem[] = [
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
+const BYPASS_LOGIN = true; // 로그인 임시 우회 (PM화면 진입)
+
 const SCOPED_PM = new Set([
   "upload",
   "analysis",
@@ -112,16 +117,36 @@ export default function App() {
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
   const [taskOpen, setTaskOpen] = useState(false);
-  const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
+  // const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
+
+  // 로그인 임시 우회 (PM화면 진입)
+  const [projects, setProjects] = useState<FrontendProjectSummary[]>(
+    BYPASS_LOGIN ? PROJECTS : [],
+  );
+
   const [projectLoadStatus, setProjectLoadStatus] = useState<ProjectLoadStatus>("idle");
   const [projectLoadError, setProjectLoadError] = useState("");
   const [pmDetail, setPmDetail] = useState<FrontendProjectSummary | null>(null);
   const [pmWizard, setPmWizard] = useState<FrontendProjectSummary | null>(null);
   const [pmExtract, setPmExtract] = useState<FrontendProjectSummary | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+  /* const [selectedProjectId, setSelectedProjectId] = useState<string>(
     "",
+  ); */
+
+  // 로그인 임시 우회 (PM화면 진입)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    BYPASS_LOGIN ? PROJECTS[0]?.id ?? "" : "",
   );
-  const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
+
+  // const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
+
+
+  // 로그인 임시 우회 (PM화면 진입)
+  const role: Role | null = BYPASS_LOGIN
+    ? "staff" // 직원화면은 staff로 지정
+    : authSession
+      ? toFrontendRole(authSession.role)
+      : null;
 
   const startProject = (id: string) =>
     setProjects((prev) =>
@@ -151,6 +176,14 @@ export default function App() {
       setProjectLoadStatus("idle");
       return;
     }
+
+    // 로그인 임시 우회(PM화면 진입)
+    if (BYPASS_LOGIN) {
+        setProjects(PROJECTS);
+        setSelectedProjectId(PROJECTS[0]?.id ?? "");
+        setProjectLoadStatus(PROJECTS.length > 0 ? "ready" : "empty");
+        return;
+      }
 
     let ignore = false;
     setProjectLoadStatus("loading");
@@ -248,36 +281,86 @@ export default function App() {
   if (isPm) {
     if (SCOPED_PM.has(pmMenu) && !selectedProject) {
       subtitle = "프로젝트 선택";
-      body = <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />;
+      body = (
+        <ProjectListNotice
+          status={projectLoadStatus}
+          error={projectLoadError}
+        />
+      );
     } else if (pmMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
     } else if (pmMenu === "upload") {
       subtitle = "공고문 업로드";
-      body = <PmUpload key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <PmUpload
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
+    } else if (pmMenu === "generation") {
+      subtitle = "AI 생성";
+      body = <PmGeneration />;
     } else if (pmMenu === "documents") {
       subtitle = "문서함";
-      body = <DocumentLibrary key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <DocumentLibrary
+          key={selectedProject?.id}
+          project={selectedProject!}
+          onOpenAiGeneration={() => handleSelect("generation")}
+        />
+      );
     } else if (pmMenu === "search") {
       subtitle = "AI 문서 검색";
-      body = <AiDocSearch key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <AiDocSearch
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmMenu === "risk") {
       subtitle = "리스크 관리";
-      body = <RiskManagement key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <RiskManagement
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmMenu === "review") {
       subtitle = "산출물 검토";
-      body = <PmReview key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <PmReview
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
-      body = <PmRequirements key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <PmRequirements
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmMenu === "assign") {
       subtitle = "업무 배정";
-      body = <PmAssign key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <PmAssign
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmMenu === "analysis") {
       subtitle = "AI 분석";
-      body = <PmAnalysis key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <PmAnalysis
+          key={selectedProject?.id}
+          project={selectedProject!}
+        />
+      );
     } else if (pmExtract) {
       subtitle = `${pmExtract.name} · AI 추출`;
+
       body = (
         <ProjectExtraction
           project={pmExtract}
@@ -291,9 +374,13 @@ export default function App() {
               wizardStep: 1,
               updatedAt: "방금",
             };
+
             setProjects((prev) =>
-              prev.map((p) => (p.id === updated.id ? updated : p)),
+              prev.map((p) =>
+                p.id === updated.id ? updated : p,
+              ),
             );
+
             setPmExtract(null);
             setPmWizard(updated);
           }}
@@ -301,6 +388,7 @@ export default function App() {
       );
     } else if (pmWizard) {
       subtitle = `${pmWizard.name} · 준비`;
+
       body = (
         <ProjectWizard
           project={pmWizard}
@@ -313,24 +401,38 @@ export default function App() {
       );
     } else if (pmDetail) {
       subtitle = `${pmDetail.name} · 운영`;
+
       body = (
         <ProjectDetail
           project={pmDetail}
           onBack={() => setPmDetail(null)}
           onUpdateDocs={(docs) => {
-            const updated: FrontendProjectSummary = { ...pmDetail, docs, updatedAt: "방금" };
+            const updated: FrontendProjectSummary = {
+              ...pmDetail,
+              docs,
+              updatedAt: "방금",
+            };
+
             setProjects((prev) =>
-              prev.map((p) => (p.id === updated.id ? updated : p)),
+              prev.map((p) =>
+                p.id === updated.id ? updated : p,
+              ),
             );
+
             setPmDetail(updated);
           }}
         />
       );
     } else {
       subtitle = "프로젝트";
+
       body = (
         <div className="space-y-4">
-          <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
+          <ProjectListNotice
+            status={projectLoadStatus}
+            error={projectLoadError}
+          />
+
           <ProjectBoard
             projects={projects}
             setProjects={setProjects}
@@ -376,12 +478,21 @@ export default function App() {
       body = <StaffComments />;
     } else if (taskOpen) {
       subtitle = "업무 상세";
-      body = <StaffTaskDetail onBack={() => setTaskOpen(false)} />;
+      body = (
+        <StaffTaskDetail
+          onBack={() => setTaskOpen(false)}
+        />
+      );
     } else {
       subtitle = "직원 대시보드";
-      body = <StaffDashboard onOpenTask={() => setTaskOpen(true)} />;
+      body = (
+        <StaffDashboard
+          onOpenTask={() => setTaskOpen(true)}
+        />
+      );
     }
   }
+
 
   if (isPm && SCOPED_PM.has(pmMenu)) {
     body = (

@@ -128,7 +128,7 @@ export function PmDashboard() {
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="size-4" /> AI 분석 요약
             </CardTitle>
-            <CardDescription>도시인프라-rfp-2024.pdf 분석 결과</CardDescription>
+            <CardDescription>사내-협업툴-개발-rfp-2026.pdf 분석 결과</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">

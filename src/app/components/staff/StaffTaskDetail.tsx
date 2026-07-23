@@ -69,7 +69,7 @@ export function StaffTaskDetail({
     {
       id: "cm1",
       author: "나",
-      text: "대기질 완화 단락 초안 작성 중입니다.",
+      text: "토큰 만료 예외 처리 초안 작성 중입니다.",
       date: "2026-06-30",
     },
   ]);
@@ -172,7 +172,6 @@ export function StaffTaskDetail({
                   {task.priority}
                 </Badge>
               </div>
-
               <CardTitle>{task.title}</CardTitle>
 
               <CardDescription>

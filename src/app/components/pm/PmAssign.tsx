@@ -19,6 +19,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
 import { Progress } from "@/app/components/ui/progress";
+import { Separator } from "@/app/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import {
   Select,
@@ -97,6 +98,32 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     });
     return map;
   }, [rows, team]);
+
+const progressByMember = useMemo(() => {
+  return team.map((member) => {
+    const memberRows = rows.filter(
+      (row) => row.owner === member.name,
+    );
+
+    const total = memberRows.length;
+
+    const completed = memberRows.filter(
+      (row) => row.status === "완료",
+    ).length;
+
+    const progress =
+      total === 0
+        ? 0
+        : Math.round((completed / total) * 100);
+
+    return {
+      ...member,
+      total,
+      completed,
+      progress,
+    };
+  });
+}, [rows, team]);
 
   const maxLoad = Math.max(1, ...Array.from(loadByMember.values()));
   const topMember = useMemo(() => {
@@ -335,6 +362,54 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
                   )}
                 </TableBody>
               </Table>
+              <Separator className="my-5" />
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-4" />
+
+                    <h3 className="text-sm font-medium text-foreground">
+                      개인 진행률
+                    </h3>
+                  </div>
+
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    팀원별 전체 업무와 완료 업무를 기준으로 계산됩니다.
+                  </p>
+                </div>
+
+                {progressByMember.map((member) => (
+                  <div
+                    key={`progress-${member.id}`}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Avatar className="size-7">
+                        <AvatarFallback className="text-[10px]">
+                          {member.name.slice(0, 1)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm text-foreground">
+                          {member.name}
+                        </div>
+
+                        <div className="text-xs text-muted-foreground">
+                          완료 {member.completed}건 / 전체 {member.total}건
+                        </div>
+                      </div>
+
+                      <span className="text-sm font-medium text-foreground">
+                        {member.progress}%
+                      </span>
+                    </div>
+
+                    <Progress value={member.progress} />
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>

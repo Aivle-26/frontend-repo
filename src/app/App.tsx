@@ -115,7 +115,8 @@ export default function App() {
   const [loginMessage, setLoginMessage] = useState("");
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
-  const [taskOpen, setTaskOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] =
+    useState<string | null>(null);
   // const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
 
   const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
@@ -162,6 +163,8 @@ export default function App() {
       return;
     }
 
+
+
     let ignore = false;
     setProjectLoadStatus("loading");
     setProjectLoadError("");
@@ -196,7 +199,7 @@ export default function App() {
     setAuthSession(session);
     setPmMenu("dashboard");
     setStaffMenu("tasks");
-    setTaskOpen(false);
+    setSelectedTaskId(null);
   };
 
   const handleLogout = () => {
@@ -244,7 +247,7 @@ export default function App() {
       setPmExtract(null);
     } else {
       setStaffMenu(key);
-      setTaskOpen(false);
+      setSelectedTaskId(null);
     }
   };
 
@@ -430,48 +433,58 @@ export default function App() {
         </div>
       );
     }
-  } else {
-    if (staffMenu === "slack") {
-      subtitle = "Slack 연동";
-      body = <SlackIntegration />;
-    } else if (staffMenu === "documents") {
-      subtitle = "문서 통합 관리";
-      body = <StaffDocuments />;
-    } else if (staffMenu === "risk") {
-      subtitle = "리스크";
-      body = <StaffRisk projectId={selectedProjectId} />;
-      actions = <StaffRiskActions />;
-    } else if (staffMenu === "context") {
-      subtitle = "RFP 맥락";
-      body = <StaffContext />;
-    } else if (staffMenu === "submit") {
-      subtitle = "산출물 제출";
-      body = <StaffSubmit />;
-    } else if (staffMenu === "feedback") {
-      subtitle = "피드백";
-      body = <StaffFeedback />;
-    } else if (staffMenu === "comments") {
-      subtitle = "댓글";
-      body = <StaffComments />;
-    } else if (taskOpen) {
-      subtitle = "업무 상세";
-      body = (
-        <StaffTaskDetail
-          onBack={() => setTaskOpen(false)}
-        />
-      );
+
+
+
     } else {
-      subtitle = "직원 대시보드";
-      body = (
-        <StaffDashboard
-          onOpenTask={() => setTaskOpen(true)}
-        />
-      );
+      if (staffMenu === "slack") {
+        subtitle = "Slack 연동";
+        body = <SlackIntegration />;
+      } else if (staffMenu === "documents") {
+        subtitle = "문서 통합 관리";
+        body = <StaffDocuments />;
+      } else if (staffMenu === "risk") {
+        subtitle = "리스크";
+        body = <StaffRisk projectId={selectedProjectId} />;
+        actions = <StaffRiskActions />;
+      } else if (staffMenu === "context") {
+        subtitle = "RFP 맥락";
+        body = <StaffContext />;
+      } else if (staffMenu === "submit") {
+        subtitle = "산출물 제출";
+        body = <StaffSubmit />;
+      } else if (staffMenu === "feedback") {
+        subtitle = "피드백";
+        body = <StaffFeedback />;
+      } else if (staffMenu === "comments") {
+        subtitle = "댓글";
+        body = <StaffComments />;
+      } else if (selectedTaskId) {
+        subtitle = "업무 상세";
+
+        body = (
+          <StaffTaskDetail
+            taskId={selectedTaskId}
+            currentUserName={authSession?.name ?? ""}
+            onBack={() => setSelectedTaskId(null)}
+          />
+        );
+      } else {
+        subtitle = "직원 대시보드";
+
+        body = (
+          <StaffDashboard
+            projectId={selectedProjectId || "1"}
+            currentUserName={authSession?.name ?? ""}
+            onOpenTask={(taskId: string) =>
+              setSelectedTaskId(taskId)
+            }
+          />
+        );
+      }
     }
-  }
 
-
-  if (isPm && SCOPED_PM.has(pmMenu)) {
+    if (isPm && SCOPED_PM.has(pmMenu)) {
     body = (
       <div className="space-y-4">
         <ProjectScopeBar

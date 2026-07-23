@@ -33,6 +33,7 @@ export type TaskColumn = "todo" | "doing" | "review" | "done";
 
 export interface Task {
   id: string;
+  projectId: string;
   title: string;
   column: TaskColumn;
   priority: Priority;
@@ -509,66 +510,83 @@ export const ASSIGNEES = ["김지훈", "이서연", "박민수", "최예나"];
 export const TASKS: Task[] = [
   {
     id: "t1",
+    projectId: "1",
     title: "입찰 전략 API 최적화",
     column: "todo",
     priority: "높음",
     due: "2026-07-08",
-    assignee: "나",
+    assignee: "김지훈",
     relatedReq: "RFP 4.1 기술 요건",
   },
   {
     id: "t2",
+    projectId: "1",
     title: "LLM 피드백 루프 연동",
     column: "todo",
     priority: "중간",
     due: "2026-07-12",
-    assignee: "나",
+    assignee: "김지훈",
     relatedReq: "RFP 5.3 운영 요건",
   },
   {
     id: "t3",
+    projectId: "1",
     title: "운영 로그 정리",
     column: "doing",
     priority: "낮음",
     due: "2026-07-05",
-    assignee: "나",
+    assignee: "이서연",
     relatedReq: "RFP 5.1 유지보수",
   },
   {
     id: "t4",
+    projectId: "1",
     title: "RFP V3 데이터셋 검토",
     column: "doing",
     priority: "중간",
     due: "2026-07-06",
-    assignee: "나",
+    assignee: "이서연",
     relatedReq: "RFP 2.4 데이터 요건",
   },
   {
     id: "t5",
+    projectId: "1",
     title: "UI 리팩토링: 업무 보드",
     column: "review",
     priority: "중간",
     due: "2026-07-03",
-    assignee: "나",
+    assignee: "박민수",
     relatedReq: "RFP 6.2 사용성",
   },
   {
     id: "t6",
+    projectId: "1",
     title: "컴플라이언스 매트릭스 초안",
     column: "done",
     priority: "높음",
     due: "2026-06-28",
-    assignee: "나",
+    assignee: "박민수",
     relatedReq: "RFP 3.2 환경 규정",
   },
   {
     id: "t7",
+    projectId: "1",
     title: "3.2 환경 규정 준수 초안 작성",
     column: "doing",
     priority: "높음",
     due: "2026-07-04",
-    assignee: "나",
+    assignee: "최예나",
     relatedReq: "RFP 3.2 환경 규정 준수",
+  },
+  {
+    id: "t8",
+    projectId: "1",
+    title: "최종 운영 계획 검토",
+    column: "done",
+    priority: "중간",
+    due: "2026-06-30",
+    assignee: "최예나",
+    relatedReq: "RFP 5.4 운영 계획",
   },
 ];
 

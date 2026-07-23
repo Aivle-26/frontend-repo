@@ -46,9 +46,10 @@ export interface Feedback {
   author: string;
   date: string;
   text: string;
+  to?: string; // 피드백 수신자(팀원). PM 검토 화면에서 "내가 남긴 피드백" 표시용
 }
 
-export const PROJECT_NAME = "도시 인프라 RFP 2024";
+export const PROJECT_NAME = "사내 협업툴 개발 RFP 2026";
 
 /* =====================================================================
  * 프로젝트 생애주기 (홈 · 프로젝트 보드)
@@ -393,60 +394,60 @@ export const KPI_STAFF = {
 
 export const AI_SUMMARY: string[] = [
   "총 24개의 요구사항이 추출되었습니다.",
-  "보안, 환경, 일정 관련 고위험 항목 3개가 발견되었습니다.",
+  "인증, 결제, 보안 관련 고위험 항목 3개가 발견되었습니다.",
   "PM 검토 후 7개 업무로 분해할 수 있습니다.",
 ];
 
 export const REQUIREMENTS: Requirement[] = [
   {
     id: 1,
-    text: "비상 조명 시스템은 4시간 이상 배터리 예비 전원을 확보해야 합니다.",
-    category: "안전",
+    text: "회원가입·로그인 시 소셜 인증(OAuth)을 지원해야 합니다.",
+    category: "기능",
     priority: "높음",
     difficulty: "중",
-    recommendedOwner: "김지훈",
-    status: "미배정",
-  },
-  {
-    id: 2,
-    text: "폐수 관리에 대한 환경영향 보고서를 작성해야 합니다.",
-    category: "환경",
-    priority: "높음",
-    difficulty: "상",
     recommendedOwner: "이서연",
     status: "배정됨",
   },
   {
+    id: 2,
+    text: "결제 모듈은 카드·간편결제·계좌이체를 모두 지원해야 합니다.",
+    category: "기능",
+    priority: "높음",
+    difficulty: "상",
+    recommendedOwner: "김지훈",
+    status: "배정됨",
+  },
+  {
     id: 3,
-    text: "기술 구역 주변에 보안 펜스 설치 계획을 수립해야 합니다.",
+    text: "개인정보는 저장 시 암호화하고 접근 로그를 남겨야 합니다.",
     category: "보안",
-    priority: "중간",
+    priority: "높음",
     difficulty: "중",
     recommendedOwner: "박민수",
     status: "미배정",
   },
   {
     id: 4,
-    text: "승강 설비 유지보수 일정을 작성해야 합니다.",
-    category: "일정",
-    priority: "낮음",
-    difficulty: "하",
-    recommendedOwner: "최예나",
+    text: "주요 API 응답 시간은 평균 300ms 이내여야 합니다.",
+    category: "성능",
+    priority: "중간",
+    difficulty: "중",
+    recommendedOwner: "김지훈",
     status: "검토중",
   },
   {
     id: 5,
-    text: "전력 공급 이중화 설계 기준을 정의해야 합니다.",
+    text: "장애 발생 시 30분 이내 복구 가능한 이중화 구성을 갖춰야 합니다.",
     category: "인프라",
     priority: "높음",
     difficulty: "상",
-    recommendedOwner: "김지훈",
+    recommendedOwner: "최예나",
     status: "미배정",
   },
   {
     id: 6,
-    text: "공사 단계별 소음 저감 대책을 제시해야 합니다.",
-    category: "환경",
+    text: "모바일 반응형 UI를 지원해야 합니다.",
+    category: "UI",
     priority: "중간",
     difficulty: "중",
     recommendedOwner: "이서연",
@@ -455,10 +456,10 @@ export const REQUIREMENTS: Requirement[] = [
 ];
 
 export const TEAM: TeamMember[] = [
-  { id: "m1", name: "김지훈", role: "인프라 엔지니어", done: 6, total: 9 },
-  { id: "m2", name: "이서연", role: "환경 컨설턴트", done: 4, total: 7 },
+  { id: "m1", name: "김지훈", role: "백엔드 개발", done: 6, total: 9 },
+  { id: "m2", name: "이서연", role: "프론트엔드 개발", done: 4, total: 7 },
   { id: "m3", name: "박민수", role: "보안 담당", done: 2, total: 5 },
-  { id: "m4", name: "최예나", role: "운영 담당", done: 3, total: 4 },
+  { id: "m4", name: "최예나", role: "DevOps 엔지니어", done: 3, total: 4 },
 ];
 
 /** 프로젝트별 참여 직원 목록. PM 문서 열람 권한과 보고서 생성 요청에서 사용합니다. */
@@ -483,24 +484,24 @@ export function projectMembers(projectId: string): TeamMember[] {
 export const RISKS: RiskItem[] = [
   {
     id: "r1",
-    title: "공급망 지연",
+    title: "외부 연동 일정 지연",
     level: "높음",
     description:
-      "주요 자재 조달 리드타임이 8주 이상으로 예상되어 착공 일정에 영향을 줄 수 있습니다.",
+      "결제 모듈 연동에 필요한 외부 PG사 심사·승인 리드타임이 길어 오픈 일정에 영향을 줄 수 있습니다.",
   },
   {
     id: "r2",
-    title: "규정 준수 미흡",
+    title: "보안 요구사항 미충족",
     level: "높음",
     description:
-      "폐수 처리 및 대기질 기준이 최신 환경 규정과 부분적으로 불일치합니다.",
+      "개인정보 암호화·접근 로그 요구사항이 현재 설계에 일부만 반영되어 있습니다.",
   },
   {
     id: "r3",
-    title: "구조적 실패 위험",
+    title: "성능 목표 미달 위험",
     level: "중간",
     description:
-      "지반 조사 데이터가 일부 구역에서 부족하여 구조 안정성 검토가 필요합니다.",
+      "실시간 통계 대시보드의 대용량 트래픽 처리 방안이 아직 구체화되지 않아 API 응답 300ms 목표 달성이 불확실합니다.",
   },
 ];
 
@@ -509,66 +510,66 @@ export const ASSIGNEES = ["김지훈", "이서연", "박민수", "최예나"];
 export const TASKS: Task[] = [
   {
     id: "t1",
-    title: "입찰 전략 API 최적화",
+    title: "소셜 로그인 UI 구현",
     column: "todo",
     priority: "높음",
     due: "2026-07-08",
     assignee: "나",
-    relatedReq: "RFP 4.1 기술 요건",
+    relatedReq: "소셜 인증(OAuth) 지원",
   },
   {
     id: "t2",
-    title: "LLM 피드백 루프 연동",
+    title: "토큰 갱신·세션 유지 처리",
     column: "todo",
     priority: "중간",
     due: "2026-07-12",
     assignee: "나",
-    relatedReq: "RFP 5.3 운영 요건",
+    relatedReq: "소셜 인증(OAuth) 지원",
   },
   {
     id: "t3",
-    title: "운영 로그 정리",
+    title: "회원가입 폼 유효성 검증",
     column: "doing",
     priority: "낮음",
     due: "2026-07-05",
     assignee: "나",
-    relatedReq: "RFP 5.1 유지보수",
+    relatedReq: "회원가입·로그인 기능",
   },
   {
     id: "t4",
-    title: "RFP V3 데이터셋 검토",
+    title: "로그인 API 응답 최적화",
     column: "doing",
     priority: "중간",
     due: "2026-07-06",
     assignee: "나",
-    relatedReq: "RFP 2.4 데이터 요건",
+    relatedReq: "API 응답 300ms 이내",
   },
   {
     id: "t5",
-    title: "UI 리팩토링: 업무 보드",
+    title: "OAuth 소셜 로그인 설계 초안",
     column: "review",
-    priority: "중간",
+    priority: "높음",
     due: "2026-07-03",
     assignee: "나",
-    relatedReq: "RFP 6.2 사용성",
+    relatedReq: "소셜 인증(OAuth) 지원",
   },
   {
     id: "t6",
-    title: "컴플라이언스 매트릭스 초안",
+    title: "비밀번호 암호화 저장 적용",
     column: "done",
     priority: "높음",
     due: "2026-06-28",
     assignee: "나",
-    relatedReq: "RFP 3.2 환경 규정",
+    relatedReq: "개인정보 암호화·접근 로그",
   },
   {
     id: "t7",
-    title: "3.2 환경 규정 준수 초안 작성",
+    title: "OAuth 예외 처리 시나리오 보강",
     column: "doing",
     priority: "높음",
     due: "2026-07-04",
     assignee: "나",
-    relatedReq: "RFP 3.2 환경 규정 준수",
+    relatedReq: "소셜 인증(OAuth) 지원",
   },
 ];
 
@@ -576,33 +577,35 @@ export const STAFF_FEEDBACK: Feedback[] = [
   {
     id: "f1",
     author: "PM 정하늘",
+    to: "이서연",
     date: "2026-06-29",
-    text: "환경영향 완화 단락의 근거 데이터를 RFP 3.2 기준으로 보강해 주세요.",
+    text: "OAuth 로그인 플로우에 예외 처리 시나리오(토큰 만료·중복 로그인)를 보강해 주세요.",
   },
   {
     id: "f2",
     author: "PM 정하늘",
+    to: "이서연",
     date: "2026-06-27",
-    text: "컴플라이언스 매트릭스 초안 잘 확인했습니다. 검토 완료 처리합니다.",
+    text: "OAuth 설계 문서 잘 확인했습니다. 소셜 제공자(구글·카카오·네이버) 연동 우선순위만 명확히 해주세요.",
   },
 ];
 
 export const AI_TASK_HELPER: string[] = [
-  "다음 작업: 환경영향 완화 방안 초안을 작성하세요.",
-  "이 업무는 RFP 3.2 환경 규정 준수 항목과 연결됩니다.",
+  "다음 작업: OAuth 예외 처리(토큰 만료·중복 로그인) 시나리오를 보강하세요.",
+  "이 업무는 소셜 인증(OAuth) 지원 요구사항과 연결됩니다.",
 ];
 
 export const AI_TASK_SUMMARY: string[] = [
-  "이 업무는 환경 규정 준수 항목과 관련됩니다.",
-  "RFP의 배수 처리, 대기질 완화, 폐기물 처리 조건을 반영해야 합니다.",
-  "다음 작업: 환경영향 완화 단락 초안을 작성하세요.",
+  "이 업무는 소셜 인증(OAuth) 지원 요구사항과 관련됩니다.",
+  "구글·카카오·네이버 로그인 플로우와 토큰 만료·중복 로그인 예외를 반영해야 합니다.",
+  "다음 작업: OAuth 예외 처리 시나리오 초안을 작성하세요.",
 ];
 
 export const TASK_CHECKLIST = [
-  { id: "c1", label: "RFP 3.2 환경 규정 원문 검토", done: true },
-  { id: "c2", label: "배수 처리 완화 방안 정리", done: true },
-  { id: "c3", label: "대기질 완화 단락 초안 작성", done: false },
-  { id: "c4", label: "폐기물 처리 조건 반영", done: false },
+  { id: "c1", label: "소셜 인증(OAuth) 요구사항 원문 검토", done: true },
+  { id: "c2", label: "구글·카카오 로그인 플로우 정리", done: true },
+  { id: "c3", label: "토큰 만료 예외 처리 초안 작성", done: false },
+  { id: "c4", label: "중복 로그인 처리 방식 반영", done: false },
   { id: "c5", label: "최종 검토 요청 제출", done: false },
 ];
 
@@ -630,7 +633,7 @@ export interface UploadedRfp {
 }
 
 export const UPLOADED_RFPS: UploadedRfp[] = [
-  { id: "rfp1", name: "도시인프라-rfp-2024.pdf", size: "4.2MB", uploadedAt: "오늘 09:10", status: "분석 완료", requirementCount: 24 },
+  { id: "rfp1", name: "사내-협업툴-개발-rfp-2026.pdf", size: "4.2MB", uploadedAt: "오늘 09:10", status: "분석 완료", requirementCount: 24 },
   { id: "rfp2", name: "상수도-정비-공고문.pdf", size: "2.8MB", uploadedAt: "어제 16:40", status: "분석 완료", requirementCount: 17 },
   { id: "rfp3", name: "교통관제-시스템-RFP.pdf", size: "5.1MB", uploadedAt: "2026-07-10 11:05", status: "대기", requirementCount: 0 },
 ];
@@ -648,10 +651,10 @@ export interface ReviewSubmission {
 }
 
 export const REVIEW_SUBMISSIONS: ReviewSubmission[] = [
-  { id: "sub1", title: "3.2 환경 규정 준수 초안", author: "이서연", submittedAt: "2026-07-01 14:20", relatedReq: "RFP 3.2 환경 규정", attachment: "환경규정_초안_v2.docx", state: "검토 대기" },
-  { id: "sub2", title: "전력 공급 이중화 설계 기준", author: "김지훈", submittedAt: "2026-06-30 18:05", relatedReq: "RFP 4.1 인프라", attachment: "이중화설계_기준.pdf", state: "검토 대기" },
-  { id: "sub3", title: "보안 펜스 설치 계획", author: "박민수", submittedAt: "2026-06-29 10:11", relatedReq: "RFP 5.2 보안", attachment: "보안펜스_계획.docx", state: "승인" },
-  { id: "sub4", title: "승강 설비 유지보수 일정", author: "최예나", submittedAt: "2026-06-28 09:40", relatedReq: "RFP 6.1 일정", attachment: "유지보수_일정.xlsx", state: "반려" },
+  { id: "sub1", title: "OAuth 소셜 로그인 설계 초안", author: "이서연", submittedAt: "2026-07-01 14:20", relatedReq: "소셜 인증(OAuth) 지원", attachment: "OAuth_로그인_설계_v2.docx", state: "검토 대기" },
+  { id: "sub2", title: "결제 모듈 연동 설계서", author: "김지훈", submittedAt: "2026-06-30 18:05", relatedReq: "카드·간편결제·계좌이체 지원", attachment: "결제모듈_연동설계.pdf", state: "검토 대기" },
+  { id: "sub3", title: "개인정보 암호화·접근 로그 방안", author: "박민수", submittedAt: "2026-06-29 10:11", relatedReq: "개인정보 암호화·접근 로그", attachment: "개인정보_암호화_방안.docx", state: "승인" },
+  { id: "sub4", title: "장애 복구 이중화 구성 일정", author: "최예나", submittedAt: "2026-06-28 09:40", relatedReq: "30분 이내 복구 이중화 구성", attachment: "이중화_구성_일정.xlsx", state: "반려" },
 ];
 
 export interface SubmittableTask {
@@ -663,9 +666,9 @@ export interface SubmittableTask {
 }
 
 export const STAFF_SUBMITTABLE: SubmittableTask[] = [
-  { id: "st1", title: "3.2 환경 규정 준수 초안 작성", relatedReq: "RFP 3.2 환경 규정 준수", due: "2026-07-04", status: "작성 중" },
-  { id: "st2", title: "폐수 관리 영향 보고서", relatedReq: "RFP 3.1 폐수 관리", due: "2026-07-08", status: "작성 중" },
-  { id: "st3", title: "컴플라이언스 매트릭스 초안", relatedReq: "RFP 3.2 환경 규정", due: "2026-06-28", status: "제출 완료" },
+  { id: "st1", title: "OAuth 소셜 로그인 설계 초안", relatedReq: "소셜 인증(OAuth) 지원", due: "2026-07-04", status: "작성 중" },
+  { id: "st2", title: "토큰 만료 예외 처리 명세", relatedReq: "소셜 인증(OAuth) 지원", due: "2026-07-08", status: "작성 중" },
+  { id: "st3", title: "회원가입 유효성 검증 규칙", relatedReq: "회원가입·로그인 기능", due: "2026-06-28", status: "제출 완료" },
 ];
 
 /* =====================================================================

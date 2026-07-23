@@ -23,9 +23,9 @@ interface Comment {
 }
 
 const INITIAL: Comment[] = [
-  { id: "cm1", author: "PM 정하늘", date: "2026-06-30 09:12", text: "환경영향 완화 단락의 근거 데이터를 RFP 3.2 기준으로 보강해 주세요." },
-  { id: "cm2", author: "나", date: "2026-06-30 10:05", text: "대기질 완화 단락 초안 작성 중입니다. 오늘 중 공유드릴게요.", mine: true },
-  { id: "cm3", author: "이서연", date: "2026-06-30 11:20", text: "폐수 처리 기준표는 제가 정리한 자료 참고하시면 됩니다." },
+  { id: "cm1", author: "PM 정하늘", date: "2026-06-30 09:12", text: "OAuth 로그인 예외 처리 시나리오(토큰 만료·중복 로그인)를 보강해 주세요." },
+  { id: "cm2", author: "나", date: "2026-06-30 10:05", text: "토큰 만료 예외 처리 초안 작성 중입니다. 오늘 중 공유드릴게요.", mine: true },
+  { id: "cm3", author: "김지훈", date: "2026-06-30 11:20", text: "소셜 제공자 우선순위는 제가 백엔드에서 정리한 자료 참고하시면 됩니다." },
 ];
 
 export function StaffComments() {

@@ -88,6 +88,7 @@ const STAFF_MENU: SidebarItem[] = [
 
 const SCOPED_PM = new Set([
   "upload",
+  "generation",
   "analysis",
   "requirements",
   "assign",
@@ -277,7 +278,13 @@ export default function App() {
       );
     } else if (pmMenu === "generation") {
       subtitle = "AI 생성";
-      body = <PmGeneration />;
+      body = (
+        <PmGeneration
+          key={selectedProject?.id}
+          project={selectedProject!}
+          onOpenDocuments={() => handleSelect("documents")}
+        />
+      );
     } else if (pmMenu === "documents") {
       subtitle = "문서함";
       body = (

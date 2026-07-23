@@ -38,7 +38,7 @@ export function StaffTaskDetail({ onBack }: StaffTaskDetailProps) {
   const [checklist, setChecklist] = useState(initialChecklist);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([
-    { id: "cm1", author: "나", text: "대기질 완화 단락 초안 작성 중입니다.", date: "2026-06-30" },
+    { id: "cm1", author: "나", text: "토큰 만료 예외 처리 초안 작성 중입니다.", date: "2026-06-30" },
   ]);
 
   const toggle = (id: string) =>
@@ -72,8 +72,8 @@ export function StaffTaskDetail({ onBack }: StaffTaskDetailProps) {
                 <Badge variant="secondary">진행 중</Badge>
                 <Badge variant="destructive">높음</Badge>
               </div>
-              <CardTitle>3.2 환경 규정 준수 초안 작성</CardTitle>
-              <CardDescription>RFP 3.2 환경 규정 준수 항목 관련 산출물</CardDescription>
+              <CardTitle>OAuth 예외 처리 시나리오 보강</CardTitle>
+              <CardDescription>소셜 인증(OAuth) 지원 요구사항 관련 산출물</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -85,17 +85,17 @@ export function StaffTaskDetail({ onBack }: StaffTaskDetailProps) {
               <div>
                 <h3 className="text-foreground mb-2">관련 RFP 요구사항</h3>
                 <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground">
-                  폐수 관리에 대한 환경영향 보고서를 작성하고, 배수 처리·대기질
-                  완화·폐기물 처리 조건을 충족해야 합니다.
+                  회원가입·로그인 시 소셜 인증(OAuth)을 지원하고, 토큰 만료·중복
+                  로그인 등 예외 상황을 안전하게 처리해야 합니다.
                 </div>
               </div>
 
               <div>
                 <h3 className="text-foreground mb-2">업무 설명</h3>
                 <p className="text-muted-foreground text-sm">
-                  RFP 3.2 환경 규정 준수 항목을 바탕으로 환경영향 완화 방안 초안을
-                  작성합니다. 배수 처리, 대기질 완화, 폐기물 처리에 대한 구체적인
-                  대응 방안을 포함해야 합니다.
+                  소셜 인증(OAuth) 지원 요구사항을 바탕으로 예외 처리 시나리오를
+                  보강합니다. 토큰 만료, 중복 로그인, 소셜 제공자별 오류 응답에 대한
+                  구체적인 대응 방안을 포함해야 합니다.
                 </p>
               </div>
 

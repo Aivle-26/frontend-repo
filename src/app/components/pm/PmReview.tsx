@@ -250,13 +250,16 @@ export function PmReview({ project }: { project: ProjectSummary }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>최근 검토 피드백</CardTitle>
+            <CardTitle>내가 남긴 피드백</CardTitle>
+            <CardDescription>팀원에게 보낸 검토 피드백 이력입니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {feedback.map((f) => (
               <div key={f.id} className="rounded-md border border-border p-3">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-foreground text-sm">{f.author}</span>
+                  <span className="text-foreground text-sm">
+                    {f.to ? `${f.to}님에게` : "팀원에게"}
+                  </span>
                   <span className="text-muted-foreground text-xs">{f.date}</span>
                 </div>
                 <p className="text-muted-foreground text-sm">{f.text}</p>

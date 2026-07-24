@@ -283,6 +283,25 @@ export default function App() {
         <PmUpload
           key={selectedProject?.id}
           project={selectedProject!}
+          onDocumentsUploaded={(documents) => {
+            setProjects((currentProjects) =>
+              currentProjects.map((currentProject) =>
+                currentProject.id === selectedProject!.id
+                  ? {
+                      ...currentProject,
+                      docs: [
+                        ...currentProject.docs,
+                        ...documents.map((document) => ({
+                          name: document.originalFileName,
+                          type: "RFP" as const,
+                        })),
+                      ],
+                      updatedAt: "방금",
+                    }
+                  : currentProject,
+              ),
+            );
+          }}
         />
       );
     } else if (pmMenu === "generation") {

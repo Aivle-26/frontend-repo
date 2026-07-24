@@ -1,5 +1,12 @@
 import { useRef, useState } from "react";
-import { UploadCloud, RefreshCw, Download, Trash2, FileText } from "lucide-react";
+import {
+  UploadCloud,
+  RefreshCw,
+  Download,
+  Trash2,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
@@ -19,8 +26,18 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import {
+  ApiError,
+  projectRepository,
+  type ProjectDocumentUploadItem,
+} from "@/app/api/projectRepository";
 import type { ProjectSummary, UploadedRfp } from "@/app/data/demoData";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_REQUEST_SIZE = 50 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "pptx", "txt"]);
+const FILE_ACCEPT =
+  ".pdf,.docx,.xlsx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
 function statusClass(s: UploadedRfp["status"]) {
   if (s === "분석 완료") return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -28,7 +45,19 @@ function statusClass(s: UploadedRfp["status"]) {
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
-export function PmUpload({ project }: { project: ProjectSummary }) {
+function formatFileSize(fileSize: number) {
+  if (fileSize < 1024) return `${fileSize}B`;
+  if (fileSize < 1024 * 1024) return `${(fileSize / 1024).toFixed(1)}KB`;
+  return `${(fileSize / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+export function PmUpload({
+  project,
+  onDocumentsUploaded,
+}: {
+  project: ProjectSummary;
+  onDocumentsUploaded?: (documents: ProjectDocumentUploadItem[]) => void;
+}) {
   const [files, setFiles] = useState<UploadedRfp[]>(() =>
     project.docs.map((d, i) => ({
       id: `doc-${i}`,
@@ -40,44 +69,72 @@ export function PmUpload({ project }: { project: ProjectSummary }) {
     })),
   );
   const [dragging, setDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const addFile = async (name: string) => {
-    await projectRepository.uploadRfp();
-    const now = new Date().toLocaleString("ko-KR", {
-      hour: "2-digit",
-      minute: "2-digit",
+  const addFiles = async (selectedFiles: File[]) => {
+    if (isUploading || selectedFiles.length === 0) return;
+
+    const invalidType = selectedFiles.find((file) => {
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+      return !ALLOWED_EXTENSIONS.has(extension);
     });
-    setFiles((prev) => [
-      {
-        id: `rfp${Date.now()}`,
-        name,
-        size: "—",
-        uploadedAt: `방금 · ${now}`,
-        status: "분석 중",
-        requirementCount: 0,
-      },
-      ...prev,
-    ]);
-    toast.success(`"${name}" 업로드 완료. AI 분석을 시작합니다.`);
-    // 분석 완료 시뮬레이션
-    setTimeout(() => {
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.name === name && f.status === "분석 중"
-            ? { ...f, status: "분석 완료", requirementCount: 21 }
-            : f,
-        ),
+    if (invalidType) {
+      toast.error(`"${invalidType.name}"은 지원하지 않는 파일 형식입니다.`);
+      return;
+    }
+
+    const oversized = selectedFiles.find((file) => file.size > MAX_FILE_SIZE);
+    if (oversized) {
+      toast.error(`"${oversized.name}"은 파일당 최대 10MB를 초과합니다.`);
+      return;
+    }
+
+    const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > MAX_REQUEST_SIZE) {
+      toast.error("한 번에 업로드할 수 있는 전체 용량은 최대 50MB입니다.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const response = await projectRepository.uploadProjectDocuments(
+        project.id,
+        selectedFiles,
       );
-    }, 1500);
+      const now = new Date().toLocaleString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const uploaded: UploadedRfp[] = response.documents.map((document) => ({
+        id: String(document.documentId),
+        name: document.originalFileName,
+        size: formatFileSize(document.fileSize),
+        uploadedAt: `방금 · ${now}`,
+        status: "대기",
+        requirementCount: 0,
+      }));
+
+      setFiles((prev) => [...uploaded, ...prev]);
+      onDocumentsUploaded?.(response.documents);
+      toast.success(`${uploaded.length}개 프로젝트 원본 문서를 업로드했습니다.`);
+    } catch (caught) {
+      const message =
+        caught instanceof ApiError
+          ? caught.message
+          : "파일 업로드 중 오류가 발생했습니다.";
+      toast.error(message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handlePick = () => inputRef.current?.click();
 
   const onSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) addFile(f.name);
+    const selectedFiles = Array.from(e.target.files ?? []);
     e.target.value = "";
+    void addFiles(selectedFiles);
   };
 
   const reanalyze = async (id: string) => {
@@ -104,24 +161,25 @@ export function PmUpload({ project }: { project: ProjectSummary }) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>RFP 공고문 업로드</CardTitle>
+          <CardTitle>프로젝트 원본 문서 업로드</CardTitle>
           <CardDescription>
-            PDF 형식의 공고문을 업로드하면 AI가 자동으로 요구사항을 추출합니다.
+            프로젝트에 사용할 원본 문서를 안전하게 등록합니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <input
             ref={inputRef}
             type="file"
-            accept="application/pdf"
+            accept={FILE_ACCEPT}
+            multiple
+            disabled={isUploading}
             className="hidden"
             onChange={onSelected}
           />
-          <div
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
+            disabled={isUploading}
             onClick={handlePick}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handlePick()}
             onDragOver={(e) => {
               e.preventDefault();
               setDragging(true);
@@ -130,20 +188,32 @@ export function PmUpload({ project }: { project: ProjectSummary }) {
             onDrop={(e) => {
               e.preventDefault();
               setDragging(false);
-              const f = e.dataTransfer.files?.[0];
-              addFile(f ? f.name : "새-공고문.pdf");
+              if (!isUploading) {
+                void addFiles(Array.from(e.dataTransfer.files));
+              }
             }}
             className={cn(
-              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-center transition-colors",
+              "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-center transition-colors",
+              isUploading && "pointer-events-none opacity-60",
               dragging
                 ? "border-primary bg-accent"
                 : "border-border bg-muted/40 hover:bg-muted",
             )}
           >
-            <UploadCloud className="size-7 text-muted-foreground" />
-            <div className="text-foreground">파일을 끌어다 놓거나 클릭하여 업로드</div>
-            <div className="text-muted-foreground text-xs">PDF · 최대 50MB</div>
-          </div>
+            {isUploading ? (
+              <Loader2 className="size-7 animate-spin text-primary" />
+            ) : (
+              <UploadCloud className="size-7 text-muted-foreground" />
+            )}
+            <div className="text-foreground">
+              {isUploading
+                ? "프로젝트 문서를 업로드하는 중입니다."
+                : "파일을 끌어다 놓거나 클릭하여 업로드"}
+            </div>
+            <div className="text-muted-foreground text-xs">
+              PDF · DOCX · XLSX · PPTX · TXT · 파일당 최대 10MB
+            </div>
+          </button>
         </CardContent>
       </Card>
 

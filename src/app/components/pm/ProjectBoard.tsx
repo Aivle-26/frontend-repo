@@ -41,14 +41,22 @@ import {
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import {
+  ApiError,
+  projectRepository,
+  type CreateProjectDraftResponse,
+} from "@/app/api/projectRepository";
+import {
   WIZARD_STEPS,
   type ProjectDoc,
-  type ProjectDocType,
   type ProjectStatus,
   type ProjectSummary,
 } from "@/app/data/demoData";
 
 import { DocPicker } from "@/app/components/pm/DocPicker";
+import {
+  mapUploadedProjectDocuments,
+  type PendingProjectDocument,
+} from "@/app/components/pm/projectDocumentUpload";
 
 type Filter = "전체" | ProjectStatus;
 
@@ -68,6 +76,8 @@ const FILTERS: Filter[] = ["전체", "진행중", "준비", "승인대기", "완
 interface ProjectBoardProps {
   projects: ProjectSummary[];
   setProjects: Dispatch<SetStateAction<ProjectSummary[]>>;
+  pmEmployeeNumber: string;
+  onProjectCreated: (project: ProjectSummary) => void;
   onOpenOperational: (project: ProjectSummary) => void;
   onOpenWizard: (project: ProjectSummary) => void;
   onExtract: (project: ProjectSummary) => void;
@@ -76,6 +86,8 @@ interface ProjectBoardProps {
 export function ProjectBoard({
   projects,
   setProjects,
+  pmEmployeeNumber,
+  onProjectCreated,
   onOpenOperational,
   onOpenWizard,
   onExtract,
@@ -85,9 +97,17 @@ export function ProjectBoard({
   const [detail, setDetail] = useState<ProjectSummary | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [pendingDocs, setPendingDocs] = useState<ProjectDoc[]>([]);
+  const [newStartDate, setNewStartDate] = useState("");
+  const [newEndDate, setNewEndDate] = useState("");
+  const [pendingDocs, setPendingDocs] = useState<PendingProjectDocument[]>([]);
+  const [createdDraft, setCreatedDraft] =
+    useState<CreateProjectDraftResponse | null>(null);
+  const [newProjectError, setNewProjectError] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [uploadFor, setUploadFor] = useState<ProjectSummary | null>(null);
-  const [uploadDocs, setUploadDocs] = useState<ProjectDoc[]>([]);
+  const [uploadDocs, setUploadDocs] = useState<PendingProjectDocument[]>([]);
+  const [uploadError, setUploadError] = useState("");
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
 
   const counts = useMemo(() => {
     const c: Record<Filter, number> = {
@@ -133,64 +153,167 @@ export function ProjectBoard({
 
   const openNew = () => {
     setNewName("");
+    setNewStartDate("");
+    setNewEndDate("");
     setPendingDocs([]);
+    setCreatedDraft(null);
+    setNewProjectError("");
     setNewOpen(true);
   };
 
-  const createProject = () => {
-    if (!newName.trim()) return toast.error("프로젝트 이름을 입력하세요.");
-    const id = `prj-${Date.now()}`;
-    const hasDocs = pendingDocs.length > 0;
-    const p: ProjectSummary = {
-      id,
-      name: newName.trim(),
-      client: "신규 · 미지정",
-      status: hasDocs ? "분석중" : "준비",
-      progress: 0,
-      dueDate: "-",
-      riskCount: 0,
-      reqCount: 0,
-      wizardStep: 0,
-      estimate: "-",
-      updatedAt: "방금",
-      docs: pendingDocs,
-    };
-    setProjects((prev) => [p, ...prev]);
+  const resetNewProject = () => {
     setNewOpen(false);
     setNewName("");
+    setNewStartDate("");
+    setNewEndDate("");
     setPendingDocs([]);
-    if (hasDocs) {
-      // 문서가 있으면 AI 추출 화면으로 이동
-      onExtract(p);
-    } else {
-      toast.success(`"${p.name}" 생성 — 문서는 나중에 업로드할 수 있어요.`);
+    setCreatedDraft(null);
+    setNewProjectError("");
+  };
+
+  const createProject = async () => {
+    if (isCreatingProject) return;
+
+    if (!createdDraft && !newName.trim()) {
+      setNewProjectError("프로젝트 이름을 입력하세요.");
+      return;
+    }
+    if (!createdDraft && (!newStartDate || !newEndDate)) {
+      setNewProjectError("프로젝트 시작일과 종료일을 입력하세요.");
+      return;
+    }
+    if (!createdDraft && newEndDate < newStartDate) {
+      setNewProjectError("프로젝트 종료일은 시작일보다 빠를 수 없습니다.");
+      return;
+    }
+
+    setIsCreatingProject(true);
+    setNewProjectError("");
+    let draftCreatedThisAttempt = false;
+
+    try {
+      let draft = createdDraft;
+      if (!draft) {
+        draft = await projectRepository.createProjectDraft({
+          name: newName.trim(),
+          description: null,
+          pmEmployeeNumber,
+          plannedStartDate: newStartDate,
+          plannedEndDate: newEndDate,
+        });
+        draftCreatedThisAttempt = true;
+        setCreatedDraft(draft);
+
+        const createdProject = mapCreatedDraft(draft);
+        setProjects((currentProjects) => [
+          createdProject,
+          ...currentProjects.filter(
+            (project) => project.id !== createdProject.id,
+          ),
+        ]);
+        onProjectCreated(createdProject);
+      }
+
+      const createdProject = mapCreatedDraft(draft);
+      if (pendingDocs.length === 0) {
+        resetNewProject();
+        toast.success(
+          `"${createdProject.name}" 프로젝트를 생성했습니다. 문서는 나중에 업로드할 수 있습니다.`,
+        );
+        return;
+      }
+
+      const uploadResponse = await projectRepository.uploadProjectDocuments(
+        draft.projectId,
+        pendingDocs.map((document) => document.file),
+      );
+      const uploadedProject: ProjectSummary = {
+        ...createdProject,
+        docs: mapUploadedProjectDocuments(
+          uploadResponse.documents,
+          pendingDocs,
+        ),
+        updatedAt: "방금",
+      };
+
+      setProjects((currentProjects) => [
+        uploadedProject,
+        ...currentProjects.filter(
+          (project) => project.id !== uploadedProject.id,
+        ),
+      ]);
+      resetNewProject();
+      toast.success(
+        `"${uploadedProject.name}" 프로젝트와 문서를 등록했습니다.`,
+      );
+      onExtract(uploadedProject);
+    } catch (caught) {
+      const message = getProjectActionError(
+        caught,
+        createdDraft || draftCreatedThisAttempt
+          ? "문서 업로드에 실패했습니다. 다시 시도해 주세요."
+          : "프로젝트 생성 또는 문서 업로드에 실패했습니다.",
+      );
+      setNewProjectError(message);
+      toast.error(message);
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
   const openUpload = (p: ProjectSummary) => {
     setDetail(null);
-    setUploadDocs(p.docs);
+    setUploadDocs([]);
+    setUploadError("");
     setUploadFor(p);
   };
 
-  const saveUpload = () => {
-    if (!uploadFor) return;
-    const target = uploadFor;
-    const firstUpload =
-      target.docs.length === 0 && uploadDocs.length > 0 && target.status === "준비";
-    const updated: ProjectSummary = {
-      ...target,
-      docs: uploadDocs,
-      status: firstUpload ? "분석중" : target.status,
-      updatedAt: "방금",
-    };
-    setProjects((prev) => prev.map((x) => (x.id === target.id ? updated : x)));
-    setUploadFor(null);
-    if (firstUpload) {
-      // 문서가 없던 준비 프로젝트에 처음 올리면 AI 추출 화면으로
-      onExtract(updated);
-    } else {
-      toast.success(`"${target.name}" 문서를 저장했어요.`);
+  const saveUpload = async () => {
+    if (!uploadFor || isUploadingDocuments) return;
+    if (uploadDocs.length === 0) {
+      setUploadError("추가할 문서를 선택하세요.");
+      return;
+    }
+
+    setIsUploadingDocuments(true);
+    setUploadError("");
+
+    try {
+      const uploadResponse = await projectRepository.uploadProjectDocuments(
+        uploadFor.id,
+        uploadDocs.map((document) => document.file),
+      );
+      const uploadedDocuments = mapUploadedProjectDocuments(
+        uploadResponse.documents,
+        uploadDocs,
+      );
+      const updated: ProjectSummary = {
+        ...uploadFor,
+        docs: [...uploadFor.docs, ...uploadedDocuments],
+        updatedAt: "방금",
+      };
+
+      setProjects((currentProjects) =>
+        currentProjects.map((project) =>
+          project.id === updated.id ? updated : project,
+        ),
+      );
+      setUploadFor(null);
+      setUploadDocs([]);
+      toast.success(`"${updated.name}" 문서를 업로드했습니다.`);
+
+      if (uploadFor.docs.length === 0) {
+        onExtract(updated);
+      }
+    } catch (caught) {
+      const message = getProjectActionError(
+        caught,
+        "문서 업로드에 실패했습니다. 다시 시도해 주세요.",
+      );
+      setUploadError(message);
+      toast.error(message);
+    } finally {
+      setIsUploadingDocuments(false);
     }
   };
 
@@ -362,12 +485,22 @@ export function ProjectBoard({
       </Dialog>
 
       {/* 새 프로젝트 다이얼로그 */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+      <Dialog
+        open={newOpen}
+        onOpenChange={(open) => {
+          if (isCreatingProject) return;
+          if (open) {
+            setNewOpen(true);
+          } else {
+            resetNewProject();
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>새 프로젝트</DialogTitle>
             <DialogDescription>
-              초기 문서를 올리면 AI가 요구사항을 추출해 '준비' 상태로 만들어요.
+              프로젝트를 등록한 뒤 선택한 초기 문서를 안전하게 업로드합니다.
             </DialogDescription>
           </DialogHeader>
 
@@ -378,55 +511,218 @@ export function ProjectBoard({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="예: 신규 커머스 플랫폼 구축"
-                onKeyDown={(e) => e.key === "Enter" && createProject()}
+                disabled={isCreatingProject || !!createdDraft}
                 autoFocus
               />
             </div>
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label
+                  htmlFor="new-project-start-date"
+                  className="text-sm text-foreground"
+                >
+                  시작일
+                </label>
+                <Input
+                  id="new-project-start-date"
+                  type="date"
+                  value={newStartDate}
+                  onChange={(event) => setNewStartDate(event.target.value)}
+                  disabled={isCreatingProject || !!createdDraft}
+                />
+              </div>
+              <div className="space-y-2">
+                <label
+                  htmlFor="new-project-end-date"
+                  className="text-sm text-foreground"
+                >
+                  종료일
+                </label>
+                <Input
+                  id="new-project-end-date"
+                  type="date"
+                  value={newEndDate}
+                  onChange={(event) => setNewEndDate(event.target.value)}
+                  disabled={isCreatingProject || !!createdDraft}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm text-foreground">초기 문서 업로드</label>
-              <DocPicker docs={pendingDocs} onChange={setPendingDocs} />
+              <DocPicker
+                documents={pendingDocs}
+                onChange={setPendingDocs}
+                onError={setNewProjectError}
+                disabled={isCreatingProject}
+              />
               <p className="text-muted-foreground text-xs">
                 지금 문서가 없으면 그냥 생성하고 나중에 업로드해도 돼요.
               </p>
             </div>
+
+            {createdDraft && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                프로젝트는 생성되었습니다. 문서 업로드만 다시 시도할 수 있습니다.
+              </div>
+            )}
+
+            {newProjectError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{newProjectError}</span>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
+            <Button
+              variant="outline"
+              disabled={isCreatingProject}
+              onClick={resetNewProject}
+            >
               취소
             </Button>
-            <Button onClick={createProject}>
-              <FolderPlus className="size-4" /> 생성
+            <Button
+              disabled={isCreatingProject}
+              onClick={() => void createProject()}
+            >
+              {isCreatingProject ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : createdDraft ? (
+                <UploadCloud className="size-4" />
+              ) : (
+                <FolderPlus className="size-4" />
+              )}
+              {isCreatingProject
+                ? "처리 중"
+                : createdDraft
+                  ? "문서 업로드 재시도"
+                  : "프로젝트 생성"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 문서 업로드(나중에) 다이얼로그 */}
-      <Dialog open={!!uploadFor} onOpenChange={(o) => !o && setUploadFor(null)}>
+      <Dialog
+        open={!!uploadFor}
+        onOpenChange={(open) => {
+          if (!open && !isUploadingDocuments) {
+            setUploadFor(null);
+            setUploadDocs([]);
+            setUploadError("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>문서 업로드</DialogTitle>
             <DialogDescription>
-              {uploadFor ? `${uploadFor.name} · 초기 문서를 추가/수정하세요.` : ""}
+              {uploadFor
+                ? `${uploadFor.name} · 기존 문서는 유지하고 새 문서를 추가합니다.`
+                : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-1">
-            <DocPicker docs={uploadDocs} onChange={setUploadDocs} />
+          <div className="space-y-3 py-1">
+            {uploadFor && uploadFor.docs.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-foreground">
+                  등록된 문서
+                </div>
+                {uploadFor.docs.map((document, index) => (
+                  <div
+                    key={`${document.name}-${index}`}
+                    className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
+                  >
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-sm text-foreground">
+                      {document.name}
+                    </span>
+                    <Badge variant="secondary" className="font-normal">
+                      {document.type}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <DocPicker
+              documents={uploadDocs}
+              onChange={setUploadDocs}
+              onError={setUploadError}
+              disabled={isUploadingDocuments}
+            />
+
+            {uploadError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUploadFor(null)}>
+            <Button
+              variant="outline"
+              disabled={isUploadingDocuments}
+              onClick={() => {
+                setUploadFor(null);
+                setUploadDocs([]);
+                setUploadError("");
+              }}
+            >
               취소
             </Button>
-            <Button onClick={saveUpload}>
-              <UploadCloud className="size-4" /> 저장
+            <Button
+              disabled={isUploadingDocuments}
+              onClick={() => void saveUpload()}
+            >
+              {isUploadingDocuments ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <UploadCloud className="size-4" />
+              )}
+              {isUploadingDocuments ? "업로드 중" : "문서 업로드"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function mapCreatedDraft(
+  draft: CreateProjectDraftResponse,
+  docs: ProjectDoc[] = [],
+): ProjectSummary {
+  return {
+    id: String(draft.projectId),
+    name: draft.name,
+    client: `PM ${draft.pmEmployeeNumber}`,
+    status: "준비",
+    progress: 0,
+    dueDate: draft.plannedEndDate,
+    riskCount: 0,
+    reqCount: 0,
+    wizardStep: 0,
+    estimate: "-",
+    updatedAt: `${draft.plannedStartDate} ~ ${draft.plannedEndDate}`,
+    docs,
+    requirements: [],
+  };
+}
+
+function getProjectActionError(caught: unknown, fallback: string) {
+  return caught instanceof ApiError && caught.message.trim()
+    ? caught.message
+    : fallback;
 }
 
 function StatusBadge({ status }: { status: ProjectStatus }) {

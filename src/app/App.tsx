@@ -55,7 +55,6 @@ import {
 import { slackApi } from "@/app/api/slackApi";
 import {
   PROJECTS,
-  type ProjectRequirement,
   type ProjectStatus,
   type ProjectSummary as FrontendProjectSummary,
 } from "@/app/data/demoData";
@@ -397,25 +396,6 @@ export default function App() {
         <ProjectExtraction
           project={pmExtract}
           onBack={() => setPmExtract(null)}
-          onConfirm={(requirements: ProjectRequirement[]) => {
-            const updated: FrontendProjectSummary = {
-              ...pmExtract,
-              status: "준비",
-              requirements,
-              reqCount: requirements.length,
-              wizardStep: 1,
-              updatedAt: "방금",
-            };
-
-            setProjects((prev) =>
-              prev.map((p) =>
-                p.id === updated.id ? updated : p,
-              ),
-            );
-
-            setPmExtract(null);
-            setPmWizard(updated);
-          }}
         />
       );
     } else if (pmWizard) {
@@ -469,6 +449,11 @@ export default function App() {
           <ProjectBoard
             projects={projects}
             setProjects={setProjects}
+            pmEmployeeNumber={authSession.employeeNumber}
+            onProjectCreated={(project) => {
+              setSelectedProjectId(project.id);
+              setProjectLoadStatus("ready");
+            }}
             onOpenOperational={(p) => {
               setPmWizard(null);
               setPmDetail(p);
@@ -480,6 +465,7 @@ export default function App() {
             onExtract={(p) => {
               setPmDetail(null);
               setPmWizard(null);
+              setSelectedProjectId(p.id);
               setPmExtract(p);
             }}
           />
@@ -580,6 +566,7 @@ function mapApiProject(project: ApiProjectSummary): FrontendProjectSummary {
     estimate: "-",
     updatedAt: formatUpdatedAt(project.plannedStartDate, project.plannedEndDate),
     docs: [],
+    requirements: null,
   };
 }
 

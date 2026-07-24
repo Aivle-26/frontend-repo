@@ -10,6 +10,8 @@ import {
   ListTodo,
   Pencil,
   Users,
+  Loader2,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,7 +34,14 @@ import {
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import { DocPicker } from "@/app/components/pm/DocPicker";
-import { projectRepository } from "@/app/api/projectRepository";
+import {
+  ApiError,
+  projectRepository,
+} from "@/app/api/projectRepository";
+import {
+  mapUploadedProjectDocuments,
+  type PendingProjectDocument,
+} from "@/app/components/pm/projectDocumentUpload";
 import type {
   ProjectDoc,
   ProjectStatus,
@@ -101,7 +110,50 @@ export function ProjectDetail({
 }: ProjectDetailProps) {
   const { aiSummary, risks } = projectRepository.getPmDashboard();
   const [docOpen, setDocOpen] = useState(false);
-  const [docDraft, setDocDraft] = useState<ProjectDoc[]>(p.docs);
+  const [docDraft, setDocDraft] = useState<PendingProjectDocument[]>([]);
+  const [docError, setDocError] = useState("");
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+
+  const openDocumentUpload = () => {
+    setDocDraft([]);
+    setDocError("");
+    setDocOpen(true);
+  };
+
+  const uploadDocuments = async () => {
+    if (isUploadingDocuments) return;
+    if (docDraft.length === 0) {
+      setDocError("추가할 문서를 선택하세요.");
+      return;
+    }
+
+    setIsUploadingDocuments(true);
+    setDocError("");
+
+    try {
+      const response = await projectRepository.uploadProjectDocuments(
+        p.id,
+        docDraft.map((document) => document.file),
+      );
+      const uploadedDocuments = mapUploadedProjectDocuments(
+        response.documents,
+        docDraft,
+      );
+      onUpdateDocs([...p.docs, ...uploadedDocuments]);
+      setDocDraft([]);
+      setDocOpen(false);
+      toast.success("문서를 업로드했습니다.");
+    } catch (caught) {
+      const message =
+        caught instanceof ApiError && caught.message.trim()
+          ? caught.message
+          : "문서 업로드에 실패했습니다. 다시 시도해 주세요.";
+      setDocError(message);
+      toast.error(message);
+    } finally {
+      setIsUploadingDocuments(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -238,10 +290,7 @@ export function ProjectDetail({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setDocDraft(p.docs);
-                setDocOpen(true);
-              }}
+              onClick={openDocumentUpload}
             >
               <Pencil className="size-3.5" /> 문서 관리
             </Button>
@@ -272,27 +321,86 @@ export function ProjectDetail({
       </Card>
 
       {/* 문서 관리 다이얼로그 */}
-      <Dialog open={docOpen} onOpenChange={setDocOpen}>
+      <Dialog
+        open={docOpen}
+        onOpenChange={(open) => {
+          if (isUploadingDocuments) return;
+          setDocOpen(open);
+          if (!open) {
+            setDocDraft([]);
+            setDocError("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>문서 관리</DialogTitle>
-            <DialogDescription>{p.name} · 초기 문서를 추가·수정·삭제하세요.</DialogDescription>
+            <DialogDescription>
+              {p.name} · 기존 문서는 유지하고 새 문서를 추가합니다.
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-1">
-            <DocPicker docs={docDraft} onChange={setDocDraft} />
+          <div className="space-y-3 py-1">
+            {p.docs.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium text-foreground">
+                  등록된 문서
+                </div>
+                {p.docs.map((document, index) => (
+                  <div
+                    key={`${document.name}-${index}`}
+                    className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
+                  >
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-sm text-foreground">
+                      {document.name}
+                    </span>
+                    <Badge variant="secondary" className="font-normal">
+                      {document.type}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <DocPicker
+              documents={docDraft}
+              onChange={setDocDraft}
+              onError={setDocError}
+              disabled={isUploadingDocuments}
+            />
+
+            {docError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{docError}</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDocOpen(false)}>
+            <Button
+              variant="outline"
+              disabled={isUploadingDocuments}
+              onClick={() => {
+                setDocOpen(false);
+                setDocDraft([]);
+                setDocError("");
+              }}
+            >
               취소
             </Button>
             <Button
-              onClick={() => {
-                onUpdateDocs(docDraft);
-                setDocOpen(false);
-                toast.success("문서를 저장했어요.");
-              }}
+              disabled={isUploadingDocuments}
+              onClick={() => void uploadDocuments()}
             >
-              저장
+              {isUploadingDocuments ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <UploadCloud className="size-4" />
+              )}
+              {isUploadingDocuments ? "업로드 중" : "문서 업로드"}
             </Button>
           </DialogFooter>
         </DialogContent>

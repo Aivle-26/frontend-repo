@@ -53,7 +53,10 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
 
   // 단계별 상태
   const [reqs, setReqs] = useState(() =>
-    (project.requirements ?? seed.requirements).map((r) => ({
+    (project.requirements === undefined
+      ? seed.requirements
+      : (project.requirements ?? [])
+    ).map((r) => ({
       id: r.id,
       text: r.text,
       category: r.category,

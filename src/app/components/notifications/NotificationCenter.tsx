@@ -221,7 +221,7 @@ export function NotificationCenter({
         collisionPadding={16}
         className="z-[100] w-[min(94vw,560px)] overflow-hidden p-0"
       >
-     
+
         <div className="flex items-start justify-between gap-4 p-4 pb-3">
           <div>
             <div className="flex items-center gap-2">

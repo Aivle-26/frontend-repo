@@ -158,6 +158,23 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+export interface CreateProjectDraftRequest {
+  name: string;
+  description: string | null;
+  pmEmployeeNumber: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
+}
+
+export interface CreateProjectDraftResponse {
+  projectId: number;
+  name: string;
+  pmEmployeeNumber: string;
+  status: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
+}
+
 export interface ProjectDocumentUploadItem {
   documentId: number;
   originalFileName: string;
@@ -506,6 +523,15 @@ export const projectRepository = {
 
   listProjects() {
     return apiFetch<ProjectSummary[]>("/projects", { auth: true });
+  },
+
+  createProjectDraft(input: CreateProjectDraftRequest) {
+    return apiFetch<CreateProjectDraftResponse>("/projects/drafts", {
+      method: "POST",
+      body: JSON.stringify(input),
+      auth: true,
+      expectedStatuses: [201],
+    });
   },
 
   getProjectName() {

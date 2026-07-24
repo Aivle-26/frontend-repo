@@ -31,13 +31,11 @@ import {
   projectRepository,
   type ProjectDocumentUploadItem,
 } from "@/app/api/projectRepository";
+import {
+  PROJECT_DOCUMENT_ACCEPT,
+  validateProjectDocumentFiles,
+} from "@/app/components/pm/projectDocumentUpload";
 import type { ProjectSummary, UploadedRfp } from "@/app/data/demoData";
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_REQUEST_SIZE = 50 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "pptx", "txt"]);
-const FILE_ACCEPT =
-  ".pdf,.docx,.xlsx,.pptx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain";
 
 function statusClass(s: UploadedRfp["status"]) {
   if (s === "분석 완료") return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -75,24 +73,9 @@ export function PmUpload({
   const addFiles = async (selectedFiles: File[]) => {
     if (isUploading || selectedFiles.length === 0) return;
 
-    const invalidType = selectedFiles.find((file) => {
-      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-      return !ALLOWED_EXTENSIONS.has(extension);
-    });
-    if (invalidType) {
-      toast.error(`"${invalidType.name}"은 지원하지 않는 파일 형식입니다.`);
-      return;
-    }
-
-    const oversized = selectedFiles.find((file) => file.size > MAX_FILE_SIZE);
-    if (oversized) {
-      toast.error(`"${oversized.name}"은 파일당 최대 10MB를 초과합니다.`);
-      return;
-    }
-
-    const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-    if (totalSize > MAX_REQUEST_SIZE) {
-      toast.error("한 번에 업로드할 수 있는 전체 용량은 최대 50MB입니다.");
+    const validationError = validateProjectDocumentFiles(selectedFiles);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -170,7 +153,7 @@ export function PmUpload({
           <input
             ref={inputRef}
             type="file"
-            accept={FILE_ACCEPT}
+            accept={PROJECT_DOCUMENT_ACCEPT}
             multiple
             disabled={isUploading}
             className="hidden"

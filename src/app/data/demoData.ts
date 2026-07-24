@@ -84,7 +84,7 @@ export interface ProjectSummary {
   estimate: string; // 견적
   updatedAt: string;
   docs: ProjectDoc[]; // 초기 문서 (없으면 나중에 업로드)
-  requirements?: ProjectRequirement[]; // AI 추출 요구사항 (있으면 마법사에서 사용)
+  requirements?: ProjectRequirement[] | null; // null이면 API 요구사항 미조회
 }
 
 /** AI 추출 시뮬레이션용 요구사항 풀 */
@@ -211,9 +211,11 @@ export function projectRequirements(p: ProjectSummary): Requirement[] {
   const count = p.reqCount > 0 ? Math.min(p.reqCount, EXTRACTED_REQ_POOL.length) : 6;
   const diffs: Difficulty[] = ["상", "중", "하"];
   const statuses: ReqStatus[] = ["미배정", "배정됨", "검토중", "완료"];
+  // API 프로젝트는 null(미조회) 또는 배열(조회 완료)을 명시하므로
+  // 데모 요구사항을 실제 추출 결과처럼 대신 표시하지 않는다.
   const base =
-    p.requirements && p.requirements.length
-      ? p.requirements
+    p.requirements !== undefined
+      ? (p.requirements ?? [])
       : Array.from(
           { length: count },
           (_, i) => EXTRACTED_REQ_POOL[(seed + i) % EXTRACTED_REQ_POOL.length],

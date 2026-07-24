@@ -415,6 +415,10 @@ export default function App() {
         <ProjectDetail
           project={pmDetail}
           onBack={() => setPmDetail(null)}
+          onNavigate={(menu) => {
+            setSelectedProjectId(pmDetail.id);
+            handleSelect(menu);
+          }}
           onUpdateDocs={(docs) => {
             const updated: FrontendProjectSummary = {
               ...pmDetail,

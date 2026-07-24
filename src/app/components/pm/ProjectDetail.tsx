@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   TrendingUp,
   CalendarClock,
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   Sparkles,
   ListTodo,
   Pencil,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -48,13 +50,55 @@ function statusClass(s: ProjectStatus) {
   return map[s];
 }
 
+type ProjectDetailMenu = "requirements" | "risk" | "assign";
+
 interface ProjectDetailProps {
   project: ProjectSummary;
   onBack: () => void;
   onUpdateDocs: (docs: ProjectDoc[]) => void;
+  onNavigate: (menu: ProjectDetailMenu) => void;
 }
 
-export function ProjectDetail({ project: p, onBack, onUpdateDocs }: ProjectDetailProps) {
+interface SummaryAction {
+  menu: ProjectDetailMenu;
+  label: string;
+  icon: typeof FileText;
+}
+
+function getSummaryAction(line: string): SummaryAction | null {
+  if (line.includes("요구사항") || line.includes("추출")) {
+    return {
+      menu: "requirements",
+      label: "요구사항 바로가기",
+      icon: FileText,
+    };
+  }
+
+  if (line.includes("고위험") || line.includes("리스크") || line.includes("위험")) {
+    return {
+      menu: "risk",
+      label: "리스크 관리 바로가기",
+      icon: AlertTriangle,
+    };
+  }
+
+  if (line.includes("업무") || line.includes("분해") || line.includes("배정")) {
+    return {
+      menu: "assign",
+      label: "업무 배정 바로가기",
+      icon: Users,
+    };
+  }
+
+  return null;
+}
+
+export function ProjectDetail({
+  project: p,
+  onBack,
+  onUpdateDocs,
+  onNavigate,
+}: ProjectDetailProps) {
   const { aiSummary, risks } = projectRepository.getPmDashboard();
   const [docOpen, setDocOpen] = useState(false);
   const [docDraft, setDocDraft] = useState<ProjectDoc[]>(p.docs);
@@ -121,12 +165,42 @@ export function ProjectDetail({ project: p, onBack, onUpdateDocs }: ProjectDetai
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {aiSummary.map((line) => (
-                <li key={line} className="flex items-start gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                  <span className="text-foreground text-sm">{line}</span>
-                </li>
-              ))}
+              {aiSummary.map((line) => {
+                const action = getSummaryAction(line);
+                const ActionIcon = action?.icon;
+
+                return (
+                  <li
+                    key={line}
+                    className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-2">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                      <span className="text-foreground text-sm leading-6">
+                        {line}
+                      </span>
+                    </div>
+
+                    {action && ActionIcon && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between gap-2 self-start sm:w-[170px] sm:min-w-[170px] sm:self-auto"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onNavigate(action.menu);
+                        }}
+                      >
+                        <ActionIcon className="size-3.5" />
+                        {action.label}
+                        <ArrowRight className="size-3.5" />
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </CardContent>
         </Card>

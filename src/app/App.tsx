@@ -516,6 +516,9 @@ export default function App() {
           roleLabel={isPm ? "PM" : "직원"}
           onLogout={handleLogout}
           actions={actions}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          isPm={isPm}
         />
         <main className="flex-1 overflow-y-auto p-6">{body}</main>
       </div>

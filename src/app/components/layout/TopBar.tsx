@@ -1,8 +1,10 @@
-import { Bell, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { ThemeToggle } from "@/app/components/common/ThemeToggle";
+import { NotificationCenter } from "@/app/components/notifications/NotificationCenter";
+import type { ProjectSummary } from "@/app/data/demoData";
 
 interface TopBarProps {
   title: string;
@@ -11,25 +13,46 @@ interface TopBarProps {
   roleLabel: string;
   onLogout: () => void;
   actions?: React.ReactNode;
+  projects?: ProjectSummary[];
+  selectedProjectId?: string;
+  isPm?: boolean;
 }
 
-export function TopBar({ title, subtitle, userName, roleLabel, onLogout, actions }: TopBarProps) {
+export function TopBar({
+  title,
+  subtitle,
+  userName,
+  roleLabel,
+  onLogout,
+  actions,
+  projects = [],
+  selectedProjectId,
+  isPm = false,
+}: TopBarProps) {
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-card flex items-center justify-between px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-6">
       <div className="leading-tight">
         <div className="text-foreground">{title}</div>
-        {subtitle && <div className="text-muted-foreground text-xs">{subtitle}</div>}
+        {subtitle && (
+          <div className="text-xs text-muted-foreground">{subtitle}</div>
+        )}
       </div>
+
       <div className="flex items-center gap-3">
         {actions}
         <Badge variant="secondary">{roleLabel}</Badge>
         <ThemeToggle />
-        <Button variant="ghost" size="icon" aria-label="알림">
-          <Bell className="size-4" />
-        </Button>
+
+        <NotificationCenter
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          isPm={isPm}
+        />
+
         <Avatar className="size-8">
           <AvatarFallback>{userName.slice(0, 1)}</AvatarFallback>
         </Avatar>
+
         <Button variant="outline" size="sm" onClick={onLogout}>
           <LogOut className="size-4" />
           로그아웃

@@ -15,6 +15,7 @@ import {
   MessagesSquare,
   FolderKanban,
   Search,
+  Megaphone,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
@@ -36,6 +37,7 @@ import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
 import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { ProjectExtraction } from "@/app/components/pm/ProjectExtraction";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
+import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
 import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
 import { StaffRisk, StaffRiskActions } from "@/app/components/staff/StaffRisk";
@@ -62,6 +64,7 @@ import { PmGeneration } from "@/app/components/pm/PmGeneration";
 
 const PM_MENU: SidebarItem[] = [
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
+  { key: "notice", label: "공지사항", icon: Megaphone, group: "개요" },
   { key: "upload", label: "공고문 업로드", icon: UploadCloud, group: "AI 준비" },
   { key: "generation", label: "AI 생성", icon: Bot, group: "AI 준비" },
   { key: "analysis", label: "AI 분석", icon: Sparkles, group: "AI 준비" },
@@ -75,6 +78,7 @@ const PM_MENU: SidebarItem[] = [
 
 const STAFF_MENU: SidebarItem[] = [
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
+  { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
   { key: "context", label: "RFP 맥락", icon: BookOpen, group: "자료" },
@@ -276,6 +280,9 @@ export default function App() {
     } else if (pmMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
+    } else if (pmMenu === "notice") {
+      subtitle = "공지사항";
+      body = <StaffNotice excludeCategories={["PM 피드백"]} />;
     } else if (pmMenu === "upload") {
       subtitle = "공고문 업로드";
       body = (
@@ -476,6 +483,9 @@ export default function App() {
     if (staffMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
+    } else if (staffMenu === "notice") {
+      subtitle = "공지사항";
+      body = <StaffNotice />;
     } else if (staffMenu === "documents") {
       subtitle = "문서 통합 관리";
       body = <StaffDocuments />;

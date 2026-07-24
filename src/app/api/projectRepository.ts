@@ -9,6 +9,7 @@ import {
   REQUIREMENTS,
   RISKS,
   STAFF_FEEDBACK,
+  STAFF_NOTICES,
   TASKS,
   TASK_CHECKLIST,
   TEAM,
@@ -44,9 +45,11 @@ import {
   type Role,
   type Task,
   type TaskColumn,
+  type Notice,
+  type NoticeCategory,
 } from "@/app/data/demoData";
 
-export type { Role, Task, TaskColumn };
+export type { Role, Task, TaskColumn, Notice, NoticeCategory };
 
 // 배포 환경(vercel.json)은 /api/* 를 EC2로 넘기는 rewrite가 있어 상대경로 "/api"가 맞다.
 // 로컬 개발은 그 프록시가 없으므로 VITE_AUTH_API(=http://localhost:8080)를 지정해 절대경로로 쓴다.
@@ -658,6 +661,10 @@ export const projectRepository = {
 
   getStaffFeedback() {
     return { feedback: STAFF_FEEDBACK };
+  },
+
+  getStaffNotices() {
+    return { notices: STAFF_NOTICES };
   },
 
   async uploadRfp() {

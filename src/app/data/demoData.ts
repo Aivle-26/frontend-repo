@@ -48,6 +48,20 @@ export interface Feedback {
   text: string;
 }
 
+export type NoticeCategory = "PM 피드백" | "마감 안내" | "시스템 공지" | "업데이트";
+
+export interface Notice {
+  id: string;
+  category: NoticeCategory;
+  priority: Priority;
+  pinned: boolean;
+  title: string;
+  author: string;
+  date: string;
+  summary: string;
+  content: string[];
+}
+
 export const PROJECT_NAME = "도시 인프라 RFP 2024";
 
 /* =====================================================================
@@ -585,6 +599,99 @@ export const STAFF_FEEDBACK: Feedback[] = [
     author: "PM 정하늘",
     date: "2026-06-27",
     text: "컴플라이언스 매트릭스 초안 잘 확인했습니다. 검토 완료 처리합니다.",
+  },
+];
+
+export const STAFF_NOTICES: Notice[] = [
+  {
+    id: "n1",
+    category: "PM 피드백",
+    priority: "높음",
+    pinned: true,
+    title: "3.2 환경 규정 준수 초안 검토 의견",
+    author: "PM 정하늘",
+    date: "2026-07-22",
+    summary: "근거 조항 인용이 빠져 있어 감점 요인이 될 수 있습니다.",
+    content: [
+      "3.2 환경 규정 준수 초안을 검토했습니다. 전반적인 구성은 좋으나, 근거 조항을 명시하지 않으면 감점 대상이 됩니다.",
+      "'온실가스 저감 계획' 항목에는 관련 법령의 구체적 조항 번호를 함께 기재해 주세요.",
+      "표 3의 수치 출처도 각주로 표기가 필요합니다. 금주 목요일 최종본 취합 전까지 반영 부탁드립니다.",
+    ],
+  },
+  {
+    id: "n2",
+    category: "마감 안내",
+    priority: "높음",
+    pinned: true,
+    title: "RFP 4.1 기술 요건 제출 마감 D-3",
+    author: "운영팀",
+    date: "2026-07-21",
+    summary: "입찰 전략 API 최적화 항목 마감이 임박했습니다.",
+    content: [
+      "RFP 4.1 기술 요건 관련 산출물 제출 마감이 7월 25일(금) 18:00로 다가왔습니다.",
+      "현재 진행률은 약 70%이며, 미완료 항목은 API 응답 시간 벤치마크 표 작성입니다.",
+      "마감 이후 제출본은 재검토 절차가 추가로 필요하니 기한 내 업로드 부탁드립니다.",
+    ],
+  },
+  {
+    id: "n3",
+    category: "PM 피드백",
+    priority: "중간",
+    pinned: false,
+    title: "UI 리팩토링(업무 보드) 1차 리뷰 코멘트",
+    author: "PM 이서연",
+    date: "2026-07-20",
+    summary: "우선순위 뱃지 색상 대비를 조금 더 높여주세요.",
+    content: [
+      "업무 보드 UI 리팩토링 1차 안 잘 봤습니다. 전체적인 레이아웃은 승인합니다.",
+      "다만 '중간' 뱃지 색상이 배경과 대비가 낮아 접근성 기준을 충족하지 못할 수 있어요. 색상값 조정 부탁드립니다.",
+      "모바일 뷰에서 사이드바 축소 시 아이콘 정렬도 함께 확인해 주세요.",
+    ],
+  },
+  {
+    id: "n4",
+    category: "시스템 공지",
+    priority: "낮음",
+    pinned: false,
+    title: "정기 점검 안내 (7/27 새벽 2시~4시)",
+    author: "운영팀",
+    date: "2026-07-19",
+    summary: "해당 시간 동안 문서 통합 관리 기능 이용이 일시 제한됩니다.",
+    content: [
+      "서버 안정화 작업을 위해 7월 27일(월) 02:00~04:00 동안 정기 점검을 진행합니다.",
+      "점검 시간 동안 문서 통합 관리 및 산출물 제출 기능 이용이 일시적으로 제한됩니다.",
+      "작업 중 진행 중이던 초안은 자동 저장되며, 점검 종료 후 정상 이용 가능합니다.",
+    ],
+  },
+  {
+    id: "n5",
+    category: "업데이트",
+    priority: "낮음",
+    pinned: false,
+    title: "LLM 피드백 루프 v2 배포 완료",
+    author: "개발팀",
+    date: "2026-07-18",
+    summary: "RFP 5.3 운영 요건 관련 자동 피드백 생성 속도가 개선되었습니다.",
+    content: [
+      "LLM 피드백 루프 연동 기능이 v2로 업데이트되었습니다. 평균 응답 생성 시간이 기존 대비 약 40% 단축되었습니다.",
+      "또한 피드백 근거로 참조한 RFP 조항이 함께 표시되도록 개선했습니다.",
+      "이슈 발견 시 '피드백' 메뉴를 통해 알려주세요.",
+    ],
+  },
+  {
+    id: "n6",
+    category: "PM 피드백",
+    priority: "중간",
+    pinned: false,
+    title: "RFP V3 데이터셋 검토 코멘트",
+    author: "PM 정하늘",
+    date: "2026-07-15",
+    summary: "개인정보 비식별화 처리 근거를 추가해 주세요.",
+    content: [
+      "RFP V3 데이터셋 검토를 마쳤습니다. 전반적인 데이터 정합성은 양호합니다.",
+      "데이터 요건 중 개인정보 비식별화 처리 방식에 대한 근거 자료가 누락되어 있어, 관련 문서를 첨부해 주시기 바랍니다.",
+      "다음 검토는 7월 24일 오전 중 진행 예정입니다.",
+    ],
   },
 ];
 

@@ -374,10 +374,10 @@ export const MANAGED_RISKS: ManagedRisk[] = [
 
 export const AI_SEARCH_EXAMPLES: string[] = [
   "이 프로젝트의 핵심 기능 요구사항을 보여줘",
-  "보안과 관련된 모든 문서를 찾아줘",
+  "지금 가장 시급한 리스크는 뭐야?",
   "요구사항과 WBS가 일치하지 않는 부분을 찾아줘",
-  "최신 화면 설계 문서를 보여줘",
-  "리스크가 가장 높은 산출물은 무엇인지 분석해줘",
+  "이번 일정에서 지연 위험이 있는 단계는?",
+  "보안과 관련된 문서와 리스크를 정리해줘",
 ];
 
 export const KPI_PM = {

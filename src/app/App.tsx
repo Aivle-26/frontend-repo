@@ -62,26 +62,26 @@ import {
 import { PmGeneration } from "@/app/components/pm/PmGeneration";
 
 const PM_MENU: SidebarItem[] = [
-  { key: "dashboard", label: "프로젝트", icon: LayoutDashboard },
-  { key: "upload", label: "공고문 업로드", icon: UploadCloud },
-  { key: "generation", label: "AI 생성", icon: Bot },
-  { key: "analysis", label: "AI 분석", icon: Sparkles },
-  { key: "requirements", label: "요구사항", icon: FileText },
-  { key: "assign", label: "업무 배정", icon: Users },
-  { key: "documents", label: "문서함", icon: FolderKanban },
-  { key: "search", label: "AI 문서 검색", icon: Search },
-  { key: "risk", label: "리스크 관리", icon: AlertTriangle },
-  { key: "review", label: "검토", icon: ClipboardCheck },
+  { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
+  { key: "upload", label: "공고문 업로드", icon: UploadCloud, group: "AI 준비" },
+  { key: "generation", label: "AI 생성", icon: Bot, group: "AI 준비" },
+  { key: "analysis", label: "AI 분석", icon: Sparkles, group: "AI 준비" },
+  { key: "requirements", label: "요구사항", icon: FileText, group: "AI 준비" },
+  { key: "assign", label: "업무 배정", icon: Users, group: "업무" },
+  { key: "review", label: "검토", icon: ClipboardCheck, group: "업무" },
+  { key: "risk", label: "리스크 관리", icon: AlertTriangle, group: "업무" },
+  { key: "documents", label: "문서함", icon: FolderKanban, group: "자료" },
+  { key: "search", label: "AI 통합 질의응답", icon: MessagesSquare, group: "자료" },
 ];
 
 const STAFF_MENU: SidebarItem[] = [
-  { key: "tasks", label: "내 업무", icon: ListTodo },
-  { key: "context", label: "RFP 맥락", icon: BookOpen },
-  { key: "documents", label: "문서 통합 관리", icon: FolderKanban },
-  { key: "risk", label: "리스크", icon: AlertTriangle },
-  { key: "submit", label: "산출물 제출", icon: Send },
-  { key: "feedback", label: "피드백", icon: MessageSquareReply },
-  { key: "comments", label: "댓글", icon: MessagesSquare },
+  { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
+  { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
+  { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
+  { key: "context", label: "RFP 맥락", icon: BookOpen, group: "자료" },
+  { key: "documents", label: "문서 통합 관리", icon: FolderKanban, group: "자료" },
+  { key: "feedback", label: "피드백", icon: MessageSquareReply, group: "소통" },
+  { key: "comments", label: "댓글", icon: MessagesSquare, group: "소통" },
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
@@ -338,11 +338,13 @@ export default function App() {
         />
       );
     } else if (pmMenu === "search") {
-      subtitle = "AI 문서 검색";
+      subtitle = "AI 통합 질의응답";
       body = (
         <AiDocSearch
           key={selectedProject?.id}
           project={selectedProject!}
+          onOpenRequirements={() => handleSelect("requirements")}
+          onOpenRisk={() => handleSelect("risk")}
         />
       );
     } else if (pmMenu === "risk") {

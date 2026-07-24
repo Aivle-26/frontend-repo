@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { cn } from "@/app/components/ui/utils";
@@ -10,6 +10,8 @@ export interface SidebarItem {
   icon: React.ComponentType<{
     className?: string;
   }>;
+  /** 메뉴 그룹 라벨. 이전 항목과 그룹이 달라지면 헤더가 표시됩니다. */
+  group?: string;
 }
 
 interface SidebarProps {
@@ -150,14 +152,26 @@ export function Sidebar({
 
       {/* 메뉴 */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-3 py-2">
-        {items.map((item) => {
+        {items.map((item, idx) => {
           const Icon = item.icon;
           const isActive =
             item.key === active;
+          const showGroup =
+            !!item.group && item.group !== items[idx - 1]?.group;
 
           return (
+            <Fragment key={item.key}>
+            {showGroup && (
+              <div
+                className={cn(
+                  "whitespace-nowrap px-3 pb-1 text-[11px] font-medium text-muted-foreground/70",
+                  idx === 0 ? "pt-1" : "pt-3",
+                )}
+              >
+                {item.group}
+              </div>
+            )}
             <button
-              key={item.key}
               type="button"
               onClick={() =>
                 onSelect(item.key)
@@ -211,6 +225,7 @@ export function Sidebar({
                 {item.label}
               </span>
             </button>
+            </Fragment>
           );
         })}
       </nav>

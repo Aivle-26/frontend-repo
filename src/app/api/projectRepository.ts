@@ -158,6 +158,18 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+export interface ProjectDocumentUploadItem {
+  documentId: number;
+  originalFileName: string;
+  status: string;
+  fileSize: number;
+}
+
+export interface ProjectDocumentUploadResponse {
+  projectId: number;
+  documents: ProjectDocumentUploadItem[];
+}
+
 export interface AssignRequirementInput {
   requirementId: number;
   assignee: string;
@@ -624,6 +636,21 @@ export const projectRepository = {
 
   async uploadRfp() {
     return { ok: true };
+  },
+
+  uploadProjectDocuments(projectId: string | number, files: File[]) {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    return apiFetch<ProjectDocumentUploadResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/documents/upload`,
+      {
+        method: "POST",
+        body: formData,
+        auth: true,
+        expectedStatuses: [201],
+      },
+    );
   },
 
   async reanalyzeRfp() {

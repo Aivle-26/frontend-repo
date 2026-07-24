@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   ExternalLink,
   FileText,
   Globe2,
@@ -93,9 +94,19 @@ function similarityBadgeVariant(similarity: number) {
   return "outline" as const;
 }
 
-export function PmAnalysis({ project }: { project: ProjectSummary }) {
+const SNAPSHOT_LIMIT = 6;
+
+export function PmAnalysis({
+  project,
+  onOpenRequirements,
+}: {
+  project: ProjectSummary;
+  onOpenRequirements?: () => void;
+}) {
   const { risks } = projectRepository.getPmAnalysis();
   const requirements = projectRequirements(project);
+  const snapshot = requirements.slice(0, SNAPSHOT_LIMIT);
+  const remaining = requirements.length - snapshot.length;
 
   const [selectedId, setSelectedId] = useState<number | null>(
     requirements[0]?.id ?? null,
@@ -188,13 +199,26 @@ export function PmAnalysis({ project }: { project: ProjectSummary }) {
           </CardContent>
         </Card>
 
-        {/* AI 추출 요구사항 */}
+        {/* AI 추출 요구사항 (스냅샷) */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle>AI 추출 요구사항</CardTitle>
-            <CardDescription>
-              공고문에서 AI가 추출한 요구사항입니다. 항목을 선택하면 우측 추천 검색에 반영됩니다.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+            <div>
+              <CardTitle>AI 추출 요구사항</CardTitle>
+              <CardDescription>
+                AI가 방금 추출한 결과 스냅샷입니다. 항목을 선택하면 우측 추천 검색에 반영돼요. 필터·상태 관리는 요구사항 화면에서.
+              </CardDescription>
+            </div>
+            {onOpenRequirements && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={onOpenRequirements}
+              >
+                요구사항 전체 보기
+                <ArrowRight className="size-4" />
+              </Button>
+            )}
           </CardHeader>
 
           <CardContent className="pt-0">
@@ -207,13 +231,11 @@ export function PmAnalysis({ project }: { project: ProjectSummary }) {
                     <TableHead>요구사항</TableHead>
                     <TableHead className="w-20">분류</TableHead>
                     <TableHead className="w-20">우선순위</TableHead>
-                    <TableHead className="w-16">난이도</TableHead>
-                    <TableHead className="w-24">추천 담당자</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {requirements.map((requirement) => (
+                  {snapshot.map((requirement) => (
                     <TableRow
                       key={requirement.id}
                       data-state={
@@ -242,17 +264,22 @@ export function PmAnalysis({ project }: { project: ProjectSummary }) {
                           {requirement.priority}
                         </Badge>
                       </TableCell>
-                      <TableCell className="py-2.5 text-muted-foreground">
-                        {requirement.difficulty}
-                      </TableCell>
-                      <TableCell className="py-2.5 text-muted-foreground">
-                        {requirement.recommendedOwner}
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+
+            {remaining > 0 && (
+              <button
+                type="button"
+                onClick={onOpenRequirements}
+                className="mt-3 flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/40"
+              >
+                외 {remaining}건 · 요구사항 전체 보기
+                <ArrowRight className="size-3.5" />
+              </button>
+            )}
           </CardContent>
         </Card>
 

@@ -286,6 +286,7 @@ export default function App() {
           key={selectedProject?.id}
           project={selectedProject!}
           onOpenDocuments={() => handleSelect("documents")}
+          onOpenRequirements={() => handleSelect("requirements")}
         />
       );
     } else if (pmMenu === "documents") {
@@ -343,6 +344,7 @@ export default function App() {
         <PmAnalysis
           key={selectedProject?.id}
           project={selectedProject!}
+          onOpenRequirements={() => handleSelect("requirements")}
         />
       );
     } else if (pmExtract) {

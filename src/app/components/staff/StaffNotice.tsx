@@ -6,7 +6,9 @@ import {
   Clock,
   Pin,
   ChevronRight,
+  Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -16,6 +18,17 @@ import {
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Label } from "@/app/components/ui/label";
+import { Switch } from "@/app/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -25,10 +38,11 @@ import {
   DialogFooter,
 } from "@/app/components/ui/dialog";
 import {
-  projectRepository,
   type Notice,
   type NoticeCategory,
 } from "@/app/api/projectRepository";
+import { addNotice, useNotices } from "@/app/state/noticeStore";
+import { type Priority } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
 
 const FILTERS: (NoticeCategory | "전체")[] = [
@@ -47,13 +61,36 @@ function priorityVariant(p: string) {
 
 const THIS_WEEK_FROM = "2026-07-18";
 
+const CREATE_CATEGORIES: NoticeCategory[] = [
+  "시스템 공지",
+  "마감 안내",
+  "업데이트",
+  "PM 피드백",
+];
+const PRIORITIES: Priority[] = ["높음", "중간", "낮음"];
+
+function todayStr(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 interface StaffNoticeProps {
   /** 이 화면에서 숨길 공지 카테고리. 예: PM 화면에서는 PM 피드백을 숨김. */
   excludeCategories?: NoticeCategory[];
+  /** PM 등 공지 작성 권한이 있는 화면에서 true. 등록 버튼이 표시됩니다. */
+  canCreate?: boolean;
+  /** 등록 시 기록할 작성자명. */
+  authorName?: string;
 }
 
-export function StaffNotice({ excludeCategories = [] }: StaffNoticeProps) {
-  const { notices: allNotices } = projectRepository.getStaffNotices();
+export function StaffNotice({
+  excludeCategories = [],
+  canCreate = false,
+  authorName = "PM",
+}: StaffNoticeProps) {
+  const allNotices = useNotices();
   const notices = useMemo(
     () => allNotices.filter((n) => !excludeCategories.includes(n.category)),
     [allNotices, excludeCategories],
@@ -65,6 +102,57 @@ export function StaffNotice({ excludeCategories = [] }: StaffNoticeProps) {
   const [filter, setFilter] = useState<NoticeCategory | "전체">("전체");
   const [selected, setSelected] = useState<Notice | null>(null);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  // 등록 폼
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({
+    category: "시스템 공지" as NoticeCategory,
+    priority: "중간" as Priority,
+    title: "",
+    summary: "",
+    content: "",
+    pinned: false,
+  });
+
+  const resetForm = () =>
+    setForm({
+      category: "시스템 공지",
+      priority: "중간",
+      title: "",
+      summary: "",
+      content: "",
+      pinned: false,
+    });
+
+  const submitNotice = () => {
+    if (!form.title.trim()) {
+      toast.error("제목을 입력하세요.");
+      return;
+    }
+    const content = form.content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    addNotice({
+      category: form.category,
+      priority: form.priority,
+      pinned: form.pinned,
+      title: form.title.trim(),
+      author: authorName,
+      date: todayStr(),
+      summary: form.summary.trim() || form.title.trim(),
+      content: content.length > 0 ? content : [form.summary.trim() || form.title.trim()],
+    });
+
+    setCreateOpen(false);
+    resetForm();
+    toast.success(
+      form.category === "PM 피드백"
+        ? "PM 피드백을 등록해 직원에게 전달했어요."
+        : "공지를 등록했어요.",
+    );
+  };
 
   const unreadCount = notices.filter((n) => !readIds.has(n.id)).length;
   const importantCount = notices.filter((n) => n.priority === "높음").length;
@@ -95,13 +183,20 @@ export function StaffNotice({ excludeCategories = [] }: StaffNoticeProps) {
 
       {/* 목록 */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Megaphone className="size-4" /> 공지 목록
-          </CardTitle>
-          <CardDescription>
-            공지를 클릭하면 상세 내용을 확인할 수 있습니다.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Megaphone className="size-4" /> 공지 목록
+            </CardTitle>
+            <CardDescription>
+              공지를 클릭하면 상세 내용을 확인할 수 있습니다.
+            </CardDescription>
+          </div>
+          {canCreate && (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" /> 공지 등록
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
@@ -184,6 +279,115 @@ export function StaffNotice({ excludeCategories = [] }: StaffNoticeProps) {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 등록 다이얼로그 (PM 전용) */}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>공지 등록</DialogTitle>
+            <DialogDescription>
+              등록한 공지는 대상자의 공지사항 화면에 표시됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>분류</Label>
+                <Select
+                  value={form.category}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, category: v as NoticeCategory }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CREATE_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>우선순위</Label>
+                <Select
+                  value={form.priority}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, priority: v as Priority }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>제목</Label>
+              <Input
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="공지 제목을 입력하세요"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>요약</Label>
+              <Input
+                value={form.summary}
+                onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
+                placeholder="목록에 표시될 한 줄 요약 (선택)"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>내용</Label>
+              <Textarea
+                value={form.content}
+                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+                placeholder="상세 내용을 입력하세요. 줄바꿈으로 문단을 나눕니다."
+                rows={5}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Switch
+                id="notice-pinned"
+                checked={form.pinned}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, pinned: v }))}
+              />
+              <Label htmlFor="notice-pinned" className="cursor-pointer">
+                목록 상단에 고정
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              취소
+            </Button>
+            <Button onClick={submitNotice}>등록</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

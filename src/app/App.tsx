@@ -282,7 +282,7 @@ export default function App() {
       body = <SlackIntegration />;
     } else if (pmMenu === "notice") {
       subtitle = "공지사항";
-      body = <StaffNotice excludeCategories={["PM 피드백"]} />;
+      body = <StaffNotice excludeCategories={["PM 피드백"]} canCreate />;
     } else if (pmMenu === "upload") {
       subtitle = "공고문 업로드";
       body = (

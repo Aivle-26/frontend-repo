@@ -548,6 +548,7 @@ export default function App() {
         <TopBar
           title={subtitle}
           userName={authSession?.name || (isPm ? "PM" : "Staff")}
+          employeeNumber={authSession?.employeeNumber ?? "-"}
           roleLabel={isPm ? "PM" : "직원"}
           onLogout={handleLogout}
           actions={actions}

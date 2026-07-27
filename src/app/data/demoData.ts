@@ -495,6 +495,54 @@ export function projectMembers(projectId: string): TeamMember[] {
   return TEAM.filter((member) => memberIds.includes(member.id));
 }
 
+/** 팀원 진행도 지연 현황. id는 TeamMember.id와 매칭됩니다. */
+export interface TeamProgressDelay {
+  id: string;
+  currentTask: string;
+  dueDate: string;
+  /** 실제 진행률 (0~100) */
+  progress: number;
+  /** 오늘 날짜 기준 기대 진행률 (0~100) */
+  expectedProgress: number;
+  /** 지연 일수. 0이면 정상 */
+  delayDays: number;
+}
+
+export const TEAM_PROGRESS_DELAY: TeamProgressDelay[] = [
+  {
+    id: "m1",
+    currentTask: "클라우드 인프라 구성 초안",
+    dueDate: "2026-07-20",
+    progress: 65,
+    expectedProgress: 80,
+    delayDays: 3,
+  },
+  {
+    id: "m2",
+    currentTask: "환경영향 완화 방안 초안",
+    dueDate: "2026-07-18",
+    progress: 40,
+    expectedProgress: 75,
+    delayDays: 5,
+  },
+  {
+    id: "m3",
+    currentTask: "보안 취약점 점검 리포트",
+    dueDate: "2026-07-25",
+    progress: 55,
+    expectedProgress: 50,
+    delayDays: 0,
+  },
+  {
+    id: "m4",
+    currentTask: "운영 매뉴얼 최종본",
+    dueDate: "2026-07-22",
+    progress: 70,
+    expectedProgress: 70,
+    delayDays: 0,
+  },
+];
+
 export const RISKS: RiskItem[] = [
   {
     id: "r1",

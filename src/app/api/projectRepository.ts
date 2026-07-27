@@ -13,6 +13,8 @@ import {
   TASKS,
   TASK_CHECKLIST,
   TEAM,
+  TEAM_PROGRESS_DELAY,
+  projectMembers,
   WORKFLOW_STEPS,
   PM_AI_FILES,
   PM_LIBRARY_FILES,
@@ -47,9 +49,10 @@ import {
   type TaskColumn,
   type Notice,
   type NoticeCategory,
+  type TeamProgressDelay,
 } from "@/app/data/demoData";
 
-export type { Role, Task, TaskColumn, Notice, NoticeCategory };
+export type { Role, Task, TaskColumn, Notice, NoticeCategory, TeamProgressDelay };
 
 // 배포 환경(vercel.json)은 /api/* 를 EC2로 넘기는 rewrite가 있어 상대경로 "/api"가 맞다.
 // 로컬 개발은 그 프록시가 없으므로 VITE_AUTH_API(=http://localhost:8080)를 지정해 절대경로로 쓴다.
@@ -643,6 +646,20 @@ export const projectRepository = {
     };
   },
 
+  /** 해당 프로젝트에 속한 팀원들의 업무 진행도 지연 현황. */
+  getTeamProgressDelay(projectId: string) {
+    const memberIds = new Set(projectMembers(projectId).map((m) => m.id));
+    const rows = TEAM_PROGRESS_DELAY.filter((d) => memberIds.has(d.id)).map((d) => {
+      const member = TEAM.find((m) => m.id === d.id);
+      return {
+        ...d,
+        name: member?.name ?? "알 수 없음",
+        role: member?.role ?? "",
+      };
+    });
+    return { rows };
+  },
+
   getPmUpload() {
     return { uploaded: UPLOADED_RFPS };
   },
@@ -706,4 +723,3 @@ export const projectRepository = {
     return { ok: true };
   },
 };
-

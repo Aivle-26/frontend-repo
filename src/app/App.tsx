@@ -69,7 +69,7 @@ const PM_MENU: SidebarItem[] = [
   { key: "generation", label: "AI 생성", icon: Bot, group: "AI 준비" },
   { key: "analysis", label: "AI 분석", icon: Sparkles, group: "AI 준비" },
   { key: "requirements", label: "요구사항", icon: FileText, group: "AI 준비" },
-  { key: "assign", label: "업무 배정", icon: Users, group: "업무" },
+  { key: "assign", label: "업무", icon: Users, group: "업무" },
   { key: "review", label: "검토", icon: ClipboardCheck, group: "업무" },
   { key: "risk", label: "리스크 관리", icon: AlertTriangle, group: "업무" },
   { key: "documents", label: "문서함", icon: FolderKanban, group: "자료" },
@@ -343,7 +343,7 @@ export default function App() {
         />
       );
     } else if (pmMenu === "assign") {
-      subtitle = "업무 배정";
+      subtitle = "업무";
       body = (
         <PmAssign
           key={selectedProject?.id}

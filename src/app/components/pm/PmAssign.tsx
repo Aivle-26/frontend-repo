@@ -44,6 +44,7 @@ import {
   type Requirement,
 } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
+import { ReassignmentCard } from "@/app/components/common/ReassignmentCard";
 
 type AssignFilter = "미배정" | "배정됨" | "전체";
 
@@ -459,6 +460,9 @@ const progressByMember = useMemo(() => {
           </Card>
         </div>
       </div>
+
+      {/* 담당자 재배정 추천 (AI 서버 연동, 팀원 데이터 기반) */}
+      <ReassignmentCard projectId={project.id} />
     </div>
   );
 }

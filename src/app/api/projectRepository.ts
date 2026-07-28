@@ -190,6 +190,101 @@ export interface ProjectDocumentUploadResponse {
   documents: ProjectDocumentUploadItem[];
 }
 
+
+export type RequirementStatus = "UNCONFIRMED" | "CONFIRMED" | "REJECTED";
+export type RequirementPriority = "HIGH" | "MEDIUM" | "LOW";
+
+export interface RequirementResponse {
+  requirementId: number;
+  analysisResultId: number | null;
+  sourceDocumentId: number | null;
+  externalReferenceId: number | null;
+  type: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string | null;
+  dueDate: string | null;
+  deliverableName: string | null;
+  securityCondition: string | null;
+  sourceDocumentName: string | null;
+  sourceExcerpt: string | null;
+  priority: RequirementPriority | string;
+  status: RequirementStatus;
+  confirmed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequirementListFilters {
+  type?: string;
+  priority?: string;
+  status?: RequirementStatus;
+  confirmed?: boolean;
+}
+
+export interface CreateRequirementRequest {
+  analysisResultId?: number | null;
+  sourceDocumentId?: number | null;
+  externalReferenceId?: number | null;
+  type: string;
+  title: string;
+  description: string;
+  acceptanceCriteria?: string | null;
+  dueDate?: string | null;
+  deliverableName?: string | null;
+  securityCondition?: string | null;
+  sourceDocumentName?: string | null;
+  sourceExcerpt?: string | null;
+  priority: RequirementPriority | string;
+}
+
+export type UpdateRequirementRequest = Partial<CreateRequirementRequest>;
+
+export interface WbsTask {
+  taskId: number | null;
+  externalTaskId: string;
+  parentExternalTaskId: string | null;
+  taskCode: string;
+  taskName: string;
+  description: string;
+  phase: string;
+  requiredSkills: string[];
+  difficulty: string;
+  estimatedHours: number;
+  orderIndex: number;
+  requirementIds: number[];
+  confirmed: boolean;
+}
+
+export interface WbsResult {
+  wbsResultId: number;
+  projectId: number;
+  agentExecutionId: string | null;
+  agentVersion: string | null;
+  finalConfirmed: boolean;
+  createdAt: string;
+  aiSuggestionTasks: WbsTask[];
+  finalTasks: WbsTask[];
+}
+
+export interface SaveFinalWbsTask {
+  externalTaskId: string;
+  parentExternalTaskId: string | null;
+  taskCode: string;
+  taskName: string;
+  description: string;
+  phase: string;
+  requiredSkills: string[];
+  difficulty: string;
+  estimatedHours: number;
+  orderIndex: number;
+  requirementIds: number[];
+}
+
+export interface SaveFinalWbsRequest {
+  tasks: SaveFinalWbsTask[];
+}
+
 export interface AssignRequirementInput {
   requirementId: number;
   assignee: string;
@@ -537,6 +632,139 @@ export const projectRepository = {
     });
   },
 
+
+  listRequirements(
+    projectId: string | number,
+    filters: RequirementListFilters = {},
+  ) {
+    const params = new URLSearchParams();
+    if (filters.type) params.set("type", filters.type);
+    if (filters.priority) params.set("priority", filters.priority);
+    if (filters.status) params.set("status", filters.status);
+    if (typeof filters.confirmed === "boolean") {
+      params.set("confirmed", String(filters.confirmed));
+    }
+
+    const query = params.toString();
+    const projectPath = encodeURIComponent(String(projectId));
+    return apiFetch<RequirementResponse[]>(
+      `/projects/${projectPath}/requirements${query ? `?${query}` : ""}`,
+      { auth: true },
+    );
+  },
+
+  getRequirement(projectId: string | number, requirementId: string | number) {
+    return apiFetch<RequirementResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
+      { auth: true },
+    );
+  },
+
+  createRequirement(projectId: string | number, input: CreateRequirementRequest) {
+    return apiFetch<RequirementResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  updateRequirement(
+    projectId: string | number,
+    requirementId: string | number,
+    input: UpdateRequirementRequest,
+  ) {
+    return apiFetch<RequirementResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  deleteRequirement(projectId: string | number, requirementId: string | number) {
+    return apiFetch<void>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
+      {
+        method: "DELETE",
+        auth: true,
+      },
+    );
+  },
+
+  confirmRequirement(projectId: string | number, requirementId: string | number) {
+    return apiFetch<RequirementResponse | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/confirm`,
+      {
+        method: "PATCH",
+        auth: true,
+      },
+    );
+  },
+
+  unconfirmRequirement(projectId: string | number, requirementId: string | number) {
+    return apiFetch<RequirementResponse | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/unconfirm`,
+      {
+        method: "PATCH",
+        auth: true,
+      },
+    );
+  },
+
+  rejectRequirement(projectId: string | number, requirementId: string | number) {
+    return apiFetch<RequirementResponse | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/reject`,
+      {
+        method: "PATCH",
+        auth: true,
+      },
+    );
+  },
+
+  confirmAllRequirements(projectId: string | number) {
+    return apiFetch<RequirementResponse[] | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/confirm`,
+      {
+        method: "PATCH",
+        auth: true,
+      },
+    );
+  },
+
+  generateWbs(projectId: string | number) {
+    return apiFetch<WbsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/generate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        auth: true,
+      },
+    );
+  },
+
+  getWbs(projectId: string | number) {
+    return apiFetch<WbsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs`,
+      { auth: true },
+    );
+  },
+
+  saveFinalWbs(projectId: string | number, input: SaveFinalWbsRequest) {
+    return apiFetch<WbsResult | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
   getProjectName() {
     return PROJECT_NAME;
   },
@@ -706,4 +934,3 @@ export const projectRepository = {
     return { ok: true };
   },
 };
-

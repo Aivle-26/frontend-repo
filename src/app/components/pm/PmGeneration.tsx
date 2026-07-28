@@ -1,34 +1,52 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
   Bot,
-  FileText,
-  Flag,
-  Network,
   CalendarClock,
-  MonitorSmartphone,
+  CheckCircle2,
   ClipboardList,
-  ScrollText,
-  Wand2,
-  RefreshCw,
+  Clock,
+  Copy,
+  Download,
   Eye,
   EyeOff,
-  Pencil,
-  Download,
-  CheckCircle2,
-  Clock,
+  FileText,
+  Flag,
+  Loader2,
   Lock,
-  ArrowRight,
+  MonitorSmartphone,
+  Network,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  ScrollText,
+  Trash2,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
+import { Badge } from "@/app/components/ui/badge";
+import { Button } from "@/app/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/app/components/ui/card";
-import { Button } from "@/app/components/ui/button";
-import { Badge } from "@/app/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
+import { Input } from "@/app/components/ui/input";
+import { Skeleton } from "@/app/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -37,9 +55,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { Skeleton } from "@/app/components/ui/skeleton";
+import { Textarea } from "@/app/components/ui/textarea";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import {
+  ApiError,
+  projectRepository,
+  type RequirementResponse,
+  type SaveFinalWbsTask,
+  type WbsResult,
+  type WbsTask,
+} from "@/app/api/projectRepository";
 import {
   markGenerated,
   markScheduleRegistered,
@@ -50,29 +75,138 @@ import {
 import type { ProjectSummary } from "@/app/data/demoData";
 
 type GenStatus = "idle" | "generating" | "done";
+type EditorState = { mode: "new" | "edit"; task: WbsTask } | null;
 
-// WBS 미리보기용 데모 데이터 (백엔드 연동 시 생성 결과로 교체)
-const WBS_ROWS = [
-  { phase: "1. 분석", task: "요구사항 정의 · 현행 시스템 조사", duration: "2주" },
-  { phase: "2. 설계", task: "아키텍처 · DB · 화면 설계", duration: "3주" },
-  { phase: "3. 개발", task: "핵심 모듈 · 알림 연동 · 대시보드", duration: "8주" },
-  { phase: "4. 시험", task: "통합 시험 · 인수 시험", duration: "3주" },
-];
-
-// 계획 백본: 앞 단계가 완료돼야 다음 단계가 열립니다.
 const BACKBONE: {
   key: Key;
   icon: typeof FileText;
   title: string;
   desc: string;
   short: string;
-  doneMeta: string;
 }[] = [
-  { key: "req", icon: FileText, title: "요구사항 목록", desc: "RFP에서 핵심 요구사항을 추출", short: "요구사항", doneMeta: "12건 추출됨" },
-  { key: "milestone", icon: Flag, title: "프로젝트 목표/마일스톤", desc: "프로젝트 목표와 주요 마일스톤 정리", short: "마일스톤", doneMeta: "목표 3 · 마일스톤 4" },
-  { key: "wbs", icon: Network, title: "WBS 초안", desc: "작업 분해 구조를 단계·하위 작업으로 구성", short: "WBS", doneMeta: "4단계 구성" },
-  { key: "schedule", icon: CalendarClock, title: "MC 일정 계획", desc: "WBS 기반 마일스톤·기간을 간트로 산정", short: "일정", doneMeta: "간트 차트" },
+  {
+    key: "req",
+    icon: FileText,
+    title: "요구사항 목록",
+    desc: "백엔드 요구사항을 조회하고 WBS에 사용할 항목을 확정",
+    short: "요구사항",
+  },
+  {
+    key: "milestone",
+    icon: Flag,
+    title: "프로젝트 목표/마일스톤",
+    desc: "프로젝트 목표와 주요 마일스톤 정리",
+    short: "마일스톤",
+  },
+  {
+    key: "wbs",
+    icon: Network,
+    title: "요구사항 기반 WBS",
+    desc: "확정 요구사항을 바탕으로 AI 작업 분해 구조 생성",
+    short: "WBS",
+  },
+  {
+    key: "schedule",
+    icon: CalendarClock,
+    title: "MC 일정 계획",
+    desc: "최종 WBS의 예상 공수를 바탕으로 일정 산정",
+    short: "일정",
+  },
 ];
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError && error.message ? error.message : fallback;
+}
+
+function normalizeTask(task: WbsTask, index: number): WbsTask {
+  return {
+    taskId: task.taskId ?? null,
+    externalTaskId: String(task.externalTaskId ?? `TASK-${index + 1}`),
+    parentExternalTaskId: task.parentExternalTaskId || null,
+    taskCode: String(task.taskCode ?? index + 1),
+    taskName: String(task.taskName ?? ""),
+    description: String(task.description ?? ""),
+    phase: String(task.phase ?? "ANALYSIS"),
+    requiredSkills: Array.isArray(task.requiredSkills) ? task.requiredSkills : [],
+    difficulty: String(task.difficulty ?? "MEDIUM"),
+    estimatedHours: Number.isFinite(Number(task.estimatedHours))
+      ? Number(task.estimatedHours)
+      : 0,
+    orderIndex: index,
+    requirementIds: Array.isArray(task.requirementIds)
+      ? task.requirementIds.map(Number).filter(Number.isFinite)
+      : [],
+    confirmed: Boolean(task.confirmed),
+  };
+}
+
+function normalizeWbs(result: WbsResult): WbsResult {
+  return {
+    ...result,
+    aiSuggestionTasks: Array.isArray(result.aiSuggestionTasks)
+      ? result.aiSuggestionTasks.map(normalizeTask)
+      : [],
+    finalTasks: Array.isArray(result.finalTasks)
+      ? result.finalTasks.map(normalizeTask)
+      : [],
+  };
+}
+
+function createExternalTaskId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `USER-${crypto.randomUUID()}`;
+  }
+  return `USER-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createEmptyTask(
+  orderIndex: number,
+  confirmedRequirements: RequirementResponse[],
+): WbsTask {
+  return {
+    taskId: null,
+    externalTaskId: createExternalTaskId(),
+    parentExternalTaskId: null,
+    taskCode: String(orderIndex + 1),
+    taskName: "",
+    description: "",
+    phase: "ANALYSIS",
+    requiredSkills: [],
+    difficulty: "MEDIUM",
+    estimatedHours: 8,
+    orderIndex,
+    requirementIds: confirmedRequirements[0]
+      ? [confirmedRequirements[0].requirementId]
+      : [],
+    confirmed: false,
+  };
+}
+
+function normalizeOrder(tasks: WbsTask[]) {
+  return tasks.map((task, index) => ({ ...task, orderIndex: index }));
+}
+
+function parseStringList(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function parseNumberList(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => Number(item.trim()))
+        .filter(Number.isInteger),
+    ),
+  );
+}
 
 export function PmGeneration({
   project,
@@ -83,28 +217,193 @@ export function PmGeneration({
   onOpenDocuments?: () => void;
   onOpenRequirements?: () => void;
 }) {
-  // 생성 완료 상태는 스토어(localStorage)에 유지 → 사이드바 이동해도 보존
   const done = useGenerated(project.id);
-  // 생성 중(transient) 상태만 로컬 관리
   const [busy, setBusy] = useState<Partial<Record<Key, boolean>>>({});
+  const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
+  const [wbs, setWbs] = useState<WbsResult | null>(null);
+  const [wbsLoading, setWbsLoading] = useState(true);
+  const [wbsError, setWbsError] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [savingFinal, setSavingFinal] = useState(false);
+  const [editor, setEditor] = useState<EditorState>(null);
   const scheduleRegistered = useScheduleRegistered(project.id);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const scheduleRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const scheduleRef = useRef<HTMLDivElement | null>(null);
+
+  const confirmedRequirements = useMemo(
+    () => requirements.filter((item) => item.confirmed),
+    [requirements],
+  );
+
+  const confirmedRequirementIds = useMemo(
+    () => new Set(confirmedRequirements.map((item) => item.requirementId)),
+    [confirmedRequirements],
+  );
+
+  const finalTasks = wbs?.finalTasks ?? [];
+  const aiTasks = wbs?.aiSuggestionTasks ?? [];
+  const scheduleTasks = finalTasks.length > 0 ? finalTasks : aiTasks;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setWbsLoading(true);
+      setWbsError("");
+
+      const [requirementsResult, wbsResult] = await Promise.allSettled([
+        projectRepository.listRequirements(project.id),
+        projectRepository.getWbs(project.id),
+      ]);
+
+      if (cancelled) return;
+
+      if (requirementsResult.status === "fulfilled") {
+        const items = Array.isArray(requirementsResult.value)
+          ? requirementsResult.value
+          : [];
+        setRequirements(items);
+        if (items.length > 0) markGenerated(project.id, "req");
+      } else {
+        setRequirements([]);
+        setWbsError(
+          errorMessage(
+            requirementsResult.reason,
+            "요구사항을 불러오지 못했습니다.",
+          ),
+        );
+      }
+
+      if (wbsResult.status === "fulfilled" && wbsResult.value) {
+        setWbs(normalizeWbs(wbsResult.value));
+        markGenerated(project.id, "wbs");
+      } else if (
+        wbsResult.status === "rejected" &&
+        !(wbsResult.reason instanceof ApiError && wbsResult.reason.status === 404)
+      ) {
+        setWbsError((current) =>
+          current || errorMessage(wbsResult.reason, "WBS를 불러오지 못했습니다."),
+        );
+      }
+
+      setWbsLoading(false);
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  const isStepDone = (key: Key) => {
+    if (key === "req") return requirements.length > 0 || done.has(key);
+    if (key === "wbs") return wbs !== null;
+    return done.has(key);
+  };
 
   const statusOf = (key: Key): GenStatus =>
-    busy[key] ? "generating" : done.has(key) ? "done" : "idle";
+    busy[key] ? "generating" : isStepDone(key) ? "done" : "idle";
+
+  const getLockedLabel = (key: Key, index: number) => {
+    if (key === "wbs" && confirmedRequirements.length === 0) {
+      return "확정 요구사항 필요";
+    }
+    if (key === "schedule" && !wbs) return "WBS 필요";
+
+    const previous = BACKBONE[index - 1];
+    if (index > 0 && key !== "wbs" && !isStepDone(previous.key)) {
+      return `${previous.short} 필요`;
+    }
+    return null;
+  };
+
+  const refreshRequirements = async () => {
+    setBusy((current) => ({ ...current, req: true }));
+    try {
+      const response = await projectRepository.listRequirements(project.id);
+      const items = Array.isArray(response) ? response : [];
+      setRequirements(items);
+      if (items.length === 0) {
+        toast.error("조회된 요구사항이 없습니다.");
+        return;
+      }
+      markGenerated(project.id, "req");
+      toast.success(`요구사항 ${items.length}건을 불러왔습니다.`);
+    } catch (error) {
+      toast.error(errorMessage(error, "요구사항 조회에 실패했습니다."));
+    } finally {
+      setBusy((current) => ({ ...current, req: false }));
+    }
+  };
+
+  const loadWbs = async () => {
+    const result = await projectRepository.getWbs(project.id);
+    const normalized = normalizeWbs(result);
+    setWbs(normalized);
+    markGenerated(project.id, "wbs");
+    return normalized;
+  };
+
+  const generateWbs = async () => {
+    if (confirmedRequirements.length === 0) {
+      toast.error("WBS 생성 전에 요구사항을 한 건 이상 확정하세요.");
+      return;
+    }
+
+    setBusy((current) => ({ ...current, wbs: true }));
+    setWbsError("");
+
+    try {
+      const generated = normalizeWbs(
+        await projectRepository.generateWbs(project.id),
+      );
+
+      try {
+        await loadWbs();
+      } catch {
+        setWbs(generated);
+        markGenerated(project.id, "wbs");
+      }
+
+      setPreviewOpen(true);
+      requestAnimationFrame(() =>
+        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+      toast.success("확정 요구사항 기반 WBS를 생성했습니다.");
+    } catch (error) {
+      const message = errorMessage(error, "WBS 생성에 실패했습니다.");
+      setWbsError(message);
+      toast.error(message);
+    } finally {
+      setBusy((current) => ({ ...current, wbs: false }));
+    }
+  };
 
   const run = async (key: Key, label: string, onDone?: () => void) => {
-    setBusy((prev) => ({ ...prev, [key]: true }));
-    await projectRepository.reanalyzeRfp();
-    // AI 연동 전까지 로딩 상태가 보이도록 최소 지연을 둡니다. (백엔드 연결 시 제거)
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
-    markGenerated(project.id, key);
-    setBusy((prev) => ({ ...prev, [key]: false }));
-    toast.success(`${label} 생성을 완료했어요.`);
-    onDone?.();
+    if (key === "req") {
+      await refreshRequirements();
+      onDone?.();
+      return;
+    }
+
+    if (key === "wbs") {
+      await generateWbs();
+      return;
+    }
+
+    setBusy((current) => ({ ...current, [key]: true }));
+    try {
+      await projectRepository.reanalyzeRfp();
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+      markGenerated(project.id, key);
+      toast.success(`${label} 생성을 완료했습니다.`);
+      onDone?.();
+    } catch (error) {
+      toast.error(errorMessage(error, `${label} 생성에 실패했습니다.`));
+    } finally {
+      setBusy((current) => ({ ...current, [key]: false }));
+    }
   };
 
   const scrollToPreview = () =>
@@ -112,40 +411,206 @@ export function PmGeneration({
       previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
     );
 
-  // 생성 직후: 미리보기를 펼치고 스크롤
-  const openPreview = () => {
-    setPreviewOpen(true);
-    scrollToPreview();
-  };
-
-  // 미리보기 버튼: 펼치기/접기 토글 (펼칠 때만 스크롤)
   const togglePreview = () =>
     setPreviewOpen((open) => {
       if (!open) scrollToPreview();
       return !open;
     });
 
-  const scrollToSchedule = () =>
+  const openSchedule = () => {
+    setScheduleOpen(true);
     requestAnimationFrame(() =>
       scheduleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
     );
-
-  const openSchedule = () => {
-    setScheduleOpen(true);
-    scrollToSchedule();
   };
 
   const toggleSchedule = () =>
     setScheduleOpen((open) => {
-      if (!open) scrollToSchedule();
+      if (!open) {
+        requestAnimationFrame(() =>
+          scheduleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
+      }
       return !open;
     });
 
+  const setFinalTasks = (tasks: WbsTask[]) => {
+    setWbs((current) =>
+      current
+        ? {
+            ...current,
+            finalConfirmed: false,
+            finalTasks: normalizeOrder(tasks),
+          }
+        : current,
+    );
+  };
+
+  const moveTask = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= finalTasks.length) return;
+
+    const next = [...finalTasks];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    setFinalTasks(next);
+  };
+
+  const removeTask = (externalTaskId: string) => {
+    setFinalTasks(
+      finalTasks.filter((task) => task.externalTaskId !== externalTaskId),
+    );
+    toast.success("최종 WBS 목록에서 작업을 제거했습니다.");
+  };
+
+  const resetFromAi = () => {
+    const copied = aiTasks.map((task, index) => ({
+      ...task,
+      taskId: null,
+      confirmed: false,
+      orderIndex: index,
+    }));
+    setFinalTasks(copied);
+    toast.success("AI 최초 제안을 최종 WBS 편집 목록에 복사했습니다.");
+  };
+
+  const saveEditorTask = () => {
+    if (!editor) return;
+
+    const task = normalizeTask(editor.task, editor.task.orderIndex);
+    if (!task.externalTaskId.trim()) {
+      toast.error("externalTaskId가 필요합니다.");
+      return;
+    }
+    if (!task.taskCode.trim()) {
+      toast.error("작업 코드를 입력하세요.");
+      return;
+    }
+    if (!task.taskName.trim()) {
+      toast.error("작업명을 입력하세요.");
+      return;
+    }
+    if (task.estimatedHours < 0) {
+      toast.error("예상 공수는 0 이상이어야 합니다.");
+      return;
+    }
+
+    const duplicate = finalTasks.some(
+      (item) =>
+        item.externalTaskId === task.externalTaskId &&
+        (editor.mode === "new" ||
+          item.externalTaskId !== editor.task.externalTaskId),
+    );
+    if (duplicate) {
+      toast.error("externalTaskId가 중복되었습니다.");
+      return;
+    }
+
+    const invalidRequirement = task.requirementIds.find(
+      (id) => !confirmedRequirementIds.has(id),
+    );
+    if (invalidRequirement !== undefined) {
+      toast.error(
+        `요구사항 ID ${invalidRequirement}은 확정된 요구사항이 아닙니다.`,
+      );
+      return;
+    }
+
+    if (
+      task.parentExternalTaskId &&
+      task.parentExternalTaskId === task.externalTaskId
+    ) {
+      toast.error("작업 자신을 부모 작업으로 지정할 수 없습니다.");
+      return;
+    }
+
+    if (editor.mode === "new") {
+      setFinalTasks([...finalTasks, task]);
+    } else {
+      setFinalTasks(
+        finalTasks.map((item) =>
+          item.externalTaskId === editor.task.externalTaskId ? task : item,
+        ),
+      );
+    }
+
+    setEditor(null);
+    toast.success(editor.mode === "new" ? "작업을 추가했습니다." : "작업을 수정했습니다.");
+  };
+
+  const validateAndBuildSaveTasks = (): SaveFinalWbsTask[] | null => {
+    const externalIds = new Set<string>();
+
+    for (const task of finalTasks) {
+      if (!task.externalTaskId.trim() || !task.taskName.trim()) {
+        toast.error("모든 작업에 externalTaskId와 작업명이 필요합니다.");
+        return null;
+      }
+      if (externalIds.has(task.externalTaskId)) {
+        toast.error(`externalTaskId가 중복되었습니다: ${task.externalTaskId}`);
+        return null;
+      }
+      externalIds.add(task.externalTaskId);
+    }
+
+    for (const task of finalTasks) {
+      if (
+        task.parentExternalTaskId &&
+        !externalIds.has(task.parentExternalTaskId)
+      ) {
+        toast.error(
+          `${task.taskName}의 부모 작업 ${task.parentExternalTaskId}이 목록에 없습니다.`,
+        );
+        return null;
+      }
+
+      const invalidRequirement = task.requirementIds.find(
+        (id) => !confirmedRequirementIds.has(id),
+      );
+      if (invalidRequirement !== undefined) {
+        toast.error(
+          `${task.taskName}에 미확정 요구사항 ID ${invalidRequirement}이 연결되어 있습니다.`,
+        );
+        return null;
+      }
+    }
+
+    return normalizeOrder(finalTasks).map((task) => ({
+      externalTaskId: task.externalTaskId,
+      parentExternalTaskId: task.parentExternalTaskId || null,
+      taskCode: task.taskCode,
+      taskName: task.taskName,
+      description: task.description,
+      phase: task.phase,
+      requiredSkills: task.requiredSkills,
+      difficulty: task.difficulty,
+      estimatedHours: Number(task.estimatedHours),
+      orderIndex: task.orderIndex,
+      requirementIds: task.requirementIds,
+    }));
+  };
+
+  const saveFinalWbs = async () => {
+    if (!wbs) return;
+
+    const tasks = validateAndBuildSaveTasks();
+    if (!tasks) return;
+
+    setSavingFinal(true);
+    try {
+      await projectRepository.saveFinalWbs(project.id, { tasks });
+      await loadWbs();
+      toast.success("최종 WBS를 저장했습니다.");
+    } catch (error) {
+      toast.error(errorMessage(error, "최종 WBS 저장에 실패했습니다."));
+    } finally {
+      setSavingFinal(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* 헤더 */}
       <Card className="border-blue-100 bg-blue-50/40">
-        <CardContent className="pt-6 flex items-center gap-3">
+        <CardContent className="flex items-center gap-3 pt-6">
           <div className="flex size-11 items-center justify-center rounded-lg bg-blue-600 text-white">
             <Bot className="size-5" />
           </div>
@@ -156,57 +621,82 @@ export function PmGeneration({
                 {project.name}
               </Badge>
             </div>
-            <div className="text-muted-foreground text-xs mt-0.5">
-              공고문·요구사항 분석 결과를 바탕으로 계획 문서를 자동 생성합니다.
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              확정 요구사항을 기반으로 WBS를 생성하고 최종 작업 목록을 편집합니다.
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* 1. 계획 백본 */}
       <section className="space-y-3">
         <SectionTitle
           title="계획 백본"
-          hint="앞 단계가 완료되면 다음 단계가 열립니다"
+          hint="WBS는 확정된 요구사항이 있어야 생성할 수 있습니다"
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {BACKBONE.map((step, idx) => {
-            const st = statusOf(step.key);
-            const prev = BACKBONE[idx - 1];
-            const locked = idx > 0 && !done.has(prev.key);
-            const label: StatusLabel = st === "done"
-              ? { text: "생성 완료", tone: "success" }
-              : locked
-                ? { text: `${prev.short} 필요`, tone: "warning" }
-                : { text: "미생성", tone: "muted" };
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {BACKBONE.map((step, index) => {
+            const status = statusOf(step.key);
+            const lockedLabel = getLockedLabel(step.key, index);
+            const isLocked = Boolean(lockedLabel);
+            const taskCount = finalTasks.length || aiTasks.length;
+            const statusLabel: StatusLabel =
+              status === "done"
+                ? {
+                    text:
+                      step.key === "req"
+                        ? `${requirements.length}건 · 확정 ${confirmedRequirements.length}`
+                        : step.key === "wbs"
+                          ? `${taskCount}개 작업`
+                          : "생성 완료",
+                    tone: "success",
+                  }
+                : isLocked
+                  ? { text: lockedLabel!, tone: "warning" }
+                  : { text: "미생성", tone: "muted" };
+
             return (
               <GeneratorCard
                 key={step.key}
                 icon={step.icon}
                 title={step.title}
                 description={step.desc}
-                status={st}
-                statusLabel={label}
+                status={status}
+                statusLabel={statusLabel}
               >
-                {locked ? (
+                {isLocked ? (
                   <Button variant="outline" size="sm" className="flex-1" disabled>
-                    <Lock className="size-3.5" /> {prev.short} 먼저 생성
+                    <Lock className="size-3.5" /> {lockedLabel}
                   </Button>
-                ) : st === "done" ? (
+                ) : status === "done" ? (
                   <>
                     <Button
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => run(step.key, step.title)}
+                      onClick={() =>
+                        void run(
+                          step.key,
+                          step.title,
+                          step.key === "schedule" ? openSchedule : undefined,
+                        )
+                      }
                     >
                       <RefreshCw className="size-3.5" /> 다시 생성
                     </Button>
+
                     {step.key === "req" && onOpenRequirements && (
                       <Button size="sm" className="flex-1" onClick={onOpenRequirements}>
                         요구사항 보기 <ArrowRight className="size-3.5" />
                       </Button>
                     )}
+
+                    {step.key === "milestone" && onOpenDocuments && (
+                      <Button size="sm" className="flex-1" onClick={onOpenDocuments}>
+                        문서함 보기 <ArrowRight className="size-3.5" />
+                      </Button>
+                    )}
+
                     {step.key === "wbs" && (
                       <Button size="sm" className="flex-1" onClick={togglePreview}>
                         {previewOpen ? (
@@ -215,16 +705,12 @@ export function PmGeneration({
                           </>
                         ) : (
                           <>
-                            <Eye className="size-3.5" /> 미리보기
+                            <Eye className="size-3.5" /> WBS 보기
                           </>
                         )}
                       </Button>
                     )}
-                    {step.key === "milestone" && onOpenDocuments && (
-                      <Button size="sm" className="flex-1" onClick={onOpenDocuments}>
-                        문서함 보기 <ArrowRight className="size-3.5" />
-                      </Button>
-                    )}
+
                     {step.key === "schedule" && (
                       <Button size="sm" className="flex-1" onClick={toggleSchedule}>
                         {scheduleOpen ? (
@@ -243,20 +729,16 @@ export function PmGeneration({
                   <Button
                     size="sm"
                     className="flex-1"
-                    disabled={st === "generating"}
+                    disabled={status === "generating" || wbsLoading}
                     onClick={() =>
-                      run(
+                      void run(
                         step.key,
                         step.title,
-                        step.key === "wbs"
-                          ? openPreview
-                          : step.key === "schedule"
-                            ? openSchedule
-                            : undefined,
+                        step.key === "schedule" ? openSchedule : undefined,
                       )
                     }
                   >
-                    {st === "generating" ? (
+                    {status === "generating" ? (
                       <>
                         <Clock className="size-3.5 animate-spin" /> 생성 중…
                       </>
@@ -272,81 +754,50 @@ export function PmGeneration({
           })}
         </div>
 
-        {/* WBS 생성 중: 스켈레톤 로딩 */}
-        {statusOf("wbs") === "generating" && <WbsPreviewSkeleton />}
+        {wbsError && (
+          <Alert variant="destructive">
+            <AlertDescription>{wbsError}</AlertDescription>
+          </Alert>
+        )}
 
-        {/* WBS 미리보기 (미리보기 버튼으로 펼치기/접기) */}
-        {statusOf("wbs") === "done" && previewOpen && (
+        {(wbsLoading || statusOf("wbs") === "generating") && (
+          <WbsPreviewSkeleton />
+        )}
+
+        {wbs && previewOpen && (
           <div ref={previewRef}>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Eye className="size-4 text-muted-foreground" /> WBS 미리보기
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toast("편집 모드는 준비 중이에요.")}
-                  >
-                    <Pencil className="size-3.5" /> 편집
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      toast.success("WBS를 문서함에 저장했어요.");
-                      onOpenDocuments?.();
-                    }}
-                  >
-                    <Download className="size-3.5" /> 문서함 저장
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-28">단계</TableHead>
-                      <TableHead>작업</TableHead>
-                      <TableHead className="w-20">기간</TableHead>
-                      <TableHead className="w-24">담당</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {WBS_ROWS.map((row) => (
-                      <TableRow key={row.phase}>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="border-blue-200 bg-blue-50 font-normal text-blue-700"
-                          >
-                            {row.phase}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{row.task}</TableCell>
-                        <TableCell className="text-muted-foreground">{row.duration}</TableCell>
-                        <TableCell className="text-muted-foreground">미배정</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <WbsWorkspace
+              result={wbs}
+              confirmedRequirements={confirmedRequirements}
+              saving={savingFinal}
+              onAdd={() =>
+                setEditor({
+                  mode: "new",
+                  task: createEmptyTask(finalTasks.length, confirmedRequirements),
+                })
+              }
+              onEdit={(task) =>
+                setEditor({ mode: "edit", task: { ...task } })
+              }
+              onDelete={removeTask}
+              onMove={moveTask}
+              onResetFromAi={resetFromAi}
+              onSave={() => void saveFinalWbs()}
+              onOpenDocuments={onOpenDocuments}
+            />
           </div>
         )}
 
-        {/* 일정 생성 중: 스켈레톤 */}
         {statusOf("schedule") === "generating" && <SchedulePreviewSkeleton />}
 
-        {/* WBS 기반 일정 계획 (간트) */}
         {statusOf("schedule") === "done" && scheduleOpen && (
           <div ref={scheduleRef}>
             <ScheduleGantt
+              tasks={scheduleTasks}
               registered={scheduleRegistered}
               onRegister={() => {
                 markScheduleRegistered(project.id);
-                toast.success("프로젝트 일정으로 등록했어요.");
+                toast.success("프로젝트 일정으로 등록했습니다.");
               }}
               onOpenDocuments={onOpenDocuments}
             />
@@ -354,10 +805,9 @@ export function PmGeneration({
         )}
       </section>
 
-      {/* 2. 추가 산출물 (설계 · 운영/문서화) */}
       <section className="space-y-3">
         <SectionTitle title="추가 산출물" hint="필요할 때 개별로 생성" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <GeneratorCard
             icon={MonitorSmartphone}
             title="UI 프로토타입 초안"
@@ -375,7 +825,7 @@ export function PmGeneration({
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => run("ui", "UI 프로토타입 초안")}
+                  onClick={() => void run("ui", "UI 프로토타입 초안")}
                 >
                   <RefreshCw className="size-3.5" /> 다시 생성
                 </Button>
@@ -390,7 +840,7 @@ export function PmGeneration({
                 size="sm"
                 className="flex-1"
                 disabled={statusOf("ui") === "generating"}
-                onClick={() => run("ui", "UI 프로토타입 초안")}
+                onClick={() => void run("ui", "UI 프로토타입 초안")}
               >
                 {statusOf("ui") === "generating" ? (
                   <>
@@ -422,7 +872,7 @@ export function PmGeneration({
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => run("weekly", "주간 스크럼 보고서")}
+                  onClick={() => void run("weekly", "주간 스크럼 보고서")}
                 >
                   <RefreshCw className="size-3.5" /> 다시 생성
                 </Button>
@@ -437,7 +887,7 @@ export function PmGeneration({
                 size="sm"
                 className="flex-1"
                 disabled={statusOf("weekly") === "generating"}
-                onClick={() => run("weekly", "주간 스크럼 보고서")}
+                onClick={() => void run("weekly", "주간 스크럼 보고서")}
               >
                 {statusOf("weekly") === "generating" ? (
                   <>
@@ -470,14 +920,18 @@ export function PmGeneration({
                   size="sm"
                   className="flex-1"
                   onClick={() =>
-                    run("decision", "결정사항 로그", () =>
-                      toast.success("결정사항 로그를 문서함에 저장했어요."),
+                    void run("decision", "결정사항 로그", () =>
+                      toast.success("결정사항 로그를 문서함에 저장했습니다."),
                     )
                   }
                 >
                   <RefreshCw className="size-3.5" /> 다시 생성
                 </Button>
-                <Button size="sm" className="flex-1" onClick={() => onOpenDocuments?.()}>
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => onOpenDocuments?.()}
+                >
                   문서함 보기 <ArrowRight className="size-3.5" />
                 </Button>
               </>
@@ -487,8 +941,8 @@ export function PmGeneration({
                 className="flex-1"
                 disabled={statusOf("decision") === "generating"}
                 onClick={() =>
-                  run("decision", "결정사항 로그", () =>
-                    toast.success("결정사항 로그를 문서함에 저장했어요."),
+                  void run("decision", "결정사항 로그", () =>
+                    toast.success("결정사항 로그를 문서함에 저장했습니다."),
                   )
                 }
               >
@@ -506,37 +960,456 @@ export function PmGeneration({
           </GeneratorCard>
         </div>
       </section>
+
+      <TaskEditorDialog
+        editor={editor}
+        confirmedRequirements={confirmedRequirements}
+        onChange={(task) =>
+          setEditor((current) => (current ? { ...current, task } : current))
+        }
+        onClose={() => setEditor(null)}
+        onSave={saveEditorTask}
+      />
     </div>
   );
 }
 
 type StatusLabel = { text: string; tone: "success" | "warning" | "muted" };
 
-function WbsPreviewSkeleton() {
+function WbsWorkspace({
+  result,
+  confirmedRequirements,
+  saving,
+  onAdd,
+  onEdit,
+  onDelete,
+  onMove,
+  onResetFromAi,
+  onSave,
+  onOpenDocuments,
+}: {
+  result: WbsResult;
+  confirmedRequirements: RequirementResponse[];
+  saving: boolean;
+  onAdd: () => void;
+  onEdit: (task: WbsTask) => void;
+  onDelete: (externalTaskId: string) => void;
+  onMove: (index: number, direction: -1 | 1) => void;
+  onResetFromAi: () => void;
+  onSave: () => void;
+  onOpenDocuments?: () => void;
+}) {
   return (
-    <Card aria-busy="true" aria-label="WBS 생성 중">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base text-muted-foreground">
-          <Clock className="size-4 animate-spin" /> WBS 생성 중…
-        </CardTitle>
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-16" />
-          <Skeleton className="h-8 w-24" />
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Network className="size-4 text-muted-foreground" /> 요구사항 기반 WBS
+              {result.finalConfirmed ? (
+                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                  최종 저장 완료
+                </Badge>
+              ) : (
+                <Badge variant="outline">편집 중</Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="mt-1">
+              생성 버전 {result.agentVersion ?? "-"} · 확정 요구사항 {confirmedRequirements.length}건
+            </CardDescription>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={onResetFromAi}>
+              <Copy className="size-3.5" /> AI 제안으로 초기화
+            </Button>
+            <Button variant="outline" size="sm" onClick={onAdd}>
+              <Plus className="size-3.5" /> 작업 추가
+            </Button>
+            <Button size="sm" disabled={saving} onClick={onSave}>
+              {saving ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Save className="size-3.5" />
+              )}
+              최종 WBS 저장
+            </Button>
+            {onOpenDocuments && (
+              <Button variant="ghost" size="sm" onClick={onOpenDocuments}>
+                문서함 <ArrowRight className="size-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="flex gap-3">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-5 flex-1" />
-          <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-5 w-16" />
+
+      <CardContent>
+        <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+          <WbsTaskTable
+            title="AI 최초 제안"
+            description="읽기 전용"
+            tasks={result.aiSuggestionTasks}
+          />
+          <WbsTaskTable
+            title="최종 WBS 편집 목록"
+            description="추가·수정·삭제·순서 변경 가능"
+            tasks={result.finalTasks}
+            editable
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onMove={onMove}
+          />
         </div>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3 border-t border-border pt-2">
-            <Skeleton className="h-6 w-16 rounded-full" />
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-14" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function WbsTaskTable({
+  title,
+  description,
+  tasks,
+  editable = false,
+  onEdit,
+  onDelete,
+  onMove,
+}: {
+  title: string;
+  description: string;
+  tasks: WbsTask[];
+  editable?: boolean;
+  onEdit?: (task: WbsTask) => void;
+  onDelete?: (externalTaskId: string) => void;
+  onMove?: (index: number, direction: -1 | 1) => void;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border">
+      <div className="border-b bg-muted/30 px-4 py-3">
+        <div className="font-medium text-foreground">{title}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">순서</TableHead>
+              <TableHead className="w-20">코드</TableHead>
+              <TableHead className="min-w-52">작업</TableHead>
+              <TableHead className="w-24">단계</TableHead>
+              <TableHead className="w-20">공수</TableHead>
+              <TableHead className="w-28">요구사항</TableHead>
+              {editable && <TableHead className="w-40 text-right">편집</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tasks.map((task, index) => (
+              <TableRow key={task.externalTaskId}>
+                <TableCell className="text-muted-foreground">
+                  {task.orderIndex}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="font-normal">
+                    {task.taskCode}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium text-foreground">{task.taskName}</div>
+                  <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {task.description || task.externalTaskId}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {task.phase}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {task.estimatedHours}h
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {task.requirementIds.length > 0
+                    ? task.requirementIds.join(", ")
+                    : "-"}
+                </TableCell>
+                {editable && (
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        disabled={index === 0}
+                        onClick={() => onMove?.(index, -1)}
+                        aria-label="위로 이동"
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        disabled={index === tasks.length - 1}
+                        onClick={() => onMove?.(index, 1)}
+                        aria-label="아래로 이동"
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        onClick={() => onEdit?.(task)}
+                        aria-label="작업 수정"
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-red-700"
+                        onClick={() => onDelete?.(task.externalTaskId)}
+                        aria-label="작업 삭제"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+
+            {tasks.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={editable ? 7 : 6}
+                  className="py-10 text-center text-muted-foreground"
+                >
+                  등록된 작업이 없습니다.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function TaskEditorDialog({
+  editor,
+  confirmedRequirements,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  editor: EditorState;
+  confirmedRequirements: RequirementResponse[];
+  onChange: (task: WbsTask) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const task = editor?.task;
+
+  return (
+    <Dialog open={editor !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        {editor && task && (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {editor.mode === "new" ? "최종 WBS 작업 추가" : "최종 WBS 작업 수정"}
+              </DialogTitle>
+              <DialogDescription>
+                저장 식별자는 externalTaskId이며, 요구사항 ID에는 확정된 요구사항만 입력할 수 있습니다.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-2 sm:grid-cols-2">
+              <Field label="externalTaskId">
+                <Input value={task.externalTaskId} readOnly className="bg-muted" />
+              </Field>
+              <Field label="부모 externalTaskId">
+                <Input
+                  value={task.parentExternalTaskId ?? ""}
+                  placeholder="없으면 비워두기"
+                  onChange={(event) =>
+                    onChange({
+                      ...task,
+                      parentExternalTaskId: event.target.value || null,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="작업 코드">
+                <Input
+                  value={task.taskCode}
+                  onChange={(event) =>
+                    onChange({ ...task, taskCode: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="작업명">
+                <Input
+                  value={task.taskName}
+                  onChange={(event) =>
+                    onChange({ ...task, taskName: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="단계(phase)">
+                <Input
+                  value={task.phase}
+                  placeholder="ANALYSIS"
+                  onChange={(event) =>
+                    onChange({ ...task, phase: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="난이도">
+                <Input
+                  value={task.difficulty}
+                  placeholder="LOW / MEDIUM / HIGH"
+                  onChange={(event) =>
+                    onChange({ ...task, difficulty: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="예상 공수(시간)">
+                <Input
+                  type="number"
+                  min={0}
+                  value={task.estimatedHours}
+                  onChange={(event) =>
+                    onChange({
+                      ...task,
+                      estimatedHours: Number(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+              <Field label="필요 기술(쉼표 구분)">
+                <Input
+                  value={task.requiredSkills.join(", ")}
+                  placeholder="DOCUMENT_ANALYSIS, JAVA"
+                  onChange={(event) =>
+                    onChange({
+                      ...task,
+                      requiredSkills: parseStringList(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="연결 요구사항 ID(쉼표 구분)">
+                  <Input
+                    value={task.requirementIds.join(", ")}
+                    placeholder="10, 11"
+                    onChange={(event) =>
+                      onChange({
+                        ...task,
+                        requirementIds: parseNumberList(event.target.value),
+                      })
+                    }
+                  />
+                </Field>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {confirmedRequirements.map((requirement) => (
+                    <button
+                      type="button"
+                      key={requirement.requirementId}
+                      className={cn(
+                        "rounded-full border px-2 py-1 text-xs",
+                        task.requirementIds.includes(requirement.requirementId)
+                          ? "border-blue-300 bg-blue-50 text-blue-700"
+                          : "border-border text-muted-foreground",
+                      )}
+                      onClick={() => {
+                        const included = task.requirementIds.includes(
+                          requirement.requirementId,
+                        );
+                        onChange({
+                          ...task,
+                          requirementIds: included
+                            ? task.requirementIds.filter(
+                                (id) => id !== requirement.requirementId,
+                              )
+                            : [...task.requirementIds, requirement.requirementId],
+                        });
+                      }}
+                    >
+                      #{requirement.requirementId} {requirement.title}
+                    </button>
+                  ))}
+                  {confirmedRequirements.length === 0 && (
+                    <span className="text-xs text-red-600">
+                      확정된 요구사항이 없습니다.
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="작업 설명">
+                  <Textarea
+                    value={task.description}
+                    rows={4}
+                    onChange={(event) =>
+                      onChange({ ...task, description: event.target.value })
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>
+                취소
+              </Button>
+              <Button onClick={onSave}>
+                <Save className="size-4" /> 작업 반영
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="space-y-1.5 text-sm">
+      <span className="text-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function WbsPreviewSkeleton() {
+  return (
+    <Card aria-busy="true" aria-label="WBS 불러오는 중">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-base text-muted-foreground">
+          <Clock className="size-4 animate-spin" /> WBS를 불러오는 중…
+        </CardTitle>
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-2">
+        {[0, 1].map((column) => (
+          <div key={column} className="space-y-3 rounded-lg border p-4">
+            <Skeleton className="h-5 w-32" />
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="flex items-center gap-3 border-t pt-3">
+                <Skeleton className="h-5 w-12" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            ))}
           </div>
         ))}
       </CardContent>
@@ -547,54 +1420,63 @@ function WbsPreviewSkeleton() {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
-function parseWeeks(duration: string): number {
-  const m = duration.match(/(\d+)\s*주/);
-  return m ? Number(m[1]) : 1;
-}
-
 function nextMonday(base: Date): Date {
-  const d = new Date(base);
-  const day = d.getDay(); // 0(일)~6(토)
+  const date = new Date(base);
+  const day = date.getDay();
   const add = (8 - (day || 7)) % 7 || 7;
-  d.setDate(d.getDate() + add);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  date.setDate(date.getDate() + add);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
-function fmtDate(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${mm}-${dd}`;
+function formatDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}-${day}`;
 }
 
-// WBS 각 단계 기간을 이어받아 시작·종료일과 간트 막대를 산정합니다.
-function buildSchedule() {
+function buildSchedule(tasks: WbsTask[]) {
   const start = nextMonday(new Date());
-  const totalWeeks = WBS_ROWS.reduce((sum, r) => sum + parseWeeks(r.duration), 0);
+  const durations = tasks.map((task) =>
+    Math.max(1, Math.ceil(Math.max(1, task.estimatedHours) / 40)),
+  );
+  const totalWeeks = Math.max(
+    1,
+    durations.reduce((sum, duration) => sum + duration, 0),
+  );
   let cursor = 0;
-  const rows = WBS_ROWS.map((r) => {
-    const weeks = parseWeeks(r.duration);
-    const phaseStart = new Date(start.getTime() + cursor * WEEK_MS);
-    const phaseEnd = new Date(start.getTime() + (cursor + weeks) * WEEK_MS - DAY_MS);
+
+  const rows = tasks.map((task, index) => {
+    const weeks = durations[index];
+    const taskStart = new Date(start.getTime() + cursor * WEEK_MS);
+    const taskEnd = new Date(
+      start.getTime() + (cursor + weeks) * WEEK_MS - DAY_MS,
+    );
     const offsetPct = (cursor / totalWeeks) * 100;
     const widthPct = (weeks / totalWeeks) * 100;
     cursor += weeks;
-    return { phase: r.phase, start: phaseStart, end: phaseEnd, offsetPct, widthPct };
+    return { task, start: taskStart, end: taskEnd, offsetPct, widthPct };
   });
+
   const end = rows[rows.length - 1]?.end ?? start;
   return { start, end, totalWeeks, rows };
 }
 
 function ScheduleGantt({
+  tasks,
   registered,
   onRegister,
   onOpenDocuments,
 }: {
+  tasks: WbsTask[];
   registered: boolean;
   onRegister: () => void;
   onOpenDocuments?: () => void;
 }) {
-  const { start, end, totalWeeks, rows } = useMemo(buildSchedule, []);
+  const { start, end, totalWeeks, rows } = useMemo(
+    () => buildSchedule(tasks),
+    [tasks],
+  );
 
   return (
     <Card>
@@ -604,13 +1486,13 @@ function ScheduleGantt({
             <CalendarClock className="size-4 text-muted-foreground" /> WBS 기반 일정 계획
           </CardTitle>
           <CardDescription className="mt-0.5">
-            {fmtDate(start)} ~ {fmtDate(end)} · {totalWeeks}주 · WBS 기간에서 자동 산정
+            {formatDate(start)} ~ {formatDate(end)} · 약 {totalWeeks}주 · 예상 공수 기준
           </CardDescription>
         </div>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => toast("날짜 조정은 준비 중이에요.")}
+          onClick={() => toast("날짜 조정 기능은 아직 연결되지 않았습니다.")}
         >
           <Pencil className="size-3.5" /> 날짜 조정
         </Button>
@@ -619,41 +1501,48 @@ function ScheduleGantt({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-28">단계</TableHead>
+              <TableHead className="w-24">코드</TableHead>
+              <TableHead>작업</TableHead>
               <TableHead className="w-40">기간</TableHead>
               <TableHead>타임라인</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.phase}>
+              <TableRow key={row.task.externalTaskId}>
                 <TableCell>
-                  <Badge
-                    variant="outline"
-                    className="border-blue-200 bg-blue-50 font-normal text-blue-700"
-                  >
-                    {row.phase}
-                  </Badge>
+                  <Badge variant="outline">{row.task.taskCode}</Badge>
                 </TableCell>
+                <TableCell>{row.task.taskName}</TableCell>
                 <TableCell className="text-muted-foreground">
-                  {fmtDate(row.start)} ~ {fmtDate(row.end)}
+                  {formatDate(row.start)} ~ {formatDate(row.end)}
                 </TableCell>
                 <TableCell>
                   <div className="relative h-2.5 w-full rounded-full bg-muted">
                     <div
                       className="absolute top-0 h-2.5 rounded-full bg-blue-500"
-                      style={{ left: `${row.offsetPct}%`, width: `${row.widthPct}%` }}
+                      style={{
+                        left: `${row.offsetPct}%`,
+                        width: `${row.widthPct}%`,
+                      }}
                     />
                   </div>
                 </TableCell>
               </TableRow>
             ))}
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                  일정으로 변환할 WBS 작업이 없습니다.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-          <span className="text-muted-foreground text-xs">
-            WBS 각 단계 기간을 바탕으로 시작·종료일이 자동 배정됐어요.
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <span className="text-xs text-muted-foreground">
+            40시간을 1주로 계산한 프론트 일정 미리보기입니다.
           </span>
           {registered ? (
             <div className="flex items-center gap-2">
@@ -670,7 +1559,7 @@ function ScheduleGantt({
               )}
             </div>
           ) : (
-            <Button size="sm" onClick={onRegister}>
+            <Button size="sm" disabled={tasks.length === 0} onClick={onRegister}>
               <CalendarClock className="size-3.5" /> 프로젝트 일정으로 등록
             </Button>
           )}
@@ -690,8 +1579,8 @@ function SchedulePreviewSkeleton() {
         <Skeleton className="h-8 w-24" />
       </CardHeader>
       <CardContent className="space-y-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3">
+        {[0, 1, 2, 3].map((index) => (
+          <div key={index} className="flex items-center gap-3">
             <Skeleton className="h-6 w-16 rounded-full" />
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-2.5 flex-1 rounded-full" />
@@ -705,8 +1594,8 @@ function SchedulePreviewSkeleton() {
 function SectionTitle({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <h3 className="text-foreground text-sm font-medium">{title}</h3>
-      {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
+      <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
     </div>
   );
 }
@@ -738,7 +1627,9 @@ function GeneratorCard({
       <CardContent className="flex flex-1 flex-col gap-3 pt-6">
         <div className="flex items-center gap-2">
           <Icon className="size-5 text-blue-600" />
-          <span className="text-foreground text-[15px] font-medium leading-tight">{title}</span>
+          <span className="text-[15px] font-medium leading-tight text-foreground">
+            {title}
+          </span>
         </div>
         <CardDescription className="leading-relaxed">{description}</CardDescription>
         <Badge variant="outline" className={cn("w-fit font-normal", toneClass)}>

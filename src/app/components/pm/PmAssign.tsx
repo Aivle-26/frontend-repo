@@ -19,7 +19,6 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
 import { Progress } from "@/app/components/ui/progress";
-import { Separator } from "@/app/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import {
   Select,
@@ -44,6 +43,8 @@ import {
   type Requirement,
 } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
+import { ReassignmentCard } from "@/app/components/common/ReassignmentCard";
+import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
 
 type AssignFilter = "미배정" | "배정됨" | "전체";
 
@@ -213,17 +214,15 @@ const progressByMember = useMemo(() => {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* 배정 테이블 */}
-        <div className="xl:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>업무 배정</CardTitle>
-              <CardDescription>
-                AI 추천 담당자를 참고해 요구사항을 팀원에게 배정하세요.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      {/* 업무 배정 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>업무 배정</CardTitle>
+          <CardDescription>
+            AI 추천 담당자를 참고해 요구사항을 팀원에게 배정하세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 {(["미배정", "배정됨", "전체"] as AssignFilter[]).map((f) => (
                   <button
@@ -362,103 +361,98 @@ const progressByMember = useMemo(() => {
                   )}
                 </TableBody>
               </Table>
-              <Separator className="my-5" />
+        </CardContent>
+      </Card>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="size-4" />
+      {/* 개인 진행률 | 팀원 진행도 지연 */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="size-4" /> 개인 진행률
+            </CardTitle>
+            <CardDescription>
+              팀원별 전체 업무와 완료 업무를 기준으로 계산됩니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {progressByMember.map((member) => (
+              <div key={`progress-${member.id}`} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Avatar className="size-7">
+                    <AvatarFallback className="text-[10px]">
+                      {member.name.slice(0, 1)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                    <h3 className="text-sm font-medium text-foreground">
-                      개인 진행률
-                    </h3>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-foreground">
+                      {member.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      완료 {member.completed}건 / 전체 {member.total}건
+                    </div>
                   </div>
 
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    팀원별 전체 업무와 완료 업무를 기준으로 계산됩니다.
-                  </p>
+                  <span className="text-sm font-medium text-foreground">
+                    {member.progress}%
+                  </span>
                 </div>
 
-                {progressByMember.map((member) => (
-                  <div
-                    key={`progress-${member.id}`}
-                    className="space-y-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Avatar className="size-7">
-                        <AvatarFallback className="text-[10px]">
-                          {member.name.slice(0, 1)}
-                        </AvatarFallback>
-                      </Avatar>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm text-foreground">
-                          {member.name}
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          완료 {member.completed}건 / 전체 {member.total}건
-                        </div>
-                      </div>
-
-                      <span className="text-sm font-medium text-foreground">
-                        {member.progress}%
-                      </span>
-                    </div>
-
-                    <Progress value={member.progress} />
-                  </div>
-                ))}
+                <Progress value={member.progress} />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            ))}
+          </CardContent>
+        </Card>
 
-        {/* 팀 워크로드 */}
-        <div className="xl:col-span-1">
-          <Card className="sticky top-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="size-4" /> 팀 워크로드
-              </CardTitle>
-              <CardDescription>배정 시 실시간으로 반영됩니다.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {team.map((m) => {
-                const load = loadByMember.get(m.name) ?? 0;
-                const pct = Math.round((load / maxLoad) * 100);
-                const isTop = m.name === topMember.name && topMember.count > 0;
-                return (
-                  <div key={m.id} className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="size-7">
-                        <AvatarFallback className="text-[10px]">
-                          {m.name.slice(0, 1)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="leading-tight">
-                        <div className="text-foreground text-sm">{m.name}</div>
-                        <div className="text-muted-foreground text-xs">{m.role}</div>
-                      </div>
-                      <span
-                        className={cn(
-                          "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
-                          isTop
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {load}건
-                      </span>
-                    </div>
-                    <Progress value={pct} />
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </div>
+        <TeamProgressDelayCard projectId={project.id} />
       </div>
+
+      {/* 팀 워크로드 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="size-4" /> 팀 워크로드
+          </CardTitle>
+          <CardDescription>배정 시 실시간으로 반영됩니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {team.map((m) => {
+            const load = loadByMember.get(m.name) ?? 0;
+            const pct = Math.round((load / maxLoad) * 100);
+            const isTop = m.name === topMember.name && topMember.count > 0;
+            return (
+              <div key={m.id} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Avatar className="size-7">
+                    <AvatarFallback className="text-[10px]">
+                      {m.name.slice(0, 1)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="leading-tight">
+                    <div className="text-foreground text-sm">{m.name}</div>
+                    <div className="text-muted-foreground text-xs">{m.role}</div>
+                  </div>
+                  <span
+                    className={cn(
+                      "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
+                      isTop
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {load}건
+                  </span>
+                </div>
+                <Progress value={pct} />
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* 담당자 재배정 추천 (AI 서버 연동, 팀원 데이터 기반) */}
+      <ReassignmentCard projectId={project.id} />
     </div>
   );
 }

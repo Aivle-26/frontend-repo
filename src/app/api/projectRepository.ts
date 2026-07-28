@@ -13,6 +13,8 @@ import {
   TASKS,
   TASK_CHECKLIST,
   TEAM,
+  TEAM_PROGRESS_DELAY,
+  projectMembers,
   WORKFLOW_STEPS,
   PM_AI_FILES,
   PM_LIBRARY_FILES,
@@ -47,9 +49,10 @@ import {
   type TaskColumn,
   type Notice,
   type NoticeCategory,
+  type TeamProgressDelay,
 } from "@/app/data/demoData";
 
-export type { Role, Task, TaskColumn, Notice, NoticeCategory };
+export type { Role, Task, TaskColumn, Notice, NoticeCategory, TeamProgressDelay };
 
 // 배포 환경(vercel.json)은 /api/* 를 EC2로 넘기는 rewrite가 있어 상대경로 "/api"가 맞다.
 // 로컬 개발은 그 프록시가 없으므로 VITE_AUTH_API(=http://localhost:8080)를 지정해 절대경로로 쓴다.
@@ -632,139 +635,6 @@ export const projectRepository = {
     });
   },
 
-
-  listRequirements(
-    projectId: string | number,
-    filters: RequirementListFilters = {},
-  ) {
-    const params = new URLSearchParams();
-    if (filters.type) params.set("type", filters.type);
-    if (filters.priority) params.set("priority", filters.priority);
-    if (filters.status) params.set("status", filters.status);
-    if (typeof filters.confirmed === "boolean") {
-      params.set("confirmed", String(filters.confirmed));
-    }
-
-    const query = params.toString();
-    const projectPath = encodeURIComponent(String(projectId));
-    return apiFetch<RequirementResponse[]>(
-      `/projects/${projectPath}/requirements${query ? `?${query}` : ""}`,
-      { auth: true },
-    );
-  },
-
-  getRequirement(projectId: string | number, requirementId: string | number) {
-    return apiFetch<RequirementResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
-      { auth: true },
-    );
-  },
-
-  createRequirement(projectId: string | number, input: CreateRequirementRequest) {
-    return apiFetch<RequirementResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements`,
-      {
-        method: "POST",
-        body: JSON.stringify(input),
-        auth: true,
-      },
-    );
-  },
-
-  updateRequirement(
-    projectId: string | number,
-    requirementId: string | number,
-    input: UpdateRequirementRequest,
-  ) {
-    return apiFetch<RequirementResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(input),
-        auth: true,
-      },
-    );
-  },
-
-  deleteRequirement(projectId: string | number, requirementId: string | number) {
-    return apiFetch<void>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}`,
-      {
-        method: "DELETE",
-        auth: true,
-      },
-    );
-  },
-
-  confirmRequirement(projectId: string | number, requirementId: string | number) {
-    return apiFetch<RequirementResponse | void>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/confirm`,
-      {
-        method: "PATCH",
-        auth: true,
-      },
-    );
-  },
-
-  unconfirmRequirement(projectId: string | number, requirementId: string | number) {
-    return apiFetch<RequirementResponse | void>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/unconfirm`,
-      {
-        method: "PATCH",
-        auth: true,
-      },
-    );
-  },
-
-  rejectRequirement(projectId: string | number, requirementId: string | number) {
-    return apiFetch<RequirementResponse | void>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/${encodeURIComponent(String(requirementId))}/reject`,
-      {
-        method: "PATCH",
-        auth: true,
-      },
-    );
-  },
-
-  confirmAllRequirements(projectId: string | number) {
-    return apiFetch<RequirementResponse[] | void>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/confirm`,
-      {
-        method: "PATCH",
-        auth: true,
-      },
-    );
-  },
-
-  generateWbs(projectId: string | number) {
-    return apiFetch<WbsResult>(
-      `/projects/${encodeURIComponent(String(projectId))}/wbs/generate`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        auth: true,
-      },
-    );
-  },
-
-  getWbs(projectId: string | number) {
-    return apiFetch<WbsResult>(
-      `/projects/${encodeURIComponent(String(projectId))}/wbs`,
-      { auth: true },
-    );
-  },
-
-  saveFinalWbs(projectId: string | number, input: SaveFinalWbsRequest) {
-    return apiFetch<WbsResult | void>(
-      `/projects/${encodeURIComponent(String(projectId))}/wbs/final`,
-      {
-        method: "PUT",
-        body: JSON.stringify(input),
-        auth: true,
-      },
-    );
-  },
-
   getProjectName() {
     return PROJECT_NAME;
   },
@@ -869,6 +739,20 @@ export const projectRepository = {
       actions: PM_RISK_ACTIONS,
       quickTools: PM_QUICK_TOOLS,
     };
+  },
+
+  /** 해당 프로젝트에 속한 팀원들의 업무 진행도 지연 현황. */
+  getTeamProgressDelay(projectId: string) {
+    const memberIds = new Set(projectMembers(projectId).map((m) => m.id));
+    const rows = TEAM_PROGRESS_DELAY.filter((d) => memberIds.has(d.id)).map((d) => {
+      const member = TEAM.find((m) => m.id === d.id);
+      return {
+        ...d,
+        name: member?.name ?? "알 수 없음",
+        role: member?.role ?? "",
+      };
+    });
+    return { rows };
   },
 
   getPmUpload() {

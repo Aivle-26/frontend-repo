@@ -195,14 +195,23 @@ export interface ProjectDocumentUploadResponse {
 
 
 export type RequirementStatus = "UNCONFIRMED" | "CONFIRMED" | "REJECTED";
-export type RequirementPriority = "HIGH" | "MEDIUM" | "LOW";
+export type RequirementPriority = "HIGH" | "MEDIUM" | "LOW" | "UNSPECIFIED";
+export type RequirementType =
+  | "FUNCTIONAL"
+  | "NON_FUNCTIONAL"
+  | "SECURITY"
+  | "DATA"
+  | "INTERFACE"
+  | "OPERATION"
+  | "PROJECT_MANAGEMENT"
+  | "UNSPECIFIED";
 
 export interface RequirementResponse {
   requirementId: number;
   analysisResultId: number | null;
   sourceDocumentId: number | null;
   externalReferenceId: number | null;
-  type: string;
+  type: RequirementType | string;
   title: string;
   description: string;
   acceptanceCriteria: string | null;
@@ -218,6 +227,33 @@ export interface RequirementResponse {
   updatedAt: string;
 }
 
+export interface RequirementsResult {
+  projectId: number;
+  aiSuggestions: RequirementResponse[];
+  finalRequirements: RequirementResponse[];
+}
+
+export interface SaveFinalRequirement {
+  requirementId: number | null;
+  analysisResultId: number | null;
+  sourceDocumentId: number;
+  externalReferenceId: number;
+  type: RequirementType | string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string | null;
+  dueDate: string | null;
+  deliverableName: string | null;
+  securityCondition: string | null;
+  sourceDocumentName: string | null;
+  sourceExcerpt: string | null;
+  priority: RequirementPriority | string;
+}
+
+export interface SaveFinalRequirementsRequest {
+  requirements: SaveFinalRequirement[];
+}
+
 export interface RequirementListFilters {
   type?: string;
   priority?: string;
@@ -225,11 +261,12 @@ export interface RequirementListFilters {
   confirmed?: boolean;
 }
 
+/** 이전 화면과의 타입 호환을 위해 유지합니다. 신규 연동은 saveFinalRequirements를 사용합니다. */
 export interface CreateRequirementRequest {
   analysisResultId?: number | null;
   sourceDocumentId?: number | null;
   externalReferenceId?: number | null;
-  type: string;
+  type: RequirementType | string;
   title: string;
   description: string;
   acceptanceCriteria?: string | null;
@@ -633,6 +670,70 @@ export const projectRepository = {
       auth: true,
       expectedStatuses: [201],
     });
+  },
+
+  getRequirements(projectId: string | number) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements`,
+      { auth: true },
+    );
+  },
+
+  /** 이전 호출부 호환용입니다. 신규 화면은 getRequirements를 사용합니다. */
+  listRequirements(
+    projectId: string | number,
+    _filters: RequirementListFilters = {},
+  ) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements`,
+      { auth: true },
+    ).then((response) =>
+      Array.isArray(response.finalRequirements)
+        ? response.finalRequirements
+        : [],
+    );
+  },
+
+  saveFinalRequirements(
+    projectId: string | number,
+    input: SaveFinalRequirementsRequest,
+  ) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  generateWbs(projectId: string | number) {
+    return apiFetch<WbsResult | void>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/generate`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    );
+  },
+
+  getWbs(projectId: string | number) {
+    return apiFetch<WbsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs`,
+      { auth: true },
+    );
+  },
+
+  saveFinalWbs(projectId: string | number, input: SaveFinalWbsRequest) {
+    return apiFetch<WbsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
   },
 
   getProjectName() {

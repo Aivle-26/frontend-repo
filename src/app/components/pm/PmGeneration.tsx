@@ -77,6 +77,27 @@ import type { ProjectSummary } from "@/app/data/demoData";
 type GenStatus = "idle" | "generating" | "done";
 type EditorState = { mode: "new" | "edit"; task: WbsTask } | null;
 
+const WBS_PHASES = [
+  "ANALYSIS",
+  "DESIGN",
+  "DEVELOPMENT",
+  "TEST",
+  "DEPLOYMENT",
+  "OPERATION",
+] as const;
+
+const WBS_DIFFICULTIES = ["LOW", "MEDIUM", "HIGH"] as const;
+
+const WBS_SKILLS = new Set([
+  "DOCUMENT_ANALYSIS",
+  "REQUIREMENTS_ANALYSIS",
+  "ARCHITECTURE_DESIGN",
+  "BACKEND_DEVELOPMENT",
+  "FRONTEND_DEVELOPMENT",
+  "TESTING",
+  "DEVOPS",
+]);
+
 const BACKBONE: {
   key: Key;
   icon: typeof FileText;
@@ -88,7 +109,7 @@ const BACKBONE: {
     key: "req",
     icon: FileText,
     title: "요구사항 목록",
-    desc: "백엔드 요구사항을 조회하고 WBS에 사용할 항목을 확정",
+    desc: "서버에 저장된 최종 요구사항을 조회",
     short: "요구사항",
   },
   {
@@ -102,7 +123,7 @@ const BACKBONE: {
     key: "wbs",
     icon: Network,
     title: "요구사항 기반 WBS",
-    desc: "확정 요구사항을 바탕으로 AI 작업 분해 구조 생성",
+    desc: "최종 요구사항을 바탕으로 AI 작업 분해 구조 생성",
     short: "WBS",
   },
   {
@@ -161,7 +182,7 @@ function createExternalTaskId() {
 
 function createEmptyTask(
   orderIndex: number,
-  confirmedRequirements: RequirementResponse[],
+  finalRequirements: RequirementResponse[],
 ): WbsTask {
   return {
     taskId: null,
@@ -175,8 +196,8 @@ function createEmptyTask(
     difficulty: "MEDIUM",
     estimatedHours: 8,
     orderIndex,
-    requirementIds: confirmedRequirements[0]
-      ? [confirmedRequirements[0].requirementId]
+    requirementIds: finalRequirements[0]
+      ? [finalRequirements[0].requirementId]
       : [],
     confirmed: false,
   };
@@ -231,14 +252,17 @@ export function PmGeneration({
   const previewRef = useRef<HTMLDivElement | null>(null);
   const scheduleRef = useRef<HTMLDivElement | null>(null);
 
-  const confirmedRequirements = useMemo(
-    () => requirements.filter((item) => item.confirmed),
+  const finalRequirements = useMemo(
+    () =>
+      requirements.filter(
+        (item) => Number.isInteger(item.requirementId) && item.requirementId > 0,
+      ),
     [requirements],
   );
 
-  const confirmedRequirementIds = useMemo(
-    () => new Set(confirmedRequirements.map((item) => item.requirementId)),
-    [confirmedRequirements],
+  const finalRequirementIds = useMemo(
+    () => new Set(finalRequirements.map((item) => item.requirementId)),
+    [finalRequirements],
   );
 
   const finalTasks = wbs?.finalTasks ?? [];
@@ -253,15 +277,15 @@ export function PmGeneration({
       setWbsError("");
 
       const [requirementsResult, wbsResult] = await Promise.allSettled([
-        projectRepository.listRequirements(project.id),
+        projectRepository.getRequirements(project.id),
         projectRepository.getWbs(project.id),
       ]);
 
       if (cancelled) return;
 
       if (requirementsResult.status === "fulfilled") {
-        const items = Array.isArray(requirementsResult.value)
-          ? requirementsResult.value
+        const items = Array.isArray(requirementsResult.value.finalRequirements)
+          ? requirementsResult.value.finalRequirements
           : [];
         setRequirements(items);
         if (items.length > 0) markGenerated(project.id, "req");
@@ -297,7 +321,7 @@ export function PmGeneration({
   }, [project.id]);
 
   const isStepDone = (key: Key) => {
-    if (key === "req") return requirements.length > 0 || done.has(key);
+    if (key === "req") return requirements.length > 0;
     if (key === "wbs") return wbs !== null;
     return done.has(key);
   };
@@ -306,8 +330,8 @@ export function PmGeneration({
     busy[key] ? "generating" : isStepDone(key) ? "done" : "idle";
 
   const getLockedLabel = (key: Key, index: number) => {
-    if (key === "wbs" && confirmedRequirements.length === 0) {
-      return "확정 요구사항 필요";
+    if (key === "wbs" && finalRequirements.length === 0) {
+      return "최종 요구사항 필요";
     }
     if (key === "schedule" && !wbs) return "WBS 필요";
 
@@ -321,8 +345,10 @@ export function PmGeneration({
   const refreshRequirements = async () => {
     setBusy((current) => ({ ...current, req: true }));
     try {
-      const response = await projectRepository.listRequirements(project.id);
-      const items = Array.isArray(response) ? response : [];
+      const response = await projectRepository.getRequirements(project.id);
+      const items = Array.isArray(response.finalRequirements)
+        ? response.finalRequirements
+        : [];
       setRequirements(items);
       if (items.length === 0) {
         toast.error("조회된 요구사항이 없습니다.");
@@ -346,8 +372,8 @@ export function PmGeneration({
   };
 
   const generateWbs = async () => {
-    if (confirmedRequirements.length === 0) {
-      toast.error("WBS 생성 전에 요구사항을 한 건 이상 확정하세요.");
+    if (finalRequirements.length === 0) {
+      toast.error("WBS 생성 전에 최종 요구사항을 한 건 이상 저장하세요.");
       return;
     }
 
@@ -355,22 +381,14 @@ export function PmGeneration({
     setWbsError("");
 
     try {
-      const generated = normalizeWbs(
-        await projectRepository.generateWbs(project.id),
-      );
-
-      try {
-        await loadWbs();
-      } catch {
-        setWbs(generated);
-        markGenerated(project.id, "wbs");
-      }
+      await projectRepository.generateWbs(project.id);
+      await loadWbs();
 
       setPreviewOpen(true);
       requestAnimationFrame(() =>
         previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
-      toast.success("확정 요구사항 기반 WBS를 생성했습니다.");
+      toast.success("최종 요구사항 기반 WBS를 생성했습니다.");
     } catch (error) {
       const message = errorMessage(error, "WBS 생성에 실패했습니다.");
       setWbsError(message);
@@ -489,28 +507,62 @@ export function PmGeneration({
       toast.error("작업명을 입력하세요.");
       return;
     }
-    if (task.estimatedHours < 0) {
-      toast.error("예상 공수는 0 이상이어야 합니다.");
+    if (
+      !Number.isFinite(Number(task.estimatedHours)) ||
+      Number(task.estimatedHours) < 0
+    ) {
+      toast.error("예상 공수는 0 이상의 숫자여야 합니다.");
       return;
     }
 
-    const duplicate = finalTasks.some(
-      (item) =>
-        item.externalTaskId === task.externalTaskId &&
-        (editor.mode === "new" ||
-          item.externalTaskId !== editor.task.externalTaskId),
-    );
-    if (duplicate) {
+    const duplicateExternalId =
+      editor.mode === "new" &&
+      finalTasks.some((item) => item.externalTaskId === task.externalTaskId);
+    if (duplicateExternalId) {
       toast.error("externalTaskId가 중복되었습니다.");
       return;
     }
 
+    const duplicateTaskCode = finalTasks.some(
+      (item) =>
+        item.taskCode === task.taskCode &&
+        item.externalTaskId !== editor.task.externalTaskId,
+    );
+    if (duplicateTaskCode) {
+      toast.error("작업 코드가 중복되었습니다.");
+      return;
+    }
+
+    if (!WBS_PHASES.includes(task.phase as (typeof WBS_PHASES)[number])) {
+      toast.error(
+        "단계 값은 ANALYSIS, DESIGN, DEVELOPMENT, TEST, DEPLOYMENT, OPERATION 중 하나여야 합니다.",
+      );
+      return;
+    }
+
+    if (
+      !WBS_DIFFICULTIES.includes(
+        task.difficulty as (typeof WBS_DIFFICULTIES)[number],
+      )
+    ) {
+      toast.error("난이도 값은 LOW, MEDIUM, HIGH 중 하나여야 합니다.");
+      return;
+    }
+
+    const invalidSkill = task.requiredSkills.find(
+      (skill) => !WBS_SKILLS.has(skill),
+    );
+    if (invalidSkill) {
+      toast.error(`지원하지 않는 필요 기술입니다: ${invalidSkill}`);
+      return;
+    }
+
     const invalidRequirement = task.requirementIds.find(
-      (id) => !confirmedRequirementIds.has(id),
+      (id) => !finalRequirementIds.has(id),
     );
     if (invalidRequirement !== undefined) {
       toast.error(
-        `요구사항 ID ${invalidRequirement}은 확정된 요구사항이 아닙니다.`,
+        `요구사항 ID ${invalidRequirement}은 최종 요구사항이 아닙니다.`,
       );
       return;
     }
@@ -538,24 +590,66 @@ export function PmGeneration({
   };
 
   const validateAndBuildSaveTasks = (): SaveFinalWbsTask[] | null => {
+    if (finalTasks.length === 0) {
+      toast.error("최종 WBS 작업은 최소 1개 이상이어야 합니다.");
+      return null;
+    }
+
     const externalIds = new Set<string>();
+    const taskCodes = new Set<string>();
 
     for (const task of finalTasks) {
-      if (!task.externalTaskId.trim() || !task.taskName.trim()) {
-        toast.error("모든 작업에 externalTaskId와 작업명이 필요합니다.");
+      const externalTaskId = task.externalTaskId.trim();
+      const taskCode = task.taskCode.trim();
+
+      if (!externalTaskId || !taskCode || !task.taskName.trim()) {
+        toast.error("모든 작업에 externalTaskId, 작업 코드, 작업명이 필요합니다.");
         return null;
       }
-      if (externalIds.has(task.externalTaskId)) {
-        toast.error(`externalTaskId가 중복되었습니다: ${task.externalTaskId}`);
+      if (externalIds.has(externalTaskId)) {
+        toast.error(`externalTaskId가 중복되었습니다: ${externalTaskId}`);
         return null;
       }
-      externalIds.add(task.externalTaskId);
+      if (taskCodes.has(taskCode)) {
+        toast.error(`작업 코드가 중복되었습니다: ${taskCode}`);
+        return null;
+      }
+      if (
+        !Number.isFinite(Number(task.estimatedHours)) ||
+        Number(task.estimatedHours) < 0
+      ) {
+        toast.error(`${task.taskName}의 예상 공수를 확인하세요.`);
+        return null;
+      }
+      if (!WBS_PHASES.includes(task.phase as (typeof WBS_PHASES)[number])) {
+        toast.error(`${task.taskName}의 단계 값이 올바르지 않습니다.`);
+        return null;
+      }
+      if (
+        !WBS_DIFFICULTIES.includes(
+          task.difficulty as (typeof WBS_DIFFICULTIES)[number],
+        )
+      ) {
+        toast.error(`${task.taskName}의 난이도 값이 올바르지 않습니다.`);
+        return null;
+      }
+      const invalidSkill = task.requiredSkills.find(
+        (skill) => !WBS_SKILLS.has(skill),
+      );
+      if (invalidSkill) {
+        toast.error(
+          `${task.taskName}의 필요 기술 값이 올바르지 않습니다: ${invalidSkill}`,
+        );
+        return null;
+      }
+      externalIds.add(externalTaskId);
+      taskCodes.add(taskCode);
     }
 
     for (const task of finalTasks) {
       if (
         task.parentExternalTaskId &&
-        !externalIds.has(task.parentExternalTaskId)
+        !externalIds.has(task.parentExternalTaskId.trim())
       ) {
         toast.error(
           `${task.taskName}의 부모 작업 ${task.parentExternalTaskId}이 목록에 없습니다.`,
@@ -564,22 +658,22 @@ export function PmGeneration({
       }
 
       const invalidRequirement = task.requirementIds.find(
-        (id) => !confirmedRequirementIds.has(id),
+        (id) => !finalRequirementIds.has(id),
       );
       if (invalidRequirement !== undefined) {
         toast.error(
-          `${task.taskName}에 미확정 요구사항 ID ${invalidRequirement}이 연결되어 있습니다.`,
+          `${task.taskName}에 최종 목록에 없는 요구사항 ID ${invalidRequirement}이 연결되어 있습니다.`,
         );
         return null;
       }
     }
 
     return normalizeOrder(finalTasks).map((task) => ({
-      externalTaskId: task.externalTaskId,
-      parentExternalTaskId: task.parentExternalTaskId || null,
-      taskCode: task.taskCode,
-      taskName: task.taskName,
-      description: task.description,
+      externalTaskId: task.externalTaskId.trim(),
+      parentExternalTaskId: task.parentExternalTaskId?.trim() || null,
+      taskCode: task.taskCode.trim(),
+      taskName: task.taskName.trim(),
+      description: task.description.trim(),
       phase: task.phase,
       requiredSkills: task.requiredSkills,
       difficulty: task.difficulty,
@@ -597,8 +691,9 @@ export function PmGeneration({
 
     setSavingFinal(true);
     try {
-      await projectRepository.saveFinalWbs(project.id, { tasks });
-      await loadWbs();
+      const saved = await projectRepository.saveFinalWbs(project.id, { tasks });
+      setWbs(normalizeWbs(saved));
+      markGenerated(project.id, "wbs");
       toast.success("최종 WBS를 저장했습니다.");
     } catch (error) {
       toast.error(errorMessage(error, "최종 WBS 저장에 실패했습니다."));
@@ -622,7 +717,7 @@ export function PmGeneration({
               </Badge>
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              확정 요구사항을 기반으로 WBS를 생성하고 최종 작업 목록을 편집합니다.
+              최종 요구사항을 기반으로 WBS를 생성하고 최종 작업 목록을 편집합니다.
             </div>
           </div>
         </CardContent>
@@ -631,7 +726,7 @@ export function PmGeneration({
       <section className="space-y-3">
         <SectionTitle
           title="계획 백본"
-          hint="WBS는 확정된 요구사항이 있어야 생성할 수 있습니다"
+          hint="WBS는 저장된 최종 요구사항이 있어야 생성할 수 있습니다"
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -645,7 +740,7 @@ export function PmGeneration({
                 ? {
                     text:
                       step.key === "req"
-                        ? `${requirements.length}건 · 확정 ${confirmedRequirements.length}`
+                        ? `${finalRequirements.length}건 저장`
                         : step.key === "wbs"
                           ? `${taskCount}개 작업`
                           : "생성 완료",
@@ -768,12 +863,12 @@ export function PmGeneration({
           <div ref={previewRef}>
             <WbsWorkspace
               result={wbs}
-              confirmedRequirements={confirmedRequirements}
+              finalRequirements={finalRequirements}
               saving={savingFinal}
               onAdd={() =>
                 setEditor({
                   mode: "new",
-                  task: createEmptyTask(finalTasks.length, confirmedRequirements),
+                  task: createEmptyTask(finalTasks.length, finalRequirements),
                 })
               }
               onEdit={(task) =>
@@ -963,7 +1058,7 @@ export function PmGeneration({
 
       <TaskEditorDialog
         editor={editor}
-        confirmedRequirements={confirmedRequirements}
+        finalRequirements={finalRequirements}
         onChange={(task) =>
           setEditor((current) => (current ? { ...current, task } : current))
         }
@@ -978,7 +1073,7 @@ type StatusLabel = { text: string; tone: "success" | "warning" | "muted" };
 
 function WbsWorkspace({
   result,
-  confirmedRequirements,
+  finalRequirements,
   saving,
   onAdd,
   onEdit,
@@ -989,7 +1084,7 @@ function WbsWorkspace({
   onOpenDocuments,
 }: {
   result: WbsResult;
-  confirmedRequirements: RequirementResponse[];
+  finalRequirements: RequirementResponse[];
   saving: boolean;
   onAdd: () => void;
   onEdit: (task: WbsTask) => void;
@@ -1015,7 +1110,7 @@ function WbsWorkspace({
               )}
             </CardTitle>
             <CardDescription className="mt-1">
-              생성 버전 {result.agentVersion ?? "-"} · 확정 요구사항 {confirmedRequirements.length}건
+              생성 버전 {result.agentVersion ?? "-"} · 최종 요구사항 {finalRequirements.length}건
             </CardDescription>
           </div>
 
@@ -1026,7 +1121,7 @@ function WbsWorkspace({
             <Button variant="outline" size="sm" onClick={onAdd}>
               <Plus className="size-3.5" /> 작업 추가
             </Button>
-            <Button size="sm" disabled={saving} onClick={onSave}>
+            <Button size="sm" disabled={saving || result.finalTasks.length === 0} onClick={onSave}>
               {saving ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
@@ -1200,13 +1295,13 @@ function WbsTaskTable({
 
 function TaskEditorDialog({
   editor,
-  confirmedRequirements,
+  finalRequirements,
   onChange,
   onClose,
   onSave,
 }: {
   editor: EditorState;
-  confirmedRequirements: RequirementResponse[];
+  finalRequirements: RequirementResponse[];
   onChange: (task: WbsTask) => void;
   onClose: () => void;
   onSave: () => void;
@@ -1223,7 +1318,7 @@ function TaskEditorDialog({
                 {editor.mode === "new" ? "최종 WBS 작업 추가" : "최종 WBS 작업 수정"}
               </DialogTitle>
               <DialogDescription>
-                저장 식별자는 externalTaskId이며, 요구사항 ID에는 확정된 요구사항만 입력할 수 있습니다.
+                저장 식별자는 externalTaskId이며, 요구사항 ID에는 최종 요구사항만 입력할 수 있습니다.
               </DialogDescription>
             </DialogHeader>
 
@@ -1260,22 +1355,34 @@ function TaskEditorDialog({
                 />
               </Field>
               <Field label="단계(phase)">
-                <Input
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
                   value={task.phase}
-                  placeholder="ANALYSIS"
                   onChange={(event) =>
                     onChange({ ...task, phase: event.target.value })
                   }
-                />
+                >
+                  {WBS_PHASES.map((phase) => (
+                    <option key={phase} value={phase}>
+                      {phase}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="난이도">
-                <Input
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
                   value={task.difficulty}
-                  placeholder="LOW / MEDIUM / HIGH"
                   onChange={(event) =>
                     onChange({ ...task, difficulty: event.target.value })
                   }
-                />
+                >
+                  {WBS_DIFFICULTIES.map((difficulty) => (
+                    <option key={difficulty} value={difficulty}>
+                      {difficulty}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="예상 공수(시간)">
                 <Input
@@ -1293,7 +1400,7 @@ function TaskEditorDialog({
               <Field label="필요 기술(쉼표 구분)">
                 <Input
                   value={task.requiredSkills.join(", ")}
-                  placeholder="DOCUMENT_ANALYSIS, JAVA"
+                  placeholder="DOCUMENT_ANALYSIS, FRONTEND_DEVELOPMENT"
                   onChange={(event) =>
                     onChange({
                       ...task,
@@ -1316,7 +1423,7 @@ function TaskEditorDialog({
                   />
                 </Field>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {confirmedRequirements.map((requirement) => (
+                  {finalRequirements.map((requirement) => (
                     <button
                       type="button"
                       key={requirement.requirementId}
@@ -1343,9 +1450,9 @@ function TaskEditorDialog({
                       #{requirement.requirementId} {requirement.title}
                     </button>
                   ))}
-                  {confirmedRequirements.length === 0 && (
+                  {finalRequirements.length === 0 && (
                     <span className="text-xs text-red-600">
-                      확정된 요구사항이 없습니다.
+                      최종 요구사항이 없습니다.
                     </span>
                   )}
                 </div>

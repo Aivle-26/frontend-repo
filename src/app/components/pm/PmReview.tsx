@@ -12,6 +12,7 @@ import {
   File as FileIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SecurityCheckCard } from "@/app/components/common/SecurityCheckCard";
 import {
   Card,
   CardContent,
@@ -299,6 +300,9 @@ export function PmReview({ project }: { project: ProjectSummary }) {
               </div>
             </CardContent>
           </Card>
+
+          {/* 산출물 보안검사 (AI 서버 연동) — 검토표 아래, 피드백 위 */}
+          <SecurityCheckCard projectId={project.id} />
         </div>
 
         <div className="space-y-6 xl:col-span-1">

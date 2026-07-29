@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   UploadCloud,
   RefreshCw,
@@ -49,26 +49,79 @@ function formatFileSize(fileSize: number) {
   return `${(fileSize / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+function toUploadRow(document: ProjectDocumentUploadItem): UploadedRfp {
+  const status: UploadedRfp["status"] =
+    document.status === "ANALYZED"
+      ? "분석 완료"
+      : document.status === "ANALYZING"
+        ? "분석 중"
+        : "대기";
+  return {
+    id: String(document.documentId),
+    name: document.originalFileName,
+    size: formatFileSize(document.fileSize),
+    uploadedAt: "서버 저장됨",
+    status,
+    requirementCount: 0,
+  };
+}
+
+function analysisErrorMessage(error: unknown) {
+  if (!(error instanceof ApiError)) {
+    return "요구사항 분석 중 오류가 발생했습니다.";
+  }
+
+  const messages: Partial<Record<number, string>> = {
+    400: "분석할 프로젝트 문서를 확인해 주세요.",
+    403: "이 프로젝트를 분석할 권한이 없습니다.",
+    409: "동일한 문서 분석 결과가 이미 존재하거나 분석 중입니다.",
+    422: "문서 형식을 분석 서버가 처리할 수 없습니다.",
+    502: "분석 결과 형식이 올바르지 않습니다. 잠시 후 다시 시도해 주세요.",
+    503: "분석 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    504: "문서 분석 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
+  };
+  return messages[error.status] ?? error.message;
+}
+
 export function PmUpload({
   project,
   onDocumentsUploaded,
+  onAnalysisComplete,
 }: {
   project: ProjectSummary;
   onDocumentsUploaded?: (documents: ProjectDocumentUploadItem[]) => void;
+  onAnalysisComplete?: () => void;
 }) {
-  const [files, setFiles] = useState<UploadedRfp[]>(() =>
-    project.docs.map((d, i) => ({
-      id: `doc-${i}`,
-      name: d.name,
-      size: "—",
-      uploadedAt: `${d.type} · 업로드됨`,
-      status: "분석 완료",
-      requirementCount: project.reqCount,
-    })),
-  );
+  const [files, setFiles] = useState<UploadedRfp[]>([]);
   const [dragging, setDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [analyzingDocumentId, setAnalyzingDocumentId] = useState<string | null>(
+    null,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const loadDocuments = useCallback(async () => {
+    setIsLoadingDocuments(true);
+    setLoadError("");
+    try {
+      const response = await projectRepository.listProjectDocuments(project.id);
+      setFiles(response.documents.map(toUploadRow));
+    } catch (error) {
+      setLoadError(
+        error instanceof ApiError
+          ? error.message
+          : "프로젝트 문서 목록을 불러오지 못했습니다.",
+      );
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [loadDocuments]);
 
   const addFiles = async (selectedFiles: File[]) => {
     if (isUploading || selectedFiles.length === 0) return;
@@ -85,22 +138,9 @@ export function PmUpload({
         project.id,
         selectedFiles,
       );
-      const now = new Date().toLocaleString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const uploaded: UploadedRfp[] = response.documents.map((document) => ({
-        id: String(document.documentId),
-        name: document.originalFileName,
-        size: formatFileSize(document.fileSize),
-        uploadedAt: `방금 · ${now}`,
-        status: "대기",
-        requirementCount: 0,
-      }));
-
-      setFiles((prev) => [...uploaded, ...prev]);
+      await loadDocuments();
       onDocumentsUploaded?.(response.documents);
-      toast.success(`${uploaded.length}개 프로젝트 원본 문서를 업로드했습니다.`);
+      toast.success(`${response.documents.length}개 프로젝트 원본 문서를 업로드했습니다.`);
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -121,18 +161,47 @@ export function PmUpload({
   };
 
   const reanalyze = async (id: string) => {
-    await projectRepository.reanalyzeRfp();
+    if (analyzingDocumentId) return;
+    const documentId = Number(id);
+    if (!Number.isSafeInteger(documentId) || documentId <= 0) {
+      toast.error("분석할 프로젝트 문서를 확인해 주세요.");
+      return;
+    }
+
+    const previous = files.find((file) => file.id === id);
+    setAnalyzingDocumentId(id);
     setFiles((prev) =>
       prev.map((f) => (f.id === id ? { ...f, status: "분석 중" } : f)),
     );
-    toast("AI 재분석을 시작했습니다.");
-    setTimeout(() => {
+    try {
+      await projectRepository.analyzeProjectRequirements(project.id, {
+        documentIds: [documentId],
+      });
+      const persisted = await projectRepository.getRequirements(project.id);
+      const requirementCount = persisted.finalRequirements.filter(
+        (requirement) => requirement.sourceDocumentId === documentId,
+      ).length;
       setFiles((prev) =>
         prev.map((f) =>
-          f.id === id ? { ...f, status: "분석 완료" } : f,
+          f.id === id
+            ? { ...f, status: "분석 완료", requirementCount }
+            : f,
         ),
       );
-    }, 1200);
+      toast.success("요구사항 분석을 완료했습니다.");
+      onAnalysisComplete?.();
+    } catch (error) {
+      setFiles((prev) =>
+        prev.map((file) =>
+          file.id === id && previous
+            ? { ...file, status: previous.status }
+            : file,
+        ),
+      );
+      toast.error(analysisErrorMessage(error));
+    } finally {
+      setAnalyzingDocumentId(null);
+    }
   };
 
   const remove = (id: string) => {
@@ -241,12 +310,17 @@ export function PmUpload({
                   <TableCell>
                     <div className="flex items-center justify-end gap-1 text-muted-foreground">
                       <button
-                        onClick={() => reanalyze(f.id)}
+                        disabled={analyzingDocumentId !== null}
+                        onClick={() => void reanalyze(f.id)}
                         className="rounded p-1 hover:bg-muted hover:text-foreground"
                         aria-label="다시 분석"
                         title="다시 분석"
                       >
-                        <RefreshCw className="size-4" />
+                        {analyzingDocumentId === f.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="size-4" />
+                        )}
                       </button>
                       <button
                         onClick={() => toast(`"${f.name}" 다운로드`)}
@@ -268,7 +342,24 @@ export function PmUpload({
                   </TableCell>
                 </TableRow>
               ))}
-              {files.length === 0 && (
+              {isLoadingDocuments && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" />
+                      프로젝트 문서를 불러오는 중입니다.
+                    </span>
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoadingDocuments && loadError && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-destructive">
+                    {loadError}
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoadingDocuments && !loadError && files.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     업로드된 공고문이 없습니다.

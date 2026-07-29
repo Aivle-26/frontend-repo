@@ -412,7 +412,6 @@ export function PmGeneration({
 
     setBusy((current) => ({ ...current, [key]: true }));
     try {
-      await projectRepository.reanalyzeRfp();
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       markGenerated(project.id, key);
       toast.success(`${label} 생성을 완료했습니다.`);

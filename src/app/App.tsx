@@ -289,6 +289,10 @@ export default function App() {
         <PmUpload
           key={selectedProject?.id}
           project={selectedProject!}
+          onAnalysisComplete={() => {
+            setRequirementsOpenedFromGeneration(false);
+            setPmMenu("requirements");
+          }}
           onDocumentsUploaded={(documents) => {
             setProjects((currentProjects) =>
               currentProjects.map((currentProject) =>

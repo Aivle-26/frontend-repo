@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ClipboardList,
   Download,
   FileText,
   Loader2,
@@ -16,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -32,6 +34,8 @@ import {
   ApiError,
   projectRepository,
   type ProjectDocumentUploadItem,
+  type RequirementResponse,
+  type RequirementsResult,
 } from "@/app/api/projectRepository";
 import {
   PROJECT_DOCUMENT_ACCEPT,
@@ -91,6 +95,28 @@ function analysisErrorMessage(error: unknown) {
   return messages[error.status] ?? error.message;
 }
 
+function requirementStatusLabel(status: RequirementResponse["status"]) {
+  if (status === "CONFIRMED") return "확정";
+  if (status === "REJECTED") return "반려";
+  return "검토 전";
+}
+
+function requirementStatusClass(status: RequirementResponse["status"]) {
+  if (status === "CONFIRMED") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "REJECTED") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function finalRequirements(result: RequirementsResult) {
+  return Array.isArray(result.finalRequirements)
+    ? result.finalRequirements
+    : [];
+}
+
 export function PmUpload({
   project,
   onDocumentsUploaded,
@@ -105,6 +131,10 @@ export function PmUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
+  const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
+  const [requirementsLoadError, setRequirementsLoadError] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
   const [analyzingDocumentId, setAnalyzingDocumentId] = useState<string | null>(
     null,
   );
@@ -141,6 +171,38 @@ export function PmUpload({
   useEffect(() => {
     void loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    let ignore = false;
+    setIsLoadingRequirements(true);
+    setRequirementsLoadError("");
+
+    projectRepository
+      .getRequirements(project.id)
+      .then((result) => {
+        if (!ignore) {
+          setRequirements(finalRequirements(result));
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setRequirementsLoadError(
+            error instanceof ApiError
+              ? error.message
+              : "요구사항을 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingRequirements(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [project.id]);
 
   const addFiles = async (selectedFiles: File[]) => {
     if (isUploading || selectedFiles.length === 0) return;
@@ -189,6 +251,7 @@ export function PmUpload({
     }
 
     const previous = files.find((file) => file.id === id);
+    setAnalysisError("");
     setAnalyzingDocumentId(id);
     setFiles((current) =>
       current.map((file) =>
@@ -201,7 +264,10 @@ export function PmUpload({
         documentIds: [documentId],
       });
       const persisted = await projectRepository.getRequirements(project.id);
-      const requirementCount = persisted.finalRequirements.filter(
+      const persistedRequirements = finalRequirements(persisted);
+      setRequirements(persistedRequirements);
+      setRequirementsLoadError("");
+      const requirementCount = persistedRequirements.filter(
         (requirement) => requirement.sourceDocumentId === documentId,
       ).length;
 
@@ -222,7 +288,9 @@ export function PmUpload({
             : file,
         ),
       );
-      toast.error(analysisErrorMessage(error));
+      const message = analysisErrorMessage(error);
+      setAnalysisError(message);
+      toast.error(message);
     } finally {
       setAnalyzingDocumentId(null);
     }
@@ -245,10 +313,15 @@ export function PmUpload({
     );
   };
 
-  const readjustRequirements = async () => {
-    if (isReadjusting || selectedDocumentIds.size === 0) return;
+  const readjustRequirements = async (documentIdsOverride?: string[]) => {
+    if (isReadjusting || analyzingDocumentId) return;
 
-    const documentIds = [...selectedDocumentIds]
+    const activeDocumentIds = new Set(
+      documentIdsOverride ?? [...selectedDocumentIds],
+    );
+    if (activeDocumentIds.size === 0) return;
+
+    const documentIds = [...activeDocumentIds]
       .map(Number)
       .filter((id) => Number.isSafeInteger(id) && id > 0);
 
@@ -257,10 +330,12 @@ export function PmUpload({
       return;
     }
 
+    const isInitialAnalysis = requirements.length === 0;
+    setAnalysisError("");
     setIsReadjusting(true);
     setFiles((current) =>
       current.map((file) =>
-        selectedDocumentIds.has(file.id)
+        activeDocumentIds.has(file.id)
           ? { ...file, status: "분석 중" }
           : file,
       ),
@@ -271,12 +346,15 @@ export function PmUpload({
         documentIds,
       });
       const persisted = await projectRepository.getRequirements(project.id);
+      const persistedRequirements = finalRequirements(persisted);
+      setRequirements(persistedRequirements);
+      setRequirementsLoadError("");
 
       setFiles((current) =>
         current.map((file) => {
-          if (!selectedDocumentIds.has(file.id)) return file;
+          if (!activeDocumentIds.has(file.id)) return file;
           const documentId = Number(file.id);
-          const requirementCount = persisted.finalRequirements.filter(
+          const requirementCount = persistedRequirements.filter(
             (requirement) => requirement.sourceDocumentId === documentId,
           ).length;
           return { ...file, status: "분석 완료", requirementCount };
@@ -284,13 +362,17 @@ export function PmUpload({
       );
 
       toast.success(
-        `선택 문서 ${documentIds.length}개를 반영해 요구사항을 재조정했습니다.`,
+        isInitialAnalysis
+          ? "요구사항 분석을 완료했습니다."
+          : `선택 문서 ${documentIds.length}개를 반영해 요구사항을 재조정했습니다.`,
       );
       setSelectedDocumentIds(new Set());
       onAnalysisComplete?.();
     } catch (error) {
       await loadDocuments();
-      toast.error(analysisErrorMessage(error));
+      const message = analysisErrorMessage(error);
+      setAnalysisError(message);
+      toast.error(message);
     } finally {
       setIsReadjusting(false);
     }
@@ -305,6 +387,11 @@ export function PmUpload({
     });
     toast("파일을 목록에서 제거했습니다.");
   };
+
+  const analysisInProgress =
+    analyzingDocumentId !== null || isReadjusting;
+  const projectDataLoading =
+    isLoadingDocuments || isLoadingRequirements;
 
   return (
     <div className="space-y-6">
@@ -480,6 +567,139 @@ export function PmUpload({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ClipboardList className="size-5" />
+            </div>
+            <div>
+              <CardTitle>도출된 요구사항</CardTitle>
+              <CardDescription className="mt-1">
+                서버에 저장된 요구사항 제목·설명·검토 상태를 표시합니다.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {analysisError && (
+            <Alert variant="destructive">
+              <AlertDescription>{analysisError}</AlertDescription>
+            </Alert>
+          )}
+
+          {analysisInProgress && (
+            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <Loader2 className="size-4 animate-spin" />
+              요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.
+            </div>
+          )}
+
+          {requirementsLoadError && (
+            <Alert variant="destructive">
+              <AlertDescription>{requirementsLoadError}</AlertDescription>
+            </Alert>
+          )}
+
+          {projectDataLoading ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              프로젝트 문서와 요구사항을 불러오는 중입니다.
+            </div>
+          ) : requirements.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-52">제목</TableHead>
+                    <TableHead className="min-w-72">설명</TableHead>
+                    <TableHead className="w-32">유형</TableHead>
+                    <TableHead className="w-24">상태</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requirements.map((requirement) => (
+                    <TableRow key={requirement.requirementId}>
+                      <TableCell className="font-medium text-foreground">
+                        {requirement.title}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {requirement.description}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {requirement.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "font-normal",
+                            requirementStatusClass(requirement.status),
+                          )}
+                        >
+                          {requirementStatusLabel(requirement.status)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : !requirementsLoadError && loadError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{loadError}</AlertDescription>
+            </Alert>
+          ) : !requirementsLoadError && files.length > 0 ? (
+            <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-border p-5">
+              <div>
+                <div className="font-medium text-foreground">
+                  아직 도출된 요구사항이 없습니다.
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  업로드한 문서를 선택하고 요구사항 분석을 실행해 주세요.
+                </p>
+              </div>
+              <Button
+                type="button"
+                disabled={analysisInProgress}
+                onClick={() =>
+                  void readjustRequirements(files.map((file) => file.id))
+                }
+              >
+                {isReadjusting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                {isReadjusting ? "요구사항 분석 중" : "전체 문서 분석"}
+              </Button>
+            </div>
+          ) : !requirementsLoadError ? (
+            <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-border p-5">
+              <div>
+                <div className="font-medium text-foreground">
+                  요구사항을 분석하려면 먼저 프로젝트 문서를 업로드해 주세요.
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  위 업로드 영역에서 분석할 문서를 등록할 수 있습니다.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isUploading}
+                onClick={handlePick}
+              >
+                <UploadCloud className="size-4" />
+                문서 업로드
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <Card className="border-primary/20 bg-primary/[0.02]">
         <CardHeader>
           <div className="flex items-start gap-3">
@@ -487,9 +707,13 @@ export function PmUpload({
               <SlidersHorizontal className="size-5" />
             </div>
             <div>
-              <CardTitle>요구사항 재조정</CardTitle>
+              <CardTitle>
+                {requirements.length > 0 ? "요구사항 재조정" : "요구사항 분석"}
+              </CardTitle>
               <CardDescription className="mt-1">
-                프로젝트 계획 조정 과정에서 추가 문서를 선택해 기존 요구사항을 다시 분석하고 반영합니다.
+                {requirements.length > 0
+                  ? "프로젝트 계획 조정 과정에서 추가 문서를 선택해 기존 요구사항을 다시 분석하고 반영합니다."
+                  : "업로드한 문서를 선택해 프로젝트 요구사항을 분석합니다."}
               </CardDescription>
             </div>
           </div>
@@ -509,7 +733,7 @@ export function PmUpload({
               type="button"
               variant="outline"
               size="sm"
-              disabled={files.length === 0 || isReadjusting}
+              disabled={files.length === 0 || analysisInProgress}
               onClick={toggleAllDocuments}
             >
               {selectedDocumentIds.size === files.length && files.length > 0
@@ -531,7 +755,7 @@ export function PmUpload({
               >
                 <Checkbox
                   checked={selectedDocumentIds.has(file.id)}
-                  disabled={isReadjusting}
+                  disabled={analysisInProgress}
                   onCheckedChange={() => toggleDocument(file.id)}
                 />
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
@@ -559,7 +783,7 @@ export function PmUpload({
             </span>
             <Button
               type="button"
-              disabled={selectedDocumentIds.size === 0 || isReadjusting}
+              disabled={selectedDocumentIds.size === 0 || analysisInProgress}
               onClick={() => void readjustRequirements()}
             >
               {isReadjusting ? (
@@ -568,8 +792,10 @@ export function PmUpload({
                 <RefreshCw className="size-4" />
               )}
               {isReadjusting
-                ? "요구사항 재조정 중"
-                : "선택 문서로 요구사항 재조정"}
+                ? "요구사항 분석 중"
+                : requirements.length > 0
+                  ? "선택 문서로 요구사항 재조정"
+                  : "선택 문서로 요구사항 분석"}
             </Button>
           </div>
         </CardContent>

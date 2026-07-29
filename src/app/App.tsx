@@ -32,7 +32,6 @@ import { PmAssign } from "@/app/components/pm/PmAssign";
 import { ProjectBoard } from "@/app/components/pm/ProjectBoard";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
 import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
-import { ProjectExtraction } from "@/app/components/pm/ProjectExtraction";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
@@ -124,7 +123,6 @@ export default function App() {
   const [projectLoadError, setProjectLoadError] = useState("");
   const [pmDetail, setPmDetail] = useState<FrontendProjectSummary | null>(null);
   const [pmWizard, setPmWizard] = useState<FrontendProjectSummary | null>(null);
-  const [pmExtract, setPmExtract] = useState<FrontendProjectSummary | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     "",
   );
@@ -222,9 +220,6 @@ export default function App() {
       setPmWizard((current) =>
         current?.id === deletedProjectId ? null : current,
       );
-      setPmExtract((current) =>
-        current?.id === deletedProjectId ? null : current,
-      );
       setProjectLoadStatus(mapped.length > 0 ? "ready" : "empty");
       setProjectLoadError("");
     } catch (caught) {
@@ -271,7 +266,6 @@ export default function App() {
       setPmMenu(key);
       setPmDetail(null);
       setPmWizard(null);
-      setPmExtract(null);
     } else {
       setStaffMenu(key);
       setSelectedTaskId(null);
@@ -394,14 +388,6 @@ export default function App() {
           project={selectedProject!}
         />
       );
-    } else if (pmExtract) {
-      subtitle = `${pmExtract.name} · AI 추출`;
-      body = (
-        <ProjectExtraction
-          project={pmExtract}
-          onBack={() => setPmExtract(null)}
-        />
-      );
     } else if (pmWizard) {
       subtitle = `${pmWizard.name} · 준비`;
       body = (
@@ -471,7 +457,7 @@ export default function App() {
               setPmDetail(null);
               setPmWizard(null);
               setSelectedProjectId(p.id);
-              setPmExtract(p);
+              setPmMenu("upload");
             }}
           />
         </div>

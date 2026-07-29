@@ -30,13 +30,13 @@ const REAL_PM_MENU: SidebarItem[] = [
     key: "projects",
     label: "프로젝트",
     icon: LayoutDashboard,
-    group: "실데이터",
+    group: "개요",
   },
   {
     key: "project-data",
     label: "문서 및 요구사항",
     icon: FolderKanban,
-    group: "실데이터",
+    group: "개요",
   },
 ];
 
@@ -45,7 +45,7 @@ const REAL_STAFF_MENU: SidebarItem[] = [
     key: "availability",
     label: "연결 상태",
     icon: CircleOff,
-    group: "실데이터",
+    group: "개요",
   },
 ];
 

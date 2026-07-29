@@ -76,6 +76,62 @@ test("shows an honest project empty state without demo projects", async ({
   await expect(page.getByText("Slack 연동", { exact: true })).toHaveCount(0);
 });
 
+test("uses the overview label, hides real filters, and sorts by nearest end date", async ({
+  page,
+}) => {
+  const endingSoonProject = {
+    ...realProject,
+    projectId: 42,
+    name: "Ending Soon Project",
+    status: "ACTIVE",
+    plannedEndDate: "2026-08-15",
+  };
+  const endingLaterProject = {
+    ...realProject,
+    projectId: 43,
+    name: "Ending Later Project",
+    plannedEndDate: "2026-12-31",
+  };
+
+  await mockLogin(page);
+  await mockProjectList(page, [
+    endingLaterProject,
+    realProject,
+    endingSoonProject,
+  ]);
+  await login(page);
+
+  await expect(page.getByText("개요", { exact: true })).toBeVisible();
+  await expect(page.getByText("실데이터", { exact: true })).toHaveCount(0);
+
+  for (const label of ["전체", "진행중", "준비", "승인대기", "완료"]) {
+    await expect(
+      page.getByRole("button", {
+        name: new RegExp(`^${label}\\s+\\d+$`),
+      }),
+    ).toHaveCount(0);
+  }
+
+  const projectCards = page.getByTestId("real-project-card");
+  await expect(projectCards).toHaveCount(3);
+  expect(
+    await projectCards.evaluateAll((cards) =>
+      cards.map((card) => card.getAttribute("data-project-id")),
+    ),
+  ).toEqual(["42", "41", "43"]);
+
+  await expect(
+    projectCards
+      .filter({ hasText: realProject.name })
+      .getByText("준비", { exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    projectCards
+      .filter({ hasText: endingSoonProject.name })
+      .getByText("진행 중", { exact: true }),
+  ).toHaveCount(2);
+});
+
 test("does not replace a project API failure with demo data", async ({
   page,
 }) => {

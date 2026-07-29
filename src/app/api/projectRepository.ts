@@ -667,6 +667,17 @@ export const projectRepository = {
     return apiFetch<ProjectSummary[]>("/projects", { auth: true });
   },
 
+  deleteProject(projectId: string | number) {
+    return apiFetch<void>(
+      `/projects/${encodeURIComponent(String(projectId))}`,
+      {
+        method: "DELETE",
+        auth: true,
+        expectedStatuses: [204],
+      },
+    );
+  },
+
   createProjectDraft(input: CreateProjectDraftRequest) {
     return apiFetch<CreateProjectDraftResponse>("/projects/drafts", {
       method: "POST",

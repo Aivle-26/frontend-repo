@@ -206,6 +206,34 @@ export default function App() {
     setAuthSession(null);
   };
 
+  const reloadProjectsAfterDeletion = async (deletedProjectId: string) => {
+    try {
+      const mapped = (await projectRepository.listProjects()).map(mapApiProject);
+      setProjects(mapped);
+      setSelectedProjectId((current) =>
+        current !== deletedProjectId &&
+        mapped.some((project) => project.id === current)
+          ? current
+          : mapped[0]?.id ?? "",
+      );
+      setPmDetail((current) =>
+        current?.id === deletedProjectId ? null : current,
+      );
+      setPmWizard((current) =>
+        current?.id === deletedProjectId ? null : current,
+      );
+      setPmExtract((current) =>
+        current?.id === deletedProjectId ? null : current,
+      );
+      setProjectLoadStatus(mapped.length > 0 ? "ready" : "empty");
+      setProjectLoadError("");
+    } catch (caught) {
+      setProjectLoadStatus("error");
+      setProjectLoadError(getProjectLoadError(caught));
+      throw caught;
+    }
+  };
+
   const openLogin = (options?: { email?: string; message?: string }) => {
     setAuthView("login");
     setLoginEmail(options?.email ?? "");
@@ -430,6 +458,7 @@ export default function App() {
               setSelectedProjectId(project.id);
               setProjectLoadStatus("ready");
             }}
+            onProjectDeleted={reloadProjectsAfterDeletion}
             onOpenOperational={(p) => {
               setPmWizard(null);
               setPmDetail(p);

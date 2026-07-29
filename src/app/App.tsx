@@ -14,6 +14,7 @@ import {
   MessagesSquare,
   FolderKanban,
   Megaphone,
+  FileSearch,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
@@ -22,6 +23,7 @@ import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
+import { ProjectLookup } from "@/app/components/pm/ProjectLookup";
 import { DocumentLibrary } from "@/app/components/pm/DocumentLibrary";
 import { RiskManagement } from "@/app/components/pm/RiskManagement";
 import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
@@ -62,6 +64,7 @@ import { RealApplication } from "@/app/real/RealApplication";
 const PM_MENU: SidebarItem[] = [
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "개요" },
+  { key: "projectLookup", label: "프로젝트 조회", icon: FileSearch, group: "개요" },
   { key: "upload", label: "문서 업로드", icon: UploadCloud, group: "계획 조정" },
   { key: "generation", label: "AI 생성", icon: Bot, group: "계획 조정" },
   { key: "analysis", label: "AI 분석", icon: Sparkles, group: "계획 조정" },
@@ -296,6 +299,9 @@ function DemoApplication() {
     } else if (pmMenu === "notice") {
       subtitle = "공지사항";
       body = <StaffNotice excludeCategories={["PM 피드백"]} canCreate />;
+    } else if (pmMenu === "projectLookup") {
+      subtitle = "프로젝트 조회";
+      body = <ProjectLookup />;
     } else if (pmMenu === "upload") {
       subtitle = "문서 업로드";
       body = (

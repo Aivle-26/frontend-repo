@@ -1,5 +1,6 @@
 import {
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -78,6 +79,7 @@ interface ProjectBoardProps {
   setProjects: Dispatch<SetStateAction<ProjectSummary[]>>;
   pmEmployeeNumber: string;
   onProjectCreated: (project: ProjectSummary) => void;
+  onProjectDeleted: (projectId: string) => Promise<void>;
   onOpenOperational: (project: ProjectSummary) => void;
   onOpenWizard: (project: ProjectSummary) => void;
   onExtract: (project: ProjectSummary) => void;
@@ -88,6 +90,7 @@ export function ProjectBoard({
   setProjects,
   pmEmployeeNumber,
   onProjectCreated,
+  onProjectDeleted,
   onOpenOperational,
   onOpenWizard,
   onExtract,
@@ -108,6 +111,12 @@ export function ProjectBoard({
   const [uploadDocs, setUploadDocs] = useState<PendingProjectDocument[]>([]);
   const [uploadError, setUploadError] = useState("");
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [projectPendingDeletion, setProjectPendingDeletion] =
+    useState<ProjectSummary | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(
+    null,
+  );
+  const deleteInFlightRef = useRef<string | null>(null);
 
   const counts = useMemo(() => {
     const c: Record<Filter, number> = {
@@ -145,10 +154,30 @@ export function ProjectBoard({
     toast.success("프로젝트를 시작했어요. 진행중으로 이동합니다.");
   };
 
-  const removeProject = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setDetail(null);
-    toast("프로젝트를 삭제했어요.");
+  const requestProjectDeletion = (project: ProjectSummary) => {
+    if (deleteInFlightRef.current) return;
+    setProjectPendingDeletion(project);
+  };
+
+  const confirmProjectDeletion = async () => {
+    const project = projectPendingDeletion;
+    if (!project || deleteInFlightRef.current) return;
+
+    deleteInFlightRef.current = project.id;
+    setDeletingProjectId(project.id);
+
+    try {
+      await projectRepository.deleteProject(project.id);
+      await onProjectDeleted(project.id);
+      setDetail((current) => (current?.id === project.id ? null : current));
+      setProjectPendingDeletion(null);
+      toast.success("프로젝트를 삭제했어요.");
+    } catch (caught) {
+      toast.error(getProjectDeleteError(caught));
+    } finally {
+      deleteInFlightRef.current = null;
+      setDeletingProjectId(null);
+    }
   };
 
   const openNew = () => {
@@ -371,7 +400,8 @@ export function ProjectBoard({
             onOpenName={() => setDetail(p)}
             onOpen={() => onOpenOperational(p)}
             onEdit={() => openWizard(p)}
-            onDelete={() => removeProject(p.id)}
+            onDelete={() => requestProjectDeletion(p)}
+            isDeleting={deletingProjectId === p.id}
             onStart={() => startProject(p.id)}
           />
         ))}
@@ -464,8 +494,17 @@ export function ProjectBoard({
                   </Button>
                 ) : (
                   <>
-                    <Button variant="outline" onClick={() => removeProject(detail.id)}>
-                      <Trash2 className="size-4" /> 삭제
+                    <Button
+                      variant="outline"
+                      disabled={deletingProjectId === detail.id}
+                      onClick={() => requestProjectDeletion(detail)}
+                    >
+                      {deletingProjectId === detail.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                      삭제
                     </Button>
                     <Button variant="outline" onClick={() => openWizard(detail)}>
                       <Pencil className="size-4" /> 준비 마법사
@@ -481,6 +520,47 @@ export function ProjectBoard({
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!projectPendingDeletion}
+        onOpenChange={(open) => {
+          if (!open && !deleteInFlightRef.current) {
+            setProjectPendingDeletion(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>프로젝트 삭제</DialogTitle>
+            <DialogDescription>
+              {projectPendingDeletion
+                ? `"${projectPendingDeletion.name}" 프로젝트를 삭제합니다. 관련 문서와 분석 결과도 함께 삭제됩니다.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={!!deletingProjectId}
+              onClick={() => setProjectPendingDeletion(null)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!!deletingProjectId}
+              onClick={confirmProjectDeletion}
+            >
+              {deletingProjectId ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              {deletingProjectId ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -725,6 +805,22 @@ function getProjectActionError(caught: unknown, fallback: string) {
     : fallback;
 }
 
+function getProjectDeleteError(caught: unknown) {
+  if (caught instanceof ApiError) {
+    if (caught.status === 403) {
+      return "프로젝트를 삭제할 권한이 없습니다.";
+    }
+    if (caught.status === 404) {
+      return caught.message || "프로젝트를 찾을 수 없습니다.";
+    }
+    if (caught.message.trim()) {
+      return caught.message;
+    }
+  }
+
+  return "프로젝트를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const meta = STATUS_META[status];
   const Icon = meta.icon;
@@ -751,6 +847,7 @@ interface ProjectCardProps {
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  isDeleting: boolean;
   onStart: () => void;
 }
 
@@ -760,6 +857,7 @@ function ProjectCard({
   onOpen,
   onEdit,
   onDelete,
+  isDeleting,
   onStart,
 }: ProjectCardProps) {
   const isActive = p.status === "진행중" || p.status === "완료";
@@ -849,9 +947,15 @@ function ProjectCard({
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground"
+                disabled={isDeleting}
                 onClick={onDelete}
               >
-                <Trash2 className="size-3.5" /> 삭제
+                {isDeleting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5" />
+                )}
+                삭제
               </Button>
               <Button
                 size="sm"
@@ -863,8 +967,19 @@ function ProjectCard({
             </>
           )}
           {p.status === "분석중" && (
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onDelete}>
-              <Trash2 className="size-3.5" /> 삭제
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              disabled={isDeleting}
+              onClick={onDelete}
+            >
+              {isDeleting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              삭제
             </Button>
           )}
         </div>

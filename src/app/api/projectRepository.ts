@@ -193,6 +193,10 @@ export interface ProjectDocumentUploadResponse {
   documents: ProjectDocumentUploadItem[];
 }
 
+export interface AnalyzeProjectRequirementsRequest {
+  documentIds: number[];
+}
+
 
 export type RequirementStatus = "UNCONFIRMED" | "CONFIRMED" | "REJECTED";
 export type RequirementPriority = "HIGH" | "MEDIUM" | "LOW" | "UNSPECIFIED";
@@ -899,8 +903,33 @@ export const projectRepository = {
     );
   },
 
-  async reanalyzeRfp() {
-    return { ok: true };
+  listProjectDocuments(projectId: string | number) {
+    return apiFetch<ProjectDocumentUploadResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/documents`,
+      { auth: true },
+    );
+  },
+
+  analyzeProjectRequirements(
+    projectId: string | number,
+    input: AnalyzeProjectRequirementsRequest,
+  ) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/analyze`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+        expectedStatuses: [200],
+      },
+    );
+  },
+
+  async reanalyzeProjectRequirements(projectId: string | number) {
+    const documents = await this.listProjectDocuments(projectId);
+    return this.analyzeProjectRequirements(projectId, {
+      documentIds: documents.documents.map((document) => document.documentId),
+    });
   },
 
   async assignRequirement(_input: AssignRequirementInput) {

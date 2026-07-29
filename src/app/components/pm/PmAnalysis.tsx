@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { projectRepository } from "@/app/api/projectRepository";
+import { ApiError, projectRepository } from "@/app/api/projectRepository";
 import {
   projectRequirements,
   type ProjectSummary,
@@ -113,6 +113,7 @@ export function PmAnalysis({
   );
   const [query, setQuery] = useState(project.name);
   const [isCrawling, setIsCrawling] = useState(false);
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [lastCrawledAt, setLastCrawledAt] = useState("방금 전");
   const [similarProjects, setSimilarProjects] = useState<SimilarProject[]>(
     INITIAL_SIMILAR_PROJECTS,
@@ -187,13 +188,31 @@ export function PmAnalysis({
 
               <Button
                 size="sm"
+                disabled={isReanalyzing}
                 onClick={async () => {
-                  await projectRepository.reanalyzeRfp();
-                  toast.success("AI 재분석을 시작했습니다.");
+                  if (isReanalyzing) return;
+                  setIsReanalyzing(true);
+                  try {
+                    await projectRepository.reanalyzeProjectRequirements(project.id);
+                    toast.success("요구사항 재분석을 완료했습니다.");
+                    onOpenRequirements?.();
+                  } catch (error) {
+                    toast.error(
+                      error instanceof ApiError
+                        ? error.message
+                        : "요구사항 재분석에 실패했습니다.",
+                    );
+                  } finally {
+                    setIsReanalyzing(false);
+                  }
                 }}
               >
-                <RefreshCw className="size-4" />
-                다시 분석
+                {isReanalyzing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                {isReanalyzing ? "분석 중" : "다시 분석"}
               </Button>
             </div>
           </CardContent>

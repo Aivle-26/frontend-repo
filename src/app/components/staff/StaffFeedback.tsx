@@ -12,7 +12,7 @@ import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Textarea } from "@/app/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 
 interface FeedbackState {
   id: string;
@@ -24,7 +24,7 @@ interface FeedbackState {
 }
 
 export function StaffFeedback() {
-  const { feedback } = projectRepository.getStaffFeedback();
+  const { feedback } = demoRepository.getStaffFeedback();
   const [items, setItems] = useState<FeedbackState[]>(
     feedback.map((f) => ({ ...f, resolved: false })),
   );
@@ -35,7 +35,7 @@ export function StaffFeedback() {
 
   const sendReply = async (id: string) => {
     if (!reply.trim()) return toast.error("회신 내용을 입력하세요.");
-    await projectRepository.addComment({ taskId: id, text: reply });
+    await demoRepository.addComment({ taskId: id, text: reply });
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, reply, resolved: true } : i)),
     );

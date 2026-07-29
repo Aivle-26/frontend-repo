@@ -27,8 +27,9 @@ import { Checkbox } from "@/app/components/ui/checkbox";
 import { Progress } from "@/app/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
-import { WIZARD_STEPS, type ProjectSummary } from "@/app/data/demoData";
+import { demoRepository } from "@/app/data/demoRepository";
+import type { ProjectSummary } from "@/app/projects/projectTypes";
+import { WIZARD_STEPS } from "@/app/projects/projectWorkflow";
 
 interface ProjectWizardProps {
   project: ProjectSummary;
@@ -43,8 +44,8 @@ function priorityVariant(p: string) {
 }
 
 export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) {
-  const seed = useMemo(() => projectRepository.getPmAssign(), []);
-  const labor = useMemo(() => projectRepository.getPmRisk().laborChecks, []);
+  const seed = useMemo(() => demoRepository.getPmAssign(), []);
+  const labor = useMemo(() => demoRepository.getPmRisk().laborChecks, []);
 
   const [step, setStep] = useState(Math.min(project.wizardStep, WIZARD_STEPS.length - 1));
   const [done, setDone] = useState<boolean[]>(() =>

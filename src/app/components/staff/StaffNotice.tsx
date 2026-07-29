@@ -37,10 +37,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/app/components/ui/dialog";
-import {
-  type Notice,
-  type NoticeCategory,
-} from "@/app/api/projectRepository";
+import type { Notice, NoticeCategory } from "@/app/data/demoData";
 import { addNotice, useNotices } from "@/app/state/noticeStore";
 import { type Priority } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";

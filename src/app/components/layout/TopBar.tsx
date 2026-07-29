@@ -17,7 +17,8 @@ import {
 import { Separator } from "@/app/components/ui/separator";
 import { ThemeToggle } from "@/app/components/common/ThemeToggle";
 import { NotificationCenter } from "@/app/components/notifications/NotificationCenter";
-import type { ProjectSummary } from "@/app/data/demoData";
+import { cn } from "@/app/components/ui/utils";
+import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 interface TopBarProps {
   title: string;
@@ -30,6 +31,8 @@ interface TopBarProps {
   projects?: ProjectSummary[];
   selectedProjectId?: string;
   isPm?: boolean;
+  showNotifications?: boolean;
+  compactOnMobile?: boolean;
 }
 
 export function TopBar({
@@ -43,6 +46,8 @@ export function TopBar({
   projects = [],
   selectedProjectId,
   isPm = false,
+  showNotifications = true,
+  compactOnMobile = false,
 }: TopBarProps) {
   const initial = userName.trim().slice(0, 1) || "U";
 
@@ -51,7 +56,12 @@ export function TopBar({
   );
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-6">
+    <header
+      className={cn(
+        "flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-6",
+        compactOnMobile && "gap-2 px-3 sm:px-6",
+      )}
+    >
       <div className="min-w-0 leading-tight">
         <div className="truncate text-foreground">{title}</div>
         {subtitle && (
@@ -63,16 +73,24 @@ export function TopBar({
 
       <div className="flex items-center gap-3">
         {actions}
-        <Badge variant="secondary">{roleLabel}</Badge>
+        <Badge
+          variant="secondary"
+          className={cn(compactOnMobile && "hidden sm:inline-flex")}
+        >
+          {roleLabel}
+        </Badge>
         <ThemeToggle />
 
-        <NotificationCenter
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          isPm={isPm}
-        />
+        {showNotifications ? (
+          <NotificationCenter
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            isPm={isPm}
+          />
+        ) : null}
 
-        <Popover>
+        <div className={cn(compactOnMobile && "hidden sm:block")}>
+          <Popover>
           <PopoverTrigger
             type="button"
             aria-label="내 프로필 열기"
@@ -149,11 +167,20 @@ export function TopBar({
             </div>
 
           </PopoverContent>
-        </Popover>
+          </Popover>
+        </div>
 
-        <Button variant="outline" size="sm" onClick={onLogout}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onLogout}
+          aria-label="로그아웃"
+          title="로그아웃"
+        >
           <LogOut className="size-4" />
-          로그아웃
+          <span className={cn(compactOnMobile && "hidden sm:inline")}>
+            로그아웃
+          </span>
         </Button>
       </div>
     </header>

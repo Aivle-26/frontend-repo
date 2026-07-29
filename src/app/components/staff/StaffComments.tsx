@@ -12,7 +12,7 @@ import { Button } from "@/app/components/ui/button";
 import { Textarea } from "@/app/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { Separator } from "@/app/components/ui/separator";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 
 interface Comment {
   id: string;
@@ -36,7 +36,7 @@ export function StaffComments() {
 
   const add = async () => {
     if (!draft.trim()) return;
-    await projectRepository.addComment({ text: draft });
+    await demoRepository.addComment({ text: draft });
     const now = new Date().toLocaleString("ko-KR", {
       month: "2-digit",
       day: "2-digit",

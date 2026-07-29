@@ -1,3 +1,14 @@
+import type { ProjectSummary } from "@/app/projects/projectTypes";
+
+export type {
+  ProjectDoc,
+  ProjectDocType,
+  ProjectRequirement,
+  ProjectStatus,
+  ProjectSummary,
+} from "@/app/projects/projectTypes";
+export { WIZARD_STEPS } from "@/app/projects/projectWorkflow";
+
 export type Role = "pm" | "staff";
 
 export type Priority = "높음" | "중간" | "낮음";
@@ -68,39 +79,6 @@ export const PROJECT_NAME = "도시 인프라 RFP 2024";
  * 프로젝트 생애주기 (홈 · 프로젝트 보드)
  * ===================================================================*/
 
-export type ProjectStatus = "분석중" | "준비" | "승인대기" | "진행중" | "완료";
-
-export type ProjectDocType = "RFP" | "요구사항정의서" | "제안서";
-
-export interface ProjectDoc {
-  name: string;
-  type: ProjectDocType;
-}
-
-export interface ProjectRequirement {
-  id: number;
-  text: string;
-  category: string;
-  priority: Priority;
-  source: string; // 추출 출처 문서명
-}
-
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  client: string;
-  status: ProjectStatus;
-  progress: number; // 진행중/완료: 0~100
-  dueDate: string;
-  riskCount: number;
-  reqCount: number;
-  wizardStep: number; // 준비: 0~6 (6 완료 시 시작 가능)
-  estimate: string; // 견적
-  updatedAt: string;
-  docs: ProjectDoc[]; // 초기 문서 (없으면 나중에 업로드)
-  requirements?: ProjectRequirement[] | null; // null이면 API 요구사항 미조회
-}
-
 /** AI 추출 시뮬레이션용 요구사항 풀 */
 export const EXTRACTED_REQ_POOL: {
   text: string;
@@ -121,15 +99,6 @@ export const EXTRACTED_REQ_POOL: {
   { text: "접근성 지침(WCAG 2.1 AA)을 준수해야 합니다.", category: "UI", priority: "낮음" },
   { text: "외부 협업툴(Slack·Jira)과 연동할 수 있어야 합니다.", category: "운영", priority: "중간" },
   { text: "배포는 무중단(blue-green) 방식을 지원해야 합니다.", category: "인프라", priority: "낮음" },
-];
-
-export const WIZARD_STEPS = [
-  "요구사항",
-  "WBS",
-  "담당자",
-  "일정",
-  "노동법·가이드",
-  "견적",
 ];
 
 export const PROJECTS: ProjectSummary[] = [

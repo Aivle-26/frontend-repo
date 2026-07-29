@@ -31,7 +31,7 @@ import {
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
 import { FileTypeIcon } from "@/app/components/common/FileTypeIcon";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import type {
   ChatMessage,
   GenStatus,
@@ -49,7 +49,7 @@ function statusBadge(status: GenStatus) {
 
 export function PmDocuments({ project }: { project: ProjectSummary }) {
   const { aiFiles, planningAgents, reportAgents, artifacts, stats, chatHistory } =
-    projectRepository.getPmDocuments();
+    demoRepository.getPmDocuments();
 
   // 자료실 연동 파일 = 이 프로젝트의 초기 문서
   const libraryFiles: LibraryFile[] = project.docs.map((d, i) => ({

@@ -38,6 +38,7 @@ import {
   ApiError,
   projectRepository,
 } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import {
   mapUploadedProjectDocuments,
   type PendingProjectDocument,
@@ -108,7 +109,7 @@ export function ProjectDetail({
   onUpdateDocs,
   onNavigate,
 }: ProjectDetailProps) {
-  const { aiSummary, risks } = projectRepository.getPmDashboard();
+  const { aiSummary, risks } = demoRepository.getPmDashboard();
   const [docOpen, setDocOpen] = useState(false);
   const [docDraft, setDocDraft] = useState<PendingProjectDocument[]>([]);
   const [docError, setDocError] = useState("");

@@ -29,7 +29,7 @@ import {
   Avatar,
   AvatarFallback,
 } from "@/app/components/ui/avatar";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import {
   completeTask,
   useTasks,
@@ -58,7 +58,7 @@ export function StaffTaskDetail({
     checklist: initialChecklist,
     aiSummary,
     feedback,
-  } = projectRepository.getTaskDetail();
+  } = demoRepository.getTaskDetail();
 
   const [checklist, setChecklist] =
     useState(initialChecklist);
@@ -92,7 +92,7 @@ export function StaffTaskDetail({
       return;
     }
 
-    await projectRepository.addComment({
+    await demoRepository.addComment({
       text: comment,
     });
 
@@ -278,7 +278,7 @@ export function StaffTaskDetail({
             <CardContent className="space-y-4">
               <div
                 onClick={async () => {
-                  await projectRepository.attachFile();
+                  await demoRepository.attachFile();
 
                   toast.success(
                     "파일 첨부 흐름을 확인했습니다.",
@@ -303,7 +303,7 @@ export function StaffTaskDetail({
               <Button
                 className="w-full"
                 onClick={async () => {
-                  await projectRepository.requestReview();
+                  await demoRepository.requestReview();
 
                   toast.success(
                     "검토 요청을 제출했습니다.",

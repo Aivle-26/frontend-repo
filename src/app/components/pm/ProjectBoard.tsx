@@ -46,18 +46,19 @@ import {
   projectRepository,
   type CreateProjectDraftResponse,
 } from "@/app/api/projectRepository";
-import {
-  WIZARD_STEPS,
-  type ProjectDoc,
-  type ProjectStatus,
-  type ProjectSummary,
-} from "@/app/data/demoData";
+import type {
+  ProjectDoc,
+  ProjectStatus,
+  ProjectSummary,
+} from "@/app/projects/projectTypes";
+import { WIZARD_STEPS } from "@/app/projects/projectWorkflow";
 
 import { DocPicker } from "@/app/components/pm/DocPicker";
 import {
   mapUploadedProjectDocuments,
   type PendingProjectDocument,
 } from "@/app/components/pm/projectDocumentUpload";
+import { formatServerProjectStatus } from "@/app/projects/projectMapping";
 
 type Filter = "전체" | ProjectStatus;
 
@@ -75,6 +76,7 @@ const STATUS_META: Record<
 const FILTERS: Filter[] = ["전체", "진행중", "준비", "승인대기", "완료"];
 
 interface ProjectBoardProps {
+  mode?: "demo" | "real";
   projects: ProjectSummary[];
   setProjects: Dispatch<SetStateAction<ProjectSummary[]>>;
   pmEmployeeNumber: string;
@@ -86,6 +88,7 @@ interface ProjectBoardProps {
 }
 
 export function ProjectBoard({
+  mode = "demo",
   projects,
   setProjects,
   pmEmployeeNumber,
@@ -396,6 +399,7 @@ export function ProjectBoard({
         {filtered.map((p) => (
           <ProjectCard
             key={p.id}
+            mode={mode}
             project={p}
             onOpenName={() => setDetail(p)}
             onOpen={() => onOpenOperational(p)}
@@ -403,6 +407,7 @@ export function ProjectBoard({
             onDelete={() => requestProjectDeletion(p)}
             isDeleting={deletingProjectId === p.id}
             onStart={() => startProject(p.id)}
+            onOpenReal={() => onExtract(p)}
           />
         ))}
         {filtered.length === 0 && (
@@ -419,35 +424,55 @@ export function ProjectBoard({
             <>
               <DialogHeader>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={detail.status} />
+                  {mode === "real" ? (
+                    <RealStatusBadge status={detail.server?.status} />
+                  ) : (
+                    <StatusBadge status={detail.status} />
+                  )}
                 </div>
                 <DialogTitle className="mt-1">{detail.name}</DialogTitle>
                 <DialogDescription>{detail.client}</DialogDescription>
               </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-3 py-1">
-                <DetailStat label="상태" value={STATUS_META[detail.status].label} />
-                <DetailStat label="요구사항" value={`${detail.reqCount}건`} />
-                {detail.status === "진행중" || detail.status === "완료" ? (
-                  <>
-                    <DetailStat label="진행률" value={`${detail.progress}%`} />
-                    <DetailStat label="마감" value={detail.dueDate} />
-                    <DetailStat label="리스크" value={`${detail.riskCount}건`} />
-                  </>
-                ) : (
-                  <>
-                    <DetailStat
-                      label="준비 단계"
-                      value={`${detail.wizardStep}/${WIZARD_STEPS.length}`}
-                    />
-                    <DetailStat label="견적" value={detail.estimate} />
-                  </>
-                )}
-                <DetailStat label="업데이트" value={detail.updatedAt} />
-              </div>
+              {mode === "real" ? (
+                <div className="grid grid-cols-1 gap-3 py-1 sm:grid-cols-2">
+                  <DetailStat
+                    label="서버 상태"
+                    value={formatServerProjectStatus(detail.server?.status)}
+                  />
+                  <DetailStat label="담당 PM" value={detail.client} />
+                  <DetailStat label="프로젝트 기간" value={detail.updatedAt} />
+                  <DetailStat
+                    label="설명"
+                    value={detail.server?.description?.trim() || "등록된 설명 없음"}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 py-1">
+                  <DetailStat label="상태" value={STATUS_META[detail.status].label} />
+                  <DetailStat label="요구사항" value={`${detail.reqCount}건`} />
+                  {detail.status === "진행중" || detail.status === "완료" ? (
+                    <>
+                      <DetailStat label="진행률" value={`${detail.progress}%`} />
+                      <DetailStat label="마감" value={detail.dueDate} />
+                      <DetailStat label="리스크" value={`${detail.riskCount}건`} />
+                    </>
+                  ) : (
+                    <>
+                      <DetailStat
+                        label="준비 단계"
+                        value={`${detail.wizardStep}/${WIZARD_STEPS.length}`}
+                      />
+                      <DetailStat label="견적" value={detail.estimate} />
+                    </>
+                  )}
+                  <DetailStat label="업데이트" value={detail.updatedAt} />
+                </div>
+              )}
 
               {/* 초기 문서 */}
-              <div className="rounded-lg border border-border p-3">
+              {mode === "demo" ? (
+                <div className="rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-foreground text-sm">
                     초기 문서 {detail.docs.length}건
@@ -475,10 +500,35 @@ export function ProjectBoard({
                     아직 업로드된 문서가 없어요. 나중에 올릴 수 있어요.
                   </p>
                 )}
-              </div>
+                </div>
+              ) : null}
 
               <DialogFooter>
-                {detail.status === "진행중" || detail.status === "완료" ? (
+                {mode === "real" ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={deletingProjectId === detail.id}
+                      onClick={() => requestProjectDeletion(detail)}
+                    >
+                      {deletingProjectId === detail.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                      삭제
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const project = detail;
+                        setDetail(null);
+                        onExtract(project);
+                      }}
+                    >
+                      문서 및 요구사항 <ArrowRight className="size-4" />
+                    </Button>
+                  </>
+                ) : detail.status === "진행중" || detail.status === "완료" ? (
                   <Button
                     onClick={() => {
                       const d = detail;
@@ -784,6 +834,13 @@ function mapCreatedDraft(
 ): ProjectSummary {
   return {
     id: String(draft.projectId),
+    server: {
+      description: null,
+      pmEmployeeNumber: draft.pmEmployeeNumber,
+      status: draft.status,
+      plannedStartDate: draft.plannedStartDate,
+      plannedEndDate: draft.plannedEndDate,
+    },
     name: draft.name,
     client: `PM ${draft.pmEmployeeNumber}`,
     status: "준비",
@@ -832,6 +889,14 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   );
 }
 
+function RealStatusBadge({ status }: { status?: string }) {
+  return (
+    <Badge variant="outline" className="font-normal">
+      {formatServerProjectStatus(status)}
+    </Badge>
+  );
+}
+
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border p-3">
@@ -842,6 +907,7 @@ function DetailStat({ label, value }: { label: string; value: string }) {
 }
 
 interface ProjectCardProps {
+  mode: "demo" | "real";
   project: ProjectSummary;
   onOpenName: () => void;
   onOpen: () => void;
@@ -849,9 +915,11 @@ interface ProjectCardProps {
   onDelete: () => void;
   isDeleting: boolean;
   onStart: () => void;
+  onOpenReal: () => void;
 }
 
 function ProjectCard({
+  mode,
   project: p,
   onOpenName,
   onOpen,
@@ -859,6 +927,7 @@ function ProjectCard({
   onDelete,
   isDeleting,
   onStart,
+  onOpenReal,
 }: ProjectCardProps) {
   const isActive = p.status === "진행중" || p.status === "완료";
   const isPrep = p.status === "준비" || p.status === "승인대기";
@@ -872,12 +941,29 @@ function ProjectCard({
             <div className="text-foreground truncate hover:underline">{p.name}</div>
             <div className="text-muted-foreground text-xs truncate">{p.client}</div>
           </button>
-          <StatusBadge status={p.status} />
+          {mode === "real" ? (
+            <RealStatusBadge status={p.server?.status} />
+          ) : (
+            <StatusBadge status={p.status} />
+          )}
         </div>
 
         {/* 상태별 본문 */}
         <div className="mt-4 min-h-[52px]">
-          {isActive && (
+          {mode === "real" ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">프로젝트 기간</span>
+                <span className="truncate text-foreground">{p.updatedAt}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">서버 상태</span>
+                <span className="text-foreground">
+                  {formatServerProjectStatus(p.server?.status)}
+                </span>
+              </div>
+            </div>
+          ) : isActive ? (
             <>
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className="text-muted-foreground">진행률</span>
@@ -895,9 +981,9 @@ function ProjectCard({
                 </span>
               </div>
             </>
-          )}
+          ) : null}
 
-          {p.status === "준비" && (
+          {mode === "demo" && p.status === "준비" ? (
             <>
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className="text-muted-foreground">준비 단계</span>
@@ -910,9 +996,9 @@ function ProjectCard({
                 요구사항 {p.reqCount}건 · AI 추천 검토 중
               </div>
             </>
-          )}
+          ) : null}
 
-          {p.status === "승인대기" && (
+          {mode === "demo" && p.status === "승인대기" ? (
             <div className="space-y-1.5 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">견적</span>
@@ -922,23 +1008,43 @@ function ProjectCard({
                 요구사항 {p.reqCount}건 · 2사 승인 대기
               </div>
             </div>
-          )}
+          ) : null}
 
-          {p.status === "분석중" && (
+          {mode === "demo" && p.status === "분석중" ? (
             <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
               <Loader2 className="size-4 animate-spin" /> AI가 초기 문서를 분석하고 있어요…
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* 액션 */}
         <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-border pt-3">
-          {isActive && (
+          {mode === "real" ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={isDeleting}
+                onClick={onDelete}
+              >
+                {isDeleting ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="size-3.5" />
+                )}
+                삭제
+              </Button>
+              <Button variant="outline" size="sm" onClick={onOpenReal}>
+                문서 및 요구사항 <ArrowRight className="size-3.5" />
+              </Button>
+            </>
+          ) : isActive ? (
             <Button variant="outline" size="sm" onClick={onOpen}>
               열기 <ArrowRight className="size-3.5" />
             </Button>
-          )}
-          {isPrep && (
+          ) : null}
+          {mode === "demo" && isPrep ? (
             <>
               <Button variant="ghost" size="sm" onClick={onEdit}>
                 <Pencil className="size-3.5" /> 수정
@@ -965,8 +1071,8 @@ function ProjectCard({
                 <Play className="size-3.5" /> 시작
               </Button>
             </>
-          )}
-          {p.status === "분석중" && (
+          ) : null}
+          {mode === "demo" && p.status === "분석중" ? (
             <Button
               variant="ghost"
               size="sm"
@@ -981,7 +1087,7 @@ function ProjectCard({
               )}
               삭제
             </Button>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>

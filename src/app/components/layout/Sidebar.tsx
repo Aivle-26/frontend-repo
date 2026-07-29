@@ -18,6 +18,8 @@ interface SidebarProps {
   items: SidebarItem[];
   active: string;
   onSelect: (key: string) => void;
+  showIntegrations?: boolean;
+  hideOnMobile?: boolean;
 }
 
 const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
@@ -26,7 +28,13 @@ const DEFAULT_SIDEBAR_WIDTH = 240;
 const MIN_SIDEBAR_WIDTH = 190;
 const MAX_SIDEBAR_WIDTH = 380;
 
-export function Sidebar({ items, active, onSelect }: SidebarProps) {
+export function Sidebar({
+  items,
+  active,
+  onSelect,
+  showIntegrations = true,
+  hideOnMobile = false,
+}: SidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const savedWidth = localStorage.getItem(SIDEBAR_STORAGE_KEY);
 
@@ -100,7 +108,10 @@ export function Sidebar({ items, active, onSelect }: SidebarProps) {
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-r border-border bg-sidebar"
+      className={cn(
+        "relative flex shrink-0 flex-col border-r border-border bg-sidebar",
+        hideOnMobile && "hidden md:flex",
+      )}
       style={{ width: `${sidebarWidth}px` }}
     >
       <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-border/60 px-5">
@@ -176,39 +187,41 @@ export function Sidebar({ items, active, onSelect }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="overflow-hidden border-t border-border p-3">
-        <section className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm">
-          <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
-            <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
-            <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
-              연동 서비스
-            </span>
-          </div>
+      {showIntegrations ? (
+        <div className="overflow-hidden border-t border-border p-3">
+          <section className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm">
+            <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
+              <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
+                연동 서비스
+              </span>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => onSelect("slack")}
-            aria-current={active === "slack" ? "page" : undefined}
-            className={cn(
-              "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
-              active === "slack"
-                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-            )}
-          >
-            <span
+            <button
+              type="button"
+              onClick={() => onSelect("slack")}
+              aria-current={active === "slack" ? "page" : undefined}
               className={cn(
-                "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
-                active === "slack" ? "opacity-100" : "opacity-0",
+                "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                active === "slack"
+                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
               )}
-              aria-hidden="true"
-            />
+            >
+              <span
+                className={cn(
+                  "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                  active === "slack" ? "opacity-100" : "opacity-0",
+                )}
+                aria-hidden="true"
+              />
 
-            <SlackIcon className="shrink-0 text-base" />
-            <span className="truncate">Slack 연동</span>
-          </button>
-        </section>
-      </div>
+              <SlackIcon className="shrink-0 text-base" />
+              <span className="truncate">Slack 연동</span>
+            </button>
+          </section>
+        </div>
+      ) : null}
 
       <div
         role="separator"

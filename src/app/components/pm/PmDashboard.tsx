@@ -33,6 +33,7 @@ import {
   projectRepository,
   type ProjectSummary,
 } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import { WorkflowFooter } from "@/app/components/common/WorkflowFooter";
 import { CountUp } from "@/app/components/common/CountUp";
 
@@ -44,7 +45,7 @@ function priorityVariant(p: string) {
 
 export function PmDashboard() {
   const { kpis, aiSummary, requirements, team, risks } =
-    projectRepository.getPmDashboard();
+    demoRepository.getPmDashboard();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectStatus, setProjectStatus] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -111,7 +112,7 @@ export function PmDashboard() {
           <CardContent>
             <div
               onClick={async () => {
-                await projectRepository.uploadRfp();
+                await demoRepository.uploadRfp();
                 toast.success("공고문 업로드 흐름을 확인했습니다.");
               }}
               className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 py-12 text-center transition-colors hover:bg-muted"

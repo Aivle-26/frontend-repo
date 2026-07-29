@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import type {
   ProjectSummary,
   ReviewState,
@@ -89,7 +89,7 @@ function FileTypeIcon({ fileName }: { fileName: string }) {
 }
 
 export function PmReview({ project }: { project: ProjectSummary }) {
-  const base = projectRepository.getPmReview();
+  const base = demoRepository.getPmReview();
   const feedback = base.feedback;
   const submissions =
     project.status === "진행중" ? base.submissions : base.submissions.slice(0, 1);
@@ -127,7 +127,7 @@ export function PmReview({ project }: { project: ProjectSummary }) {
   const selected = items.find((i) => i.id === selectedId) ?? null;
 
   const setState = async (id: string, state: ReviewState) => {
-    await projectRepository.requestReview({ taskId: id });
+    await demoRepository.requestReview({ taskId: id });
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, state } : i)));
     toast.success(
       state === "승인"
@@ -139,7 +139,7 @@ export function PmReview({ project }: { project: ProjectSummary }) {
   const sendMemo = async () => {
     if (!selected) return toast.error("검토할 산출물을 선택하세요.");
     if (!memo.trim()) return toast.error("피드백 내용을 입력하세요.");
-    await projectRepository.addComment({ taskId: selected.id, text: memo });
+    await demoRepository.addComment({ taskId: selected.id, text: memo });
     toast.success(`"${selected.title}"에 피드백을 남겼습니다.`);
     setMemo("");
   };

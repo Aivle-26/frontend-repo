@@ -43,7 +43,7 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import { CountUp } from "@/app/components/common/CountUp";
 import type {
   RiskKpi,
@@ -102,7 +102,7 @@ export function PmRisk({ project }: { project: ProjectSummary }) {
     handoverChecks: initialHandover,
     actions,
     quickTools,
-  } = projectRepository.getPmRisk();
+  } = demoRepository.getPmRisk();
 
   // 전체/긴급 리스크 수치는 선택한 프로젝트 기준으로
   const kpis = baseKpis.map((k) =>

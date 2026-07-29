@@ -41,7 +41,8 @@ import {
   PROJECT_DOCUMENT_ACCEPT,
   validateProjectDocumentFiles,
 } from "@/app/components/pm/projectDocumentUpload";
-import type { ProjectSummary, UploadedRfp } from "@/app/data/demoData";
+import type { UploadedRfp } from "@/app/data/demoData";
+import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 function statusClass(status: UploadedRfp["status"]) {
   if (status === "분석 완료") {
@@ -118,10 +119,12 @@ function finalRequirements(result: RequirementsResult) {
 }
 
 export function PmUpload({
+  mode = "demo",
   project,
   onDocumentsUploaded,
   onAnalysisComplete,
 }: {
+  mode?: "demo" | "real";
   project: ProjectSummary;
   onDocumentsUploaded?: (documents: ProjectDocumentUploadItem[]) => void;
   onAnalysisComplete?: () => void;
@@ -461,18 +464,19 @@ export function PmUpload({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>파일명</TableHead>
-                <TableHead className="w-24">용량</TableHead>
-                <TableHead className="w-40">업로드</TableHead>
-                <TableHead className="w-24">추출 요구사항</TableHead>
-                <TableHead className="w-24">상태</TableHead>
-                <TableHead className="w-32 text-right">작업</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[760px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>파일명</TableHead>
+                  <TableHead className="w-24">용량</TableHead>
+                  <TableHead className="w-40">업로드</TableHead>
+                  <TableHead className="w-24">추출 요구사항</TableHead>
+                  <TableHead className="w-24">상태</TableHead>
+                  <TableHead className="w-32 text-right">작업</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
               {files.map((file) => (
                 <TableRow key={file.id}>
                   <TableCell>
@@ -515,22 +519,26 @@ export function PmUpload({
                           <RefreshCw className="size-4" />
                         )}
                       </button>
-                      <button
-                        onClick={() => toast(`"${file.name}" 다운로드`)}
-                        className="rounded p-1 hover:bg-muted hover:text-foreground"
-                        aria-label="다운로드"
-                        title="다운로드"
-                      >
-                        <Download className="size-4" />
-                      </button>
-                      <button
-                        onClick={() => remove(file.id)}
-                        className="rounded p-1 hover:bg-muted hover:text-destructive"
-                        aria-label="삭제"
-                        title="삭제"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      {mode === "demo" ? (
+                        <>
+                          <button
+                            onClick={() => toast(`"${file.name}" 다운로드`)}
+                            className="rounded p-1 hover:bg-muted hover:text-foreground"
+                            aria-label="다운로드"
+                            title="다운로드"
+                          >
+                            <Download className="size-4" />
+                          </button>
+                          <button
+                            onClick={() => remove(file.id)}
+                            className="rounded p-1 hover:bg-muted hover:text-destructive"
+                            aria-label="삭제"
+                            title="삭제"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -562,8 +570,9 @@ export function PmUpload({
                   </TableCell>
                 </TableRow>
               )}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

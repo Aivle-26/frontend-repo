@@ -17,7 +17,6 @@ import {
   FileSearch,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
-import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
@@ -45,20 +44,22 @@ import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
 import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
 import {
-  ApiError,
   projectRepository,
   toFrontendRole,
   type LoginVerifyResponse,
-  type ProjectSummary as ApiProjectSummary,
   type Role,
 } from "@/app/api/projectRepository";
 import { slackApi } from "@/app/api/slackApi";
-import {
-  PROJECTS,
-  type ProjectStatus,
-  type ProjectSummary as FrontendProjectSummary,
-} from "@/app/data/demoData";
+import type { ProjectSummary as FrontendProjectSummary } from "@/app/projects/projectTypes";
 import { PmGeneration } from "@/app/components/pm/PmGeneration";
+import {
+  getProjectLoadError,
+  getProjectLoadStatus,
+  ProjectListNotice,
+  type ProjectLoadStatus,
+} from "@/app/components/pm/ProjectListNotice";
+import { mapApiProject } from "@/app/projects/projectMapping";
+import { RealApplication } from "@/app/real/RealApplication";
 
 const PM_MENU: SidebarItem[] = [
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
@@ -98,16 +99,17 @@ const SCOPED_PM = new Set([
   "review",
 ]);
 
-type ProjectLoadStatus =
-  | "idle"
-  | "loading"
-  | "ready"
-  | "empty"
-  | "unauthorized"
-  | "forbidden"
-  | "error";
+export type ApplicationMode = "demo" | "real";
 
-export default function App() {
+export default function App({
+  mode = "demo",
+}: {
+  mode?: ApplicationMode;
+}) {
+  return mode === "real" ? <RealApplication /> : <DemoApplication />;
+}
+
+function DemoApplication() {
   const [authSession, setAuthSession] = useState(() =>
     projectRepository.getStoredSession(),
   );
@@ -551,105 +553,4 @@ export default function App() {
       <Toaster />
     </div>
   );
-}
-
-function mapApiProject(project: ApiProjectSummary): FrontendProjectSummary {
-  return {
-    id: String(project.projectId),
-    name: project.name,
-    client: project.pmEmployeeNumber ? `PM ${project.pmEmployeeNumber}` : "PM 미지정",
-    status: mapProjectStatus(project.status),
-    progress: project.status?.toUpperCase() === "COMPLETED" ? 100 : 0,
-    dueDate: project.plannedEndDate ?? "-",
-    riskCount: 0,
-    reqCount: 0,
-    wizardStep: 0,
-    estimate: "-",
-    updatedAt: formatUpdatedAt(project.plannedStartDate, project.plannedEndDate),
-    docs: [],
-    requirements: null,
-  };
-}
-
-function mapProjectStatus(status: string): ProjectStatus {
-  const normalized = status.trim().toUpperCase();
-  if (normalized === "ACTIVE" || normalized === "IN_PROGRESS" || normalized === "진행중") {
-    return "진행중";
-  }
-  if (normalized === "COMPLETED" || normalized === "완료") return "완료";
-  if (normalized === "PENDING_APPROVAL" || normalized === "승인대기") return "승인대기";
-  if (normalized === "ANALYZING" || normalized === "분석중") return "분석중";
-  return "준비";
-}
-
-function formatUpdatedAt(startDate: string | null, endDate: string | null) {
-  if (startDate && endDate) return `${startDate} ~ ${endDate}`;
-  if (startDate) return `${startDate} 시작`;
-  if (endDate) return `${endDate} 종료 예정`;
-  return "-";
-}
-
-function getProjectLoadStatus(caught: unknown): ProjectLoadStatus {
-  if (caught instanceof ApiError) {
-    if (caught.status === 401) return "unauthorized";
-    if (caught.status === 403) return "forbidden";
-  }
-  return "error";
-}
-
-function getProjectLoadError(caught: unknown) {
-  if (caught instanceof ApiError && caught.status !== 401 && caught.status !== 403) {
-    return caught.message;
-  }
-  return "프로젝트 목록을 불러오지 못했습니다.";
-}
-
-function ProjectListNotice({
-  status,
-  error,
-}: {
-  status: ProjectLoadStatus;
-  error: string;
-}) {
-  if (status === "loading") {
-    return (
-      <Alert>
-        <AlertDescription>프로젝트 목록을 불러오는 중입니다.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (status === "empty") {
-    return (
-      <Alert>
-        <AlertDescription>등록된 프로젝트가 없습니다.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (status === "unauthorized") {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>세션이 만료되어 다시 로그인이 필요합니다.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (status === "forbidden") {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>프로젝트 목록을 조회할 권한이 없습니다.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error || "프로젝트 목록을 불러오지 못했습니다."}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  return null;
 }

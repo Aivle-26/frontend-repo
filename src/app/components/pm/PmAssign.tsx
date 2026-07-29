@@ -36,7 +36,7 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import {
   projectRequirements,
   type ProjectSummary,
@@ -62,7 +62,7 @@ function priorityVariant(p: string) {
 const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 
 export function PmAssign({ project }: { project: ProjectSummary }) {
-  const { team, assignees } = projectRepository.getPmAssign();
+  const { team, assignees } = demoRepository.getPmAssign();
   const requirements = projectRequirements(project);
 
   const [rows, setRows] = useState<AssignRow[]>(
@@ -162,7 +162,7 @@ const progressByMember = useMemo(() => {
   const assign = async (r: AssignRow) => {
     const chosen = pick[r.id]?.owner || r.recommendedOwner;
     const due = pick[r.id]?.due ?? "";
-    await projectRepository.assignRequirement({
+    await demoRepository.assignRequirement({
       requirementId: r.id,
       assignee: chosen,
       dueDate: due,

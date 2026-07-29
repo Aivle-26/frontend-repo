@@ -19,11 +19,11 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import type { SubmittableTask } from "@/app/data/demoData";
 
 export function StaffSubmit() {
-  const { tasks } = projectRepository.getStaffSubmit();
+  const { tasks } = demoRepository.getStaffSubmit();
   const [items, setItems] = useState<SubmittableTask[]>(tasks);
   const firstOpen = tasks.find((t) => t.status === "작성 중") ?? tasks[0];
   const [taskId, setTaskId] = useState<string>(firstOpen?.id ?? "");
@@ -33,7 +33,7 @@ export function StaffSubmit() {
   const selected = items.find((t) => t.id === taskId) ?? null;
 
   const attach = async () => {
-    await projectRepository.attachFile();
+    await demoRepository.attachFile();
     setFileName("산출물_초안.docx");
     toast.success("파일을 첨부했습니다.");
   };
@@ -42,7 +42,7 @@ export function StaffSubmit() {
     if (!selected) return toast.error("제출할 업무를 선택하세요.");
     if (!fileName && !link.trim())
       return toast.error("파일 또는 링크를 첨부하세요.");
-    await projectRepository.requestReview({ taskId: selected.id, attachmentUrl: link });
+    await demoRepository.requestReview({ taskId: selected.id, attachmentUrl: link });
     setItems((prev) =>
       prev.map((t) => (t.id === selected.id ? { ...t, status: "제출 완료" } : t)),
     );

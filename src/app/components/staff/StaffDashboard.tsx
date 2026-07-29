@@ -14,11 +14,8 @@ import {
   CardDescription,
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
-import {
-  projectRepository,
-  type Task,
-  type TaskColumn,
-} from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
+import type { Task, TaskColumn } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
 
 const COLUMNS: { key: TaskColumn; label: string }[] = [
@@ -40,7 +37,7 @@ interface StaffDashboardProps {
 
 export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
   const { kpis, tasks, aiHelper, feedback, requirements } =
-    projectRepository.getStaffDashboard();
+    demoRepository.getStaffDashboard();
 
   return (
     <div className="space-y-6">

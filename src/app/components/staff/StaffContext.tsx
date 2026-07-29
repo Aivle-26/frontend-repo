@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/app/components/ui/badge";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 
 function priorityVariant(p: string) {
   if (p === "높음") return "destructive" as const;
@@ -19,7 +19,7 @@ function priorityVariant(p: string) {
 }
 
 export function StaffContext() {
-  const { requirements } = projectRepository.getStaffContext();
+  const { requirements } = demoRepository.getStaffContext();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("전체");
 

@@ -8,7 +8,10 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { cn } from "@/app/components/ui/utils";
-import type { ProjectStatus, ProjectSummary } from "@/app/data/demoData";
+import type {
+  ProjectStatus,
+  ProjectSummary,
+} from "@/app/projects/projectTypes";
 
 function statusClass(s: ProjectStatus) {
   const map: Record<ProjectStatus, string> = {

@@ -1,9 +1,9 @@
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 
 export function WorkflowFooter() {
-  const workflowSteps = projectRepository.getWorkflowSteps();
+  const workflowSteps = demoRepository.getWorkflowSteps();
 
   return (
     <Card>

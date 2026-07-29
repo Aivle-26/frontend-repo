@@ -2,14 +2,14 @@ import { Hourglass } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
-import { projectRepository } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 
 interface TeamProgressDelayCardProps {
   projectId: string;
 }
 
 export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps) {
-  const { rows } = projectRepository.getTeamProgressDelay(projectId);
+  const { rows } = demoRepository.getTeamProgressDelay(projectId);
   const delayedCount = rows.filter((d) => d.delayDays > 0).length;
 
   return (

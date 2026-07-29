@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { cn } from "@/app/components/ui/utils";
@@ -10,7 +10,7 @@ export interface SidebarItem {
   icon: React.ComponentType<{
     className?: string;
   }>;
-  /** 메뉴 그룹 라벨. 이전 항목과 그룹이 달라지면 헤더가 표시됩니다. */
+  /** 같은 group 값을 가진 항목은 하나의 카테고리 카드로 묶입니다. */
   group?: string;
 }
 
@@ -26,25 +26,14 @@ const DEFAULT_SIDEBAR_WIDTH = 240;
 const MIN_SIDEBAR_WIDTH = 190;
 const MAX_SIDEBAR_WIDTH = 380;
 
-export function Sidebar({
-  items,
-  active,
-  onSelect,
-}: SidebarProps) {
+export function Sidebar({ items, active, onSelect }: SidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const savedWidth = localStorage.getItem(
-      SIDEBAR_STORAGE_KEY,
-    );
+    const savedWidth = localStorage.getItem(SIDEBAR_STORAGE_KEY);
 
-    if (!savedWidth) {
-      return DEFAULT_SIDEBAR_WIDTH;
-    }
+    if (!savedWidth) return DEFAULT_SIDEBAR_WIDTH;
 
     const parsedWidth = Number(savedWidth);
-
-    if (Number.isNaN(parsedWidth)) {
-      return DEFAULT_SIDEBAR_WIDTH;
-    }
+    if (Number.isNaN(parsedWidth)) return DEFAULT_SIDEBAR_WIDTH;
 
     return Math.min(
       MAX_SIDEBAR_WIDTH,
@@ -52,16 +41,29 @@ export function Sidebar({
     );
   });
 
+  const groupedItems = useMemo(() => {
+    const groups: Array<{ label: string; items: SidebarItem[] }> = [];
+
+    items.forEach((item) => {
+      const label = item.group ?? "메뉴";
+      const currentGroup = groups[groups.length - 1];
+
+      if (!currentGroup || currentGroup.label !== label) {
+        groups.push({ label, items: [item] });
+        return;
+      }
+
+      currentGroup.items.push(item);
+    });
+
+    return groups;
+  }, [items]);
+
   useEffect(() => {
-    localStorage.setItem(
-      SIDEBAR_STORAGE_KEY,
-      String(sidebarWidth),
-    );
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
-  const startResize = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ) => {
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
 
     const startX = event.clientX;
@@ -70,21 +72,12 @@ export function Sidebar({
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
-    const handlePointerMove = (
-      moveEvent: PointerEvent,
-    ) => {
-      const movedDistance =
-        moveEvent.clientX - startX;
-
-      const nextWidth =
-        startWidth + movedDistance;
-
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const movedDistance = moveEvent.clientX - startX;
+      const nextWidth = startWidth + movedDistance;
       const limitedWidth = Math.min(
         MAX_SIDEBAR_WIDTH,
-        Math.max(
-          MIN_SIDEBAR_WIDTH,
-          nextWidth,
-        ),
+        Math.max(MIN_SIDEBAR_WIDTH, nextWidth),
       );
 
       setSidebarWidth(limitedWidth);
@@ -93,199 +86,130 @@ export function Sidebar({
     const stopResize = () => {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-
-      window.removeEventListener(
-        "pointermove",
-        handlePointerMove,
-      );
-
-      window.removeEventListener(
-        "pointerup",
-        stopResize,
-      );
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResize);
     };
 
-    window.addEventListener(
-      "pointermove",
-      handlePointerMove,
-    );
-
-    window.addEventListener(
-      "pointerup",
-      stopResize,
-    );
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResize);
   };
 
   const resetSidebarWidth = () => {
-    setSidebarWidth(
-      DEFAULT_SIDEBAR_WIDTH,
-    );
+    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
   };
 
   return (
     <aside
-      className="
-        relative flex shrink-0 flex-col
-        border-r border-border
-        bg-sidebar
-      "
-      style={{
-        width: `${sidebarWidth}px`,
-      }}
+      className="relative flex shrink-0 flex-col border-r border-border bg-sidebar"
+      style={{ width: `${sidebarWidth}px` }}
     >
-      {/* 로고 영역 */}
-      <div className="flex h-16 items-center gap-2.5 overflow-hidden px-5">
+      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-border/60 px-5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Sparkles className="size-5" />
         </div>
 
         <div className="min-w-0 whitespace-nowrap leading-tight">
-          <div className="truncate text-sidebar-foreground">
+          <div className="truncate font-medium text-sidebar-foreground">
             BidWorks AI
           </div>
-
           <div className="truncate text-xs text-muted-foreground">
             RFP 프로젝트 관리
           </div>
         </div>
       </div>
 
-      {/* 메뉴 */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-3 py-2">
-        {items.map((item, idx) => {
-          const Icon = item.icon;
-          const isActive =
-            item.key === active;
-          const showGroup =
-            !!item.group && item.group !== items[idx - 1]?.group;
-
-          return (
-            <Fragment key={item.key}>
-            {showGroup && (
-              <div
-                className={cn(
-                  "whitespace-nowrap px-3 pb-1 text-[11px] font-medium text-muted-foreground/70",
-                  idx === 0 ? "pt-1" : "pt-3",
-                )}
-              >
-                {item.group}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() =>
-                onSelect(item.key)
-              }
-              aria-current={
-                isActive
-                  ? "page"
-                  : undefined
-              }
-              className={cn(
-                `
-                  group relative flex w-full
-                  items-center gap-3
-                  whitespace-nowrap
-                  rounded-xl px-3 py-2.5
-                  text-left text-sm
-                  transition-all
-                `,
-                isActive
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-              )}
-            >
-              <span
-                className={cn(
-                  `
-                    absolute left-0 top-1/2
-                    h-5 w-1
-                    -translate-y-1/2
-                    rounded-r-full
-                    bg-primary
-                    transition-opacity
-                  `,
-                  isActive
-                    ? "opacity-100"
-                    : "opacity-0",
-                )}
-                aria-hidden="true"
-              />
-
-              <Icon
-                className={cn(
-                  "size-4 shrink-0 transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-muted-foreground group-hover:text-sidebar-foreground",
-                )}
-              />
-
-              <span className="truncate">
-                {item.label}
+      <nav className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-3 py-3">
+        {groupedItems.map((group) => (
+          <section
+            key={group.label}
+            aria-label={group.label}
+            className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm"
+          >
+            <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
+              <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
+                {group.label}
               </span>
-            </button>
-            </Fragment>
-          );
-        })}
+            </div>
+
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.key === active;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => onSelect(item.key)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                      isActive
+                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                        isActive ? "opacity-100" : "opacity-0",
+                      )}
+                      aria-hidden="true"
+                    />
+
+                    <Icon
+                      className={cn(
+                        "size-4 shrink-0 transition-colors",
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground group-hover:text-sidebar-foreground",
+                      )}
+                    />
+
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </nav>
 
-      {/* 연동 서비스 */}
       <div className="overflow-hidden border-t border-border p-3">
-        <div className="whitespace-nowrap px-2 pb-1.5 text-xs text-muted-foreground">
-          연동 서비스
-        </div>
+        <section className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm">
+          <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
+            <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
+            <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
+              연동 서비스
+            </span>
+          </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            onSelect("slack")
-          }
-          aria-current={
-            active === "slack"
-              ? "page"
-              : undefined
-          }
-          className={cn(
-            `
-              group relative flex w-full
-              items-center gap-3
-              whitespace-nowrap
-              rounded-xl px-3 py-2.5
-              text-left text-sm
-              transition-all
-            `,
-            active === "slack"
-              ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-              : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-          )}
-        >
-          <span
+          <button
+            type="button"
+            onClick={() => onSelect("slack")}
+            aria-current={active === "slack" ? "page" : undefined}
             className={cn(
-              `
-                absolute left-0 top-1/2
-                h-5 w-1
-                -translate-y-1/2
-                rounded-r-full
-                bg-primary
-                transition-opacity
-              `,
+              "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
               active === "slack"
-                ? "opacity-100"
-                : "opacity-0",
+                ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
             )}
-            aria-hidden="true"
-          />
+          >
+            <span
+              className={cn(
+                "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                active === "slack" ? "opacity-100" : "opacity-0",
+              )}
+              aria-hidden="true"
+            />
 
-          <SlackIcon className="shrink-0 text-base" />
-
-          <span className="truncate">
-            Slack 연동
-          </span>
-        </button>
+            <SlackIcon className="shrink-0 text-base" />
+            <span className="truncate">Slack 연동</span>
+          </button>
+        </section>
       </div>
 
-      {/* 사이드바 너비 조절 손잡이 */}
       <div
         role="separator"
         aria-label="사이드바 너비 조절"
@@ -293,14 +217,7 @@ export function Sidebar({
         title="드래그하여 너비 조절 · 더블클릭하여 초기화"
         onPointerDown={startResize}
         onDoubleClick={resetSidebarWidth}
-        className="
-          absolute right-0 top-0 z-20
-          h-full w-1.5
-          cursor-col-resize
-          transition-colors
-          hover:bg-primary/30
-          active:bg-primary/50
-        "
+        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/50"
       />
     </aside>
   );

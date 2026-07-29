@@ -15,7 +15,6 @@ import {
   FileText,
   Flag,
   Loader2,
-  Lock,
   MonitorSmartphone,
   Network,
   Pencil,
@@ -116,21 +115,21 @@ const BACKBONE: {
     key: "milestone",
     icon: Flag,
     title: "프로젝트 목표/마일스톤",
-    desc: "프로젝트 목표와 주요 마일스톤 정리",
+    desc: "저장된 프로젝트 목표와 주요 마일스톤 조회",
     short: "마일스톤",
   },
   {
     key: "wbs",
     icon: Network,
     title: "요구사항 기반 WBS",
-    desc: "최종 요구사항을 바탕으로 AI 작업 분해 구조 생성",
+    desc: "저장된 요구사항 기반 WBS 조회 및 최종 작업 편집",
     short: "WBS",
   },
   {
     key: "schedule",
     icon: CalendarClock,
     title: "MC 일정 계획",
-    desc: "최종 WBS의 예상 공수를 바탕으로 일정 산정",
+    desc: "저장된 WBS를 기준으로 일정 계획 조회",
     short: "일정",
   },
 ];
@@ -232,11 +231,9 @@ function parseNumberList(value: string) {
 export function PmGeneration({
   project,
   onOpenDocuments,
-  onOpenRequirements,
 }: {
   project: ProjectSummary;
   onOpenDocuments?: () => void;
-  onOpenRequirements?: () => void;
 }) {
   const done = useGenerated(project.id);
   const [busy, setBusy] = useState<Partial<Record<Key, boolean>>>({});
@@ -244,6 +241,7 @@ export function PmGeneration({
   const [wbs, setWbs] = useState<WbsResult | null>(null);
   const [wbsLoading, setWbsLoading] = useState(true);
   const [wbsError, setWbsError] = useState("");
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [savingFinal, setSavingFinal] = useState(false);
@@ -322,27 +320,16 @@ export function PmGeneration({
 
   const isStepDone = (key: Key) => {
     if (key === "req") return requirements.length > 0;
+    if (key === "milestone") return true;
     if (key === "wbs") return wbs !== null;
+    if (key === "schedule") return scheduleTasks.length > 0;
     return done.has(key);
   };
 
   const statusOf = (key: Key): GenStatus =>
     busy[key] ? "generating" : isStepDone(key) ? "done" : "idle";
 
-  const getLockedLabel = (key: Key, index: number) => {
-    if (key === "wbs" && finalRequirements.length === 0) {
-      return "최종 요구사항 필요";
-    }
-    if (key === "schedule" && !wbs) return "WBS 필요";
-
-    const previous = BACKBONE[index - 1];
-    if (index > 0 && key !== "wbs" && !isStepDone(previous.key)) {
-      return `${previous.short} 필요`;
-    }
-    return null;
-  };
-
-  const refreshRequirements = async () => {
+  const refreshRequirements = async (): Promise<RequirementResponse[]> => {
     setBusy((current) => ({ ...current, req: true }));
     try {
       const response = await projectRepository.getRequirements(project.id);
@@ -350,14 +337,18 @@ export function PmGeneration({
         ? response.finalRequirements
         : [];
       setRequirements(items);
+
       if (items.length === 0) {
-        toast.error("조회된 요구사항이 없습니다.");
-        return;
+        toast.error("저장된 최종 요구사항이 없습니다.");
+        return [];
       }
+
       markGenerated(project.id, "req");
-      toast.success(`요구사항 ${items.length}건을 불러왔습니다.`);
+      toast.success(`요구사항 ${items.length}건을 조회했습니다.`);
+      return items;
     } catch (error) {
       toast.error(errorMessage(error, "요구사항 조회에 실패했습니다."));
+      return [];
     } finally {
       setBusy((current) => ({ ...current, req: false }));
     }
@@ -371,45 +362,74 @@ export function PmGeneration({
     return normalized;
   };
 
-  const generateWbs = async () => {
-    if (finalRequirements.length === 0) {
-      toast.error("WBS 생성 전에 최종 요구사항을 한 건 이상 저장하세요.");
-      return;
-    }
-
-    setBusy((current) => ({ ...current, wbs: true }));
+  const refreshStoredWbs = async (target: "wbs" | "schedule") => {
+    setBusy((current) => ({ ...current, [target]: true }));
     setWbsError("");
 
     try {
-      await projectRepository.generateWbs(project.id);
       await loadWbs();
 
-      setPreviewOpen(true);
-      requestAnimationFrame(() =>
-        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      );
-      toast.success("최종 요구사항 기반 WBS를 생성했습니다.");
+      if (target === "wbs") {
+        setPreviewOpen(true);
+        requestAnimationFrame(() =>
+          previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
+        toast.success("저장된 WBS를 조회했습니다.");
+      } else {
+        setScheduleOpen(true);
+        requestAnimationFrame(() =>
+          scheduleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
+        toast.success("저장된 WBS 기반 일정 계획을 조회했습니다.");
+      }
     } catch (error) {
-      const message = errorMessage(error, "WBS 생성에 실패했습니다.");
+      const message =
+        error instanceof ApiError && error.status === 404
+          ? "저장된 WBS가 없습니다."
+          : errorMessage(error, "WBS 조회에 실패했습니다.");
       setWbsError(message);
       toast.error(message);
     } finally {
-      setBusy((current) => ({ ...current, wbs: false }));
+      setBusy((current) => ({ ...current, [target]: false }));
     }
   };
 
-  const run = async (key: Key, label: string, onDone?: () => void) => {
+  const openBackboneItem = async (key: Key) => {
     if (key === "req") {
-      await refreshRequirements();
-      onDone?.();
+      if (requirementsOpen) {
+        setRequirementsOpen(false);
+        return;
+      }
+      const items = await refreshRequirements();
+      if (items.length > 0) setRequirementsOpen(true);
+      return;
+    }
+
+    if (key === "milestone") {
+      if (onOpenDocuments) onOpenDocuments();
+      else toast.error("문서함 화면을 열 수 없습니다.");
       return;
     }
 
     if (key === "wbs") {
-      await generateWbs();
+      if (previewOpen) {
+        setPreviewOpen(false);
+        return;
+      }
+      await refreshStoredWbs("wbs");
       return;
     }
 
+    if (key === "schedule") {
+      if (scheduleOpen) {
+        setScheduleOpen(false);
+        return;
+      }
+      await refreshStoredWbs("schedule");
+    }
+  };
+
+  const run = async (key: Key, label: string, onDone?: () => void) => {
     setBusy((current) => ({ ...current, [key]: true }));
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 700));
@@ -422,34 +442,6 @@ export function PmGeneration({
       setBusy((current) => ({ ...current, [key]: false }));
     }
   };
-
-  const scrollToPreview = () =>
-    requestAnimationFrame(() =>
-      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-
-  const togglePreview = () =>
-    setPreviewOpen((open) => {
-      if (!open) scrollToPreview();
-      return !open;
-    });
-
-  const openSchedule = () => {
-    setScheduleOpen(true);
-    requestAnimationFrame(() =>
-      scheduleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-  };
-
-  const toggleSchedule = () =>
-    setScheduleOpen((open) => {
-      if (!open) {
-        requestAnimationFrame(() =>
-          scheduleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-        );
-      }
-      return !open;
-    });
 
   const setFinalTasks = (tasks: WbsTask[]) => {
     setWbs((current) =>
@@ -710,13 +702,13 @@ export function PmGeneration({
           </div>
           <div className="leading-tight">
             <div className="flex items-center gap-2">
-              <span className="text-foreground">AI 문서 생성</span>
+              <span className="text-foreground">계획 문서 조회</span>
               <Badge variant="secondary" className="font-normal">
                 {project.name}
               </Badge>
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              최종 요구사항을 기반으로 WBS를 생성하고 최종 작업 목록을 편집합니다.
+              저장된 요구사항·WBS·일정 결과를 조회하고 최종 WBS를 편집합니다.
             </div>
           </div>
         </CardContent>
@@ -725,29 +717,32 @@ export function PmGeneration({
       <section className="space-y-3">
         <SectionTitle
           title="계획 백본"
-          hint="WBS는 저장된 최종 요구사항이 있어야 생성할 수 있습니다"
+          hint="저장된 계획 결과를 조회합니다. 이 영역에서는 AI 생성 API를 호출하지 않습니다"
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {BACKBONE.map((step, index) => {
+          {BACKBONE.map((step) => {
             const status = statusOf(step.key);
-            const lockedLabel = getLockedLabel(step.key, index);
-            const isLocked = Boolean(lockedLabel);
             const taskCount = finalTasks.length || aiTasks.length;
             const statusLabel: StatusLabel =
-              status === "done"
-                ? {
-                    text:
-                      step.key === "req"
-                        ? `${finalRequirements.length}건 저장`
-                        : step.key === "wbs"
-                          ? `${taskCount}개 작업`
-                          : "생성 완료",
-                    tone: "success",
-                  }
-                : isLocked
-                  ? { text: lockedLabel!, tone: "warning" }
-                  : { text: "미생성", tone: "muted" };
+              step.key === "req"
+                ? finalRequirements.length > 0
+                  ? { text: `${finalRequirements.length}건 조회 가능`, tone: "success" }
+                  : { text: "데이터 없음", tone: "muted" }
+                : step.key === "milestone"
+                  ? { text: "문서함 조회", tone: "muted" }
+                  : step.key === "wbs"
+                    ? wbs
+                      ? { text: `${taskCount}개 작업`, tone: "success" }
+                      : { text: "데이터 없음", tone: "muted" }
+                    : scheduleTasks.length > 0
+                      ? { text: `${scheduleTasks.length}개 작업 기준`, tone: "success" }
+                      : { text: "WBS 필요", tone: "warning" };
+
+            const isOpen =
+              (step.key === "req" && requirementsOpen) ||
+              (step.key === "wbs" && previewOpen) ||
+              (step.key === "schedule" && scheduleOpen);
 
             return (
               <GeneratorCard
@@ -758,95 +753,39 @@ export function PmGeneration({
                 status={status}
                 statusLabel={statusLabel}
               >
-                {isLocked ? (
-                  <Button variant="outline" size="sm" className="flex-1" disabled>
-                    <Lock className="size-3.5" /> {lockedLabel}
-                  </Button>
-                ) : status === "done" ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() =>
-                        void run(
-                          step.key,
-                          step.title,
-                          step.key === "schedule" ? openSchedule : undefined,
-                        )
-                      }
-                    >
-                      <RefreshCw className="size-3.5" /> 다시 생성
-                    </Button>
-
-                    {step.key === "req" && onOpenRequirements && (
-                      <Button size="sm" className="flex-1" onClick={onOpenRequirements}>
-                        요구사항 보기 <ArrowRight className="size-3.5" />
-                      </Button>
-                    )}
-
-                    {step.key === "milestone" && onOpenDocuments && (
-                      <Button size="sm" className="flex-1" onClick={onOpenDocuments}>
-                        문서함 보기 <ArrowRight className="size-3.5" />
-                      </Button>
-                    )}
-
-                    {step.key === "wbs" && (
-                      <Button size="sm" className="flex-1" onClick={togglePreview}>
-                        {previewOpen ? (
-                          <>
-                            <EyeOff className="size-3.5" /> 접기
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="size-3.5" /> WBS 보기
-                          </>
-                        )}
-                      </Button>
-                    )}
-
-                    {step.key === "schedule" && (
-                      <Button size="sm" className="flex-1" onClick={toggleSchedule}>
-                        {scheduleOpen ? (
-                          <>
-                            <EyeOff className="size-3.5" /> 접기
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="size-3.5" /> 일정표 보기
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    disabled={status === "generating" || wbsLoading}
-                    onClick={() =>
-                      void run(
-                        step.key,
-                        step.title,
-                        step.key === "schedule" ? openSchedule : undefined,
-                      )
-                    }
-                  >
-                    {status === "generating" ? (
-                      <>
-                        <Clock className="size-3.5 animate-spin" /> 생성 중…
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="size-3.5" /> 생성하기
-                      </>
-                    )}
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  variant={isOpen ? "outline" : "default"}
+                  disabled={status === "generating" || wbsLoading}
+                  onClick={() => void openBackboneItem(step.key)}
+                >
+                  {status === "generating" ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" /> 조회 중…
+                    </>
+                  ) : step.key === "milestone" ? (
+                    <>
+                      <Eye className="size-3.5" /> 문서함 조회
+                    </>
+                  ) : isOpen ? (
+                    <>
+                      <EyeOff className="size-3.5" /> 접기
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="size-3.5" /> 조회하기
+                    </>
+                  )}
+                </Button>
               </GeneratorCard>
             );
           })}
         </div>
+
+        {requirementsOpen && (
+          <RequirementsSnapshot requirements={finalRequirements} />
+        )}
 
         {wbsError && (
           <Alert variant="destructive">
@@ -1070,6 +1009,69 @@ export function PmGeneration({
 
 type StatusLabel = { text: string; tone: "success" | "warning" | "muted" };
 
+function RequirementsSnapshot({
+  requirements,
+}: {
+  requirements: RequirementResponse[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileText className="size-4 text-muted-foreground" /> 최종 요구사항 조회
+        </CardTitle>
+        <CardDescription>
+          서버에 저장된 최종 요구사항입니다. 계획 백본에서는 조회만 제공합니다.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-20">ID</TableHead>
+                <TableHead>요구사항</TableHead>
+                <TableHead className="w-36">유형</TableHead>
+                <TableHead className="w-28">우선순위</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requirements.map((requirement) => (
+                <TableRow key={requirement.requirementId}>
+                  <TableCell className="text-muted-foreground">
+                    #{requirement.requirementId}
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium text-foreground">
+                      {requirement.title}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {requirement.description}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{requirement.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{requirement.priority}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {requirements.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                    저장된 최종 요구사항이 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function WbsWorkspace({
   result,
   finalRequirements,
@@ -1109,7 +1111,7 @@ function WbsWorkspace({
               )}
             </CardTitle>
             <CardDescription className="mt-1">
-              생성 버전 {result.agentVersion ?? "-"} · 최종 요구사항 {finalRequirements.length}건
+              에이전트 버전 {result.agentVersion ?? "-"} · 최종 요구사항 {finalRequirements.length}건
             </CardDescription>
           </div>
 

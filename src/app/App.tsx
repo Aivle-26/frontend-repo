@@ -4,7 +4,6 @@ import {
   UploadCloud,
   Bot,
   Sparkles,
-  FileText,
   Users,
   AlertTriangle,
   ClipboardCheck,
@@ -14,7 +13,6 @@ import {
   MessageSquareReply,
   MessagesSquare,
   FolderKanban,
-  Search,
   Megaphone,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
@@ -30,7 +28,6 @@ import { RiskManagement } from "@/app/components/pm/RiskManagement";
 import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmReview } from "@/app/components/pm/PmReview";
-import { PmRequirements } from "@/app/components/pm/PmRequirements";
 import { PmAssign } from "@/app/components/pm/PmAssign";
 import { ProjectBoard } from "@/app/components/pm/ProjectBoard";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
@@ -65,10 +62,9 @@ import { PmGeneration } from "@/app/components/pm/PmGeneration";
 const PM_MENU: SidebarItem[] = [
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "개요" },
-  { key: "upload", label: "공고문 업로드", icon: UploadCloud, group: "AI 준비" },
-  { key: "generation", label: "AI 생성", icon: Bot, group: "AI 준비" },
-  { key: "analysis", label: "AI 분석", icon: Sparkles, group: "AI 준비" },
-  { key: "requirements", label: "요구사항", icon: FileText, group: "AI 준비" },
+  { key: "upload", label: "문서 업로드", icon: UploadCloud, group: "계획 조정" },
+  { key: "generation", label: "AI 생성", icon: Bot, group: "계획 조정" },
+  { key: "analysis", label: "AI 분석", icon: Sparkles, group: "계획 조정" },
   { key: "assign", label: "업무", icon: Users, group: "업무" },
   { key: "review", label: "검토", icon: ClipboardCheck, group: "업무" },
   { key: "risk", label: "리스크 관리", icon: AlertTriangle, group: "업무" },
@@ -93,7 +89,6 @@ const SCOPED_PM = new Set([
   "upload",
   "generation",
   "analysis",
-  "requirements",
   "assign",
   "documents",
   "search",
@@ -119,10 +114,6 @@ export default function App() {
   const [loginMessage, setLoginMessage] = useState("");
   const [pmMenu, setPmMenu] = useState("dashboard");
   const [staffMenu, setStaffMenu] = useState("tasks");
-  const [
-    requirementsOpenedFromGeneration,
-    setRequirementsOpenedFromGeneration,
-  ] = useState(false);
   const [selectedTaskId, setSelectedTaskId] =
     useState<string | null>(null);
   // const [projects, setProjects] = useState<FrontendProjectSummary[]>([]);
@@ -207,7 +198,6 @@ export default function App() {
     setAuthSession(session);
     setPmMenu("dashboard");
     setStaffMenu("tasks");
-    setRequirementsOpenedFromGeneration(false);
     setSelectedTaskId(null);
   };
 
@@ -250,7 +240,6 @@ export default function App() {
 
   const handleSelect = (key: string) => {
     if (isPm) {
-      setRequirementsOpenedFromGeneration(false);
       setPmMenu(key);
       setPmDetail(null);
       setPmWizard(null);
@@ -284,14 +273,13 @@ export default function App() {
       subtitle = "공지사항";
       body = <StaffNotice excludeCategories={["PM 피드백"]} canCreate />;
     } else if (pmMenu === "upload") {
-      subtitle = "공고문 업로드";
+      subtitle = "문서 업로드";
       body = (
         <PmUpload
           key={selectedProject?.id}
           project={selectedProject!}
           onAnalysisComplete={() => {
-            setRequirementsOpenedFromGeneration(false);
-            setPmMenu("requirements");
+            setPmMenu("generation");
           }}
           onDocumentsUploaded={(documents) => {
             setProjects((currentProjects) =>
@@ -321,29 +309,8 @@ export default function App() {
           key={selectedProject?.id}
           project={selectedProject!}
           onOpenDocuments={() => {
-            setRequirementsOpenedFromGeneration(false);
             setPmMenu("documents");
           }}
-          onOpenRequirements={() => {
-            setRequirementsOpenedFromGeneration(true);
-            setPmMenu("requirements");
-          }}
-        />
-      );
-    } else if (pmMenu === "requirements") {
-      subtitle = "요구사항";
-      body = (
-        <PmRequirements
-          key={selectedProject?.id}
-          project={selectedProject!}
-          onBackToGeneration={
-            requirementsOpenedFromGeneration
-              ? () => {
-                  setRequirementsOpenedFromGeneration(false);
-                  setPmMenu("generation");
-                }
-              : undefined
-          }
         />
       );
     } else if (pmMenu === "assign") {
@@ -361,7 +328,6 @@ export default function App() {
           key={selectedProject?.id}
           project={selectedProject!}
           onOpenAiGeneration={() => {
-            setRequirementsOpenedFromGeneration(false);
             setPmMenu("generation");
           }}
         />
@@ -372,7 +338,7 @@ export default function App() {
         <AiDocSearch
           key={selectedProject?.id}
           project={selectedProject!}
-          onOpenRequirements={() => handleSelect("requirements")}
+          onOpenRequirements={() => handleSelect("generation")}
           onOpenRisk={() => handleSelect("risk")}
         />
       );
@@ -398,7 +364,6 @@ export default function App() {
         <PmAnalysis
           key={selectedProject?.id}
           project={selectedProject!}
-          onOpenRequirements={() => handleSelect("requirements")}
         />
       );
     } else if (pmExtract) {

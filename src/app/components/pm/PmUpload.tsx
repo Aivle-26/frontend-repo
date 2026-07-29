@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  UploadCloud,
-  RefreshCw,
   Download,
-  Trash2,
   FileText,
   Loader2,
+  RefreshCw,
+  SlidersHorizontal,
+  Trash2,
+  UploadCloud,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -37,10 +39,14 @@ import {
 } from "@/app/components/pm/projectDocumentUpload";
 import type { ProjectSummary, UploadedRfp } from "@/app/data/demoData";
 
-function statusClass(s: UploadedRfp["status"]) {
-  if (s === "분석 완료") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (s === "분석 중") return "bg-blue-50 text-blue-700 border-blue-200";
-  return "bg-amber-50 text-amber-700 border-amber-200";
+function statusClass(status: UploadedRfp["status"]) {
+  if (status === "분석 완료") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "분석 중") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+  return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
 function formatFileSize(fileSize: number) {
@@ -56,6 +62,7 @@ function toUploadRow(document: ProjectDocumentUploadItem): UploadedRfp {
       : document.status === "ANALYZING"
         ? "분석 중"
         : "대기";
+
   return {
     id: String(document.documentId),
     name: document.originalFileName,
@@ -80,6 +87,7 @@ function analysisErrorMessage(error: unknown) {
     503: "분석 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     504: "문서 분석 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
   };
+
   return messages[error.status] ?? error.message;
 }
 
@@ -100,14 +108,25 @@ export function PmUpload({
   const [analyzingDocumentId, setAnalyzingDocumentId] = useState<string | null>(
     null,
   );
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isReadjusting, setIsReadjusting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadDocuments = useCallback(async () => {
     setIsLoadingDocuments(true);
     setLoadError("");
+
     try {
       const response = await projectRepository.listProjectDocuments(project.id);
       setFiles(response.documents.map(toUploadRow));
+      setSelectedDocumentIds((current) => {
+        const availableIds = new Set(
+          response.documents.map((document) => String(document.documentId)),
+        );
+        return new Set([...current].filter((id) => availableIds.has(id)));
+      });
     } catch (error) {
       setLoadError(
         error instanceof ApiError
@@ -140,7 +159,7 @@ export function PmUpload({
       );
       await loadDocuments();
       onDocumentsUploaded?.(response.documents);
-      toast.success(`${response.documents.length}개 프로젝트 원본 문서를 업로드했습니다.`);
+      toast.success(`${response.documents.length}개 프로젝트 문서를 업로드했습니다.`);
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -154,14 +173,15 @@ export function PmUpload({
 
   const handlePick = () => inputRef.current?.click();
 
-  const onSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files ?? []);
-    e.target.value = "";
+  const onSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
     void addFiles(selectedFiles);
   };
 
   const reanalyze = async (id: string) => {
-    if (analyzingDocumentId) return;
+    if (analyzingDocumentId || isReadjusting) return;
+
     const documentId = Number(id);
     if (!Number.isSafeInteger(documentId) || documentId <= 0) {
       toast.error("분석할 프로젝트 문서를 확인해 주세요.");
@@ -170,9 +190,12 @@ export function PmUpload({
 
     const previous = files.find((file) => file.id === id);
     setAnalyzingDocumentId(id);
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, status: "분석 중" } : f)),
+    setFiles((current) =>
+      current.map((file) =>
+        file.id === id ? { ...file, status: "분석 중" } : file,
+      ),
     );
+
     try {
       await projectRepository.analyzeProjectRequirements(project.id, {
         documentIds: [documentId],
@@ -181,18 +204,19 @@ export function PmUpload({
       const requirementCount = persisted.finalRequirements.filter(
         (requirement) => requirement.sourceDocumentId === documentId,
       ).length;
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === id
-            ? { ...f, status: "분석 완료", requirementCount }
-            : f,
+
+      setFiles((current) =>
+        current.map((file) =>
+          file.id === id
+            ? { ...file, status: "분석 완료", requirementCount }
+            : file,
         ),
       );
       toast.success("요구사항 분석을 완료했습니다.");
       onAnalysisComplete?.();
     } catch (error) {
-      setFiles((prev) =>
-        prev.map((file) =>
+      setFiles((current) =>
+        current.map((file) =>
           file.id === id && previous
             ? { ...file, status: previous.status }
             : file,
@@ -204,8 +228,81 @@ export function PmUpload({
     }
   };
 
+  const toggleDocument = (id: string) => {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllDocuments = () => {
+    setSelectedDocumentIds((current) =>
+      current.size === files.length
+        ? new Set()
+        : new Set(files.map((file) => file.id)),
+    );
+  };
+
+  const readjustRequirements = async () => {
+    if (isReadjusting || selectedDocumentIds.size === 0) return;
+
+    const documentIds = [...selectedDocumentIds]
+      .map(Number)
+      .filter((id) => Number.isSafeInteger(id) && id > 0);
+
+    if (documentIds.length === 0) {
+      toast.error("재조정에 사용할 문서를 확인해 주세요.");
+      return;
+    }
+
+    setIsReadjusting(true);
+    setFiles((current) =>
+      current.map((file) =>
+        selectedDocumentIds.has(file.id)
+          ? { ...file, status: "분석 중" }
+          : file,
+      ),
+    );
+
+    try {
+      await projectRepository.analyzeProjectRequirements(project.id, {
+        documentIds,
+      });
+      const persisted = await projectRepository.getRequirements(project.id);
+
+      setFiles((current) =>
+        current.map((file) => {
+          if (!selectedDocumentIds.has(file.id)) return file;
+          const documentId = Number(file.id);
+          const requirementCount = persisted.finalRequirements.filter(
+            (requirement) => requirement.sourceDocumentId === documentId,
+          ).length;
+          return { ...file, status: "분석 완료", requirementCount };
+        }),
+      );
+
+      toast.success(
+        `선택 문서 ${documentIds.length}개를 반영해 요구사항을 재조정했습니다.`,
+      );
+      setSelectedDocumentIds(new Set());
+      onAnalysisComplete?.();
+    } catch (error) {
+      await loadDocuments();
+      toast.error(analysisErrorMessage(error));
+    } finally {
+      setIsReadjusting(false);
+    }
+  };
+
   const remove = (id: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
+    setFiles((current) => current.filter((file) => file.id !== id));
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     toast("파일을 목록에서 제거했습니다.");
   };
 
@@ -213,9 +310,9 @@ export function PmUpload({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>프로젝트 원본 문서 업로드</CardTitle>
+          <CardTitle>프로젝트 문서 업로드</CardTitle>
           <CardDescription>
-            프로젝트에 사용할 원본 문서를 안전하게 등록합니다.
+            프로젝트 계획과 요구사항 조정에 사용할 문서를 안전하게 등록합니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -232,16 +329,16 @@ export function PmUpload({
             type="button"
             disabled={isUploading}
             onClick={handlePick}
-            onDragOver={(e) => {
-              e.preventDefault();
+            onDragOver={(event) => {
+              event.preventDefault();
               setDragging(true);
             }}
             onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
+            onDrop={(event) => {
+              event.preventDefault();
               setDragging(false);
               if (!isUploading) {
-                void addFiles(Array.from(e.dataTransfer.files));
+                void addFiles(Array.from(event.dataTransfer.files));
               }
             }}
             className={cn(
@@ -262,7 +359,7 @@ export function PmUpload({
                 ? "프로젝트 문서를 업로드하는 중입니다."
                 : "파일을 끌어다 놓거나 클릭하여 업로드"}
             </div>
-            <div className="text-muted-foreground text-xs">
+            <div className="text-xs text-muted-foreground">
               PDF · DOCX · XLSX · PPTX · TXT · 파일당 최대 10MB
             </div>
           </button>
@@ -271,8 +368,10 @@ export function PmUpload({
 
       <Card>
         <CardHeader>
-          <CardTitle>업로드된 공고문</CardTitle>
-          <CardDescription>업로드한 RFP 목록과 분석 상태입니다.</CardDescription>
+          <CardTitle>업로드된 문서</CardTitle>
+          <CardDescription>
+            업로드한 프로젝트 문서 목록과 요구사항 분석 상태입니다.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -287,43 +386,50 @@ export function PmUpload({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {files.map((f) => (
-                <TableRow key={f.id}>
+              {files.map((file) => (
+                <TableRow key={file.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="flex size-8 items-center justify-center rounded-md bg-red-50 text-red-600">
                         <FileText className="size-4" />
                       </span>
-                      <span className="text-foreground text-sm">{f.name}</span>
+                      <span className="text-sm text-foreground">{file.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{f.size}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{f.uploadedAt}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {f.requirementCount > 0 ? `${f.requirementCount}건` : "—"}
+                  <TableCell className="text-xs text-muted-foreground">
+                    {file.size}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {file.uploadedAt}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {file.requirementCount > 0 ? `${file.requirementCount}건` : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={cn("font-normal", statusClass(f.status))}>
-                      {f.status}
+                    <Badge
+                      variant="outline"
+                      className={cn("font-normal", statusClass(file.status))}
+                    >
+                      {file.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1 text-muted-foreground">
                       <button
-                        disabled={analyzingDocumentId !== null}
-                        onClick={() => void reanalyze(f.id)}
-                        className="rounded p-1 hover:bg-muted hover:text-foreground"
+                        disabled={analyzingDocumentId !== null || isReadjusting}
+                        onClick={() => void reanalyze(file.id)}
+                        className="rounded p-1 hover:bg-muted hover:text-foreground disabled:opacity-50"
                         aria-label="다시 분석"
                         title="다시 분석"
                       >
-                        {analyzingDocumentId === f.id ? (
+                        {analyzingDocumentId === file.id ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
                           <RefreshCw className="size-4" />
                         )}
                       </button>
                       <button
-                        onClick={() => toast(`"${f.name}" 다운로드`)}
+                        onClick={() => toast(`"${file.name}" 다운로드`)}
                         className="rounded p-1 hover:bg-muted hover:text-foreground"
                         aria-label="다운로드"
                         title="다운로드"
@@ -331,7 +437,7 @@ export function PmUpload({
                         <Download className="size-4" />
                       </button>
                       <button
-                        onClick={() => remove(f.id)}
+                        onClick={() => remove(file.id)}
                         className="rounded p-1 hover:bg-muted hover:text-destructive"
                         aria-label="삭제"
                         title="삭제"
@@ -342,6 +448,7 @@ export function PmUpload({
                   </TableCell>
                 </TableRow>
               ))}
+
               {isLoadingDocuments && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
@@ -352,6 +459,7 @@ export function PmUpload({
                   </TableCell>
                 </TableRow>
               )}
+
               {!isLoadingDocuments && loadError && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-destructive">
@@ -359,15 +467,111 @@ export function PmUpload({
                   </TableCell>
                 </TableRow>
               )}
+
               {!isLoadingDocuments && !loadError && files.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                    업로드된 공고문이 없습니다.
+                    업로드된 문서가 없습니다.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="border-primary/20 bg-primary/[0.02]">
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <SlidersHorizontal className="size-5" />
+            </div>
+            <div>
+              <CardTitle>요구사항 재조정</CardTitle>
+              <CardDescription className="mt-1">
+                프로젝트 계획 조정 과정에서 추가 문서를 선택해 기존 요구사항을 다시 분석하고 반영합니다.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">
+                재조정에 반영할 문서 선택
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                선택한 모든 문서를 한 번에 분석해 요구사항을 갱신합니다.
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={files.length === 0 || isReadjusting}
+              onClick={toggleAllDocuments}
+            >
+              {selectedDocumentIds.size === files.length && files.length > 0
+                ? "전체 해제"
+                : "전체 선택"}
+            </Button>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2">
+            {files.map((file) => (
+              <label
+                key={file.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+                  selectedDocumentIds.has(file.id)
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-border bg-background hover:bg-muted/40",
+                )}
+              >
+                <Checkbox
+                  checked={selectedDocumentIds.has(file.id)}
+                  disabled={isReadjusting}
+                  onCheckedChange={() => toggleDocument(file.id)}
+                />
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {file.name}
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {file.size} · {file.status}
+                  </div>
+                </div>
+              </label>
+            ))}
+
+            {!isLoadingDocuments && files.length === 0 && (
+              <div className="md:col-span-2 rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+                먼저 재조정에 사용할 문서를 업로드하세요.
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <span className="text-sm text-muted-foreground">
+              선택 문서 {selectedDocumentIds.size}개
+            </span>
+            <Button
+              type="button"
+              disabled={selectedDocumentIds.size === 0 || isReadjusting}
+              onClick={() => void readjustRequirements()}
+            >
+              {isReadjusting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              {isReadjusting
+                ? "요구사항 재조정 중"
+                : "선택 문서로 요구사항 재조정"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

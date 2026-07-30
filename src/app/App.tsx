@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Users,
   AlertTriangle,
-  ClipboardCheck,
   ListTodo,
   BookOpen,
   Send,
@@ -14,7 +13,8 @@ import {
   FileSearch,
   FileText,
   Network,
-  Wand2,
+  CalendarClock,
+  ClipboardList,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
@@ -24,13 +24,11 @@ import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
 import { PmRequirements } from "@/app/components/pm/PmRequirements";
-import { DocumentLibrary } from "@/app/components/pm/DocumentLibrary";
 import { RiskManagement } from "@/app/components/pm/RiskManagement";
 import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
-import { PmReview } from "@/app/components/pm/PmReview";
 import { PmAssign } from "@/app/components/pm/PmAssign";
-import { ProjectBoard } from "@/app/components/pm/ProjectBoard";
+import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
 import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
@@ -61,27 +59,22 @@ import {
 import { mapApiProject } from "@/app/projects/projectMapping";
 import { RealApplication } from "@/app/real/RealApplication";
 
-// 업무 중심(Task Flow) IA. AI 기능은 독립 메뉴가 아니라 각 화면 내 액션으로 흡수한다.
+// 업무 중심(Task Flow) IA — 확정 9개 메뉴.
+// 공지사항은 [프로젝트] 페이지 상단에 통합, AI 기능은 각 화면 내 액션으로 흡수한다.
 const PM_MENU: SidebarItem[] = [
-  // [개요]
+  // [개요] — 프로젝트 페이지 상단에 공지사항 포함
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
-  { key: "notice", label: "공지사항", icon: Megaphone, group: "개요" },
   // [계획]
   { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
-  { key: "generation", label: "WBS · 일정", icon: Network, group: "계획" },
+  { key: "wbs", label: "WBS", icon: Network, group: "계획" },
+  { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
   { key: "assign", label: "업무 (배정)", icon: Users, group: "계획" },
   // [실행]
-  { key: "review", label: "검토", icon: ClipboardCheck, group: "실행" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
-  { key: "documents", label: "문서함", icon: FolderKanban, group: "실행" },
   // [도구]
-  { key: "operational", label: "운영 산출물", icon: Wand2, group: "도구" },
+  { key: "weekly", label: "위클리 스크럼", icon: ClipboardList, group: "도구" },
   { key: "search", label: "통합 질의응답", icon: MessagesSquare, group: "도구" },
-];
-
-// 사이드바 하단(구분선 아래)에 두는 보조 도구. 요구사항 화면 우측 패널로도 연동된다.
-const PM_FOOTER_MENU: SidebarItem[] = [
-  { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch },
+  { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
 const STAFF_MENU: SidebarItem[] = [
@@ -100,13 +93,12 @@ const STAFF_MENU: SidebarItem[] = [
 const SCOPED_PM = new Set([
   "upload",
   "requirements",
-  "generation",
-  "operational",
+  "wbs",
+  "schedule",
   "assign",
-  "documents",
-  "search",
   "risk",
-  "review",
+  "weekly",
+  "search",
   "similar",
 ]);
 
@@ -307,9 +299,6 @@ function DemoApplication() {
     } else if (pmMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
-    } else if (pmMenu === "notice") {
-      subtitle = "공지사항";
-      body = <StaffNotice excludeCategories={["PM 피드백"]} canCreate />;
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
       body = (
@@ -317,7 +306,7 @@ function DemoApplication() {
           <PmRequirements
             key={selectedProject?.id}
             project={selectedProject!}
-            onBackToGeneration={() => handleSelect("generation")}
+            onBackToGeneration={() => handleSelect("wbs")}
           />
           <div className="xl:sticky xl:top-0 xl:self-start">
             <PmAnalysis variant="panel" project={selectedProject!} />
@@ -357,51 +346,43 @@ function DemoApplication() {
           }}
         />
       );
-    } else if (pmMenu === "generation") {
-      subtitle = "WBS · 일정";
+    } else if (pmMenu === "wbs") {
+      subtitle = "WBS";
       body = (
         <PmGeneration
           key={selectedProject?.id}
           project={selectedProject!}
           view="wbs"
-          onOpenDocuments={() => {
-            setPmMenu("documents");
-          }}
         />
       );
-    } else if (pmMenu === "operational") {
-      subtitle = "운영 산출물";
+    } else if (pmMenu === "schedule") {
+      subtitle = "일정";
       body = (
         <PmGeneration
           key={selectedProject?.id}
           project={selectedProject!}
-          view="operational"
-          onOpenDocuments={() => {
-            setPmMenu("documents");
-          }}
+          view="schedule"
         />
       );
     } else if (pmMenu === "assign") {
-      subtitle = "업무";
+      subtitle = "업무 (배정)";
       body = (
         <PmAssign
           key={selectedProject?.id}
           project={selectedProject!}
         />
       );
-    } else if (pmMenu === "documents") {
-      subtitle = "문서함";
+    } else if (pmMenu === "weekly") {
+      subtitle = "위클리 스크럼";
       body = (
-        <DocumentLibrary
+        <PmGeneration
           key={selectedProject?.id}
           project={selectedProject!}
-          onOpenAiGeneration={() => {
-            setPmMenu("operational");
-          }}
+          view="operational"
         />
       );
     } else if (pmMenu === "search") {
-      subtitle = "AI 통합 질의응답";
+      subtitle = "통합 질의응답";
       body = (
         <AiDocSearch
           key={selectedProject?.id}
@@ -411,17 +392,9 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "risk") {
-      subtitle = "리스크 관리";
+      subtitle = "리스크";
       body = (
         <RiskManagement
-          key={selectedProject?.id}
-          project={selectedProject!}
-        />
-      );
-    } else if (pmMenu === "review") {
-      subtitle = "산출물 검토";
-      body = (
-        <PmReview
           key={selectedProject?.id}
           project={selectedProject!}
         />
@@ -468,37 +441,34 @@ function DemoApplication() {
     } else {
       subtitle = "프로젝트";
       body = (
-        <div className="space-y-4">
-          <ProjectListNotice
-            status={projectLoadStatus}
-            error={projectLoadError}
-          />
-
-          <ProjectBoard
-            projects={projects}
-            setProjects={setProjects}
-            pmEmployeeNumber={authSession.employeeNumber}
-            onProjectCreated={(project) => {
-              setSelectedProjectId(project.id);
-              setProjectLoadStatus("ready");
-            }}
-            onProjectDeleted={reloadProjectsAfterDeletion}
-            onOpenOperational={(p) => {
-              setPmWizard(null);
-              setPmDetail(p);
-            }}
-            onOpenWizard={(p) => {
-              setPmDetail(null);
-              setPmWizard(p);
-            }}
-            onExtract={(p) => {
-              setPmDetail(null);
-              setPmWizard(null);
-              setSelectedProjectId(p.id);
-              setPmMenu("upload");
-            }}
-          />
-        </div>
+        <ProjectOverview
+          projects={projects}
+          setProjects={setProjects}
+          pmEmployeeNumber={authSession.employeeNumber}
+          noticeAuthorName={authSession.name || "PM"}
+          projectLoadStatus={projectLoadStatus}
+          projectLoadError={projectLoadError}
+          onProjectCreated={(project) => {
+            setSelectedProjectId(project.id);
+            setProjectLoadStatus("ready");
+          }}
+          onProjectDeleted={reloadProjectsAfterDeletion}
+          onOpenOperational={(p) => {
+            setPmWizard(null);
+            setPmDetail(p);
+          }}
+          onOpenWizard={(p) => {
+            setPmDetail(null);
+            setPmWizard(p);
+          }}
+          onExtract={(p) => {
+            // '요구사항 만들러 가기' → 바로 [계획 > 요구사항] 화면으로 이동
+            setPmDetail(null);
+            setPmWizard(null);
+            setSelectedProjectId(p.id);
+            setPmMenu("requirements");
+          }}
+        />
       );
     }
   } else {
@@ -565,12 +535,7 @@ function DemoApplication() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
-      <Sidebar
-        items={menu}
-        bottomItems={isPm ? PM_FOOTER_MENU : undefined}
-        active={activeMenu}
-        onSelect={handleSelect}
-      />
+      <Sidebar items={menu} active={activeMenu} onSelect={handleSelect} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           title={subtitle}

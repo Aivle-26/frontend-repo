@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 
 import { cn } from "@/app/components/ui/utils";
 import { SlackIcon } from "@/app/components/common/SlackIcon";
+
+// Slack 워크스페이스 바로가기 URL. .env(VITE_SLACK_URL)로 오버라이드 가능.
+const SLACK_URL =
+  (import.meta.env?.VITE_SLACK_URL as string | undefined) ?? "https://slack.com";
 
 export interface SidebarItem {
   key: string;
@@ -246,28 +250,17 @@ export function Sidebar({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => onSelect("slack")}
-              aria-current={active === "slack" ? "page" : undefined}
-              className={cn(
-                "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
-                active === "slack"
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-              )}
+            {/* 복잡한 OAuth 연동 대신 단순 외부 링크(Slack 바로가기)로 대체 */}
+            <a
+              href={SLACK_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
             >
-              <span
-                className={cn(
-                  "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
-                  active === "slack" ? "opacity-100" : "opacity-0",
-                )}
-                aria-hidden="true"
-              />
-
               <SlackIcon className="shrink-0 text-base" />
-              <span className="truncate">Slack 연동</span>
-            </button>
+              <span className="truncate">Slack 바로가기</span>
+              <ExternalLink className="ml-auto size-3.5 shrink-0 opacity-60" />
+            </a>
           </section>
         </div>
       ) : null}

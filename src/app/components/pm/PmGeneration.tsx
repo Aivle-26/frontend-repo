@@ -230,8 +230,9 @@ function parseNumberList(value: string) {
 
 /**
  * view:
- *  - "wbs"         : 계획 백본(요구사항 조회·마일스톤·WBS·일정)만 노출 → [WBS · 일정] 메뉴
- *  - "operational" : 추가 산출물(UI 프로토타입·주간 보고서·결정 로그)만 노출 → [운영 산출물] 메뉴
+ *  - "wbs"         : 계획 백본(요구사항 조회·마일스톤·WBS·일정)만 노출 → [WBS] 메뉴
+ *  - "schedule"    : 계획 백본을 일정 관점으로 노출 → [일정] 메뉴 (전용 페이지는 추후 특화 예정)
+ *  - "operational" : 추가 산출물(주간 보고서 등)만 노출 → [위클리 스크럼] 메뉴
  *  - "all"         : 두 섹션 모두 노출(기본, 하위 호환)
  */
 export function PmGeneration({
@@ -241,10 +242,10 @@ export function PmGeneration({
 }: {
   project: ProjectSummary;
   onOpenDocuments?: () => void;
-  view?: "wbs" | "operational" | "all";
+  view?: "wbs" | "schedule" | "operational" | "all";
 }) {
-  const showBackbone = view !== "operational";
-  const showExtras = view !== "wbs";
+  const showBackbone = view === "wbs" || view === "schedule" || view === "all";
+  const showExtras = view === "operational" || view === "all";
   const done = useGenerated(project.id);
   const [busy, setBusy] = useState<Partial<Record<Key, boolean>>>({});
   const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
@@ -738,10 +739,12 @@ export function PmGeneration({
             <div className="flex items-center gap-2">
               <span className="text-foreground">
                 {view === "operational"
-                  ? "운영 산출물"
-                  : view === "wbs"
-                    ? "WBS · 일정"
-                    : "계획 문서 조회"}
+                  ? "위클리 스크럼"
+                  : view === "schedule"
+                    ? "일정"
+                    : view === "wbs"
+                      ? "WBS"
+                      : "계획 문서 조회"}
               </span>
               <Badge variant="secondary" className="font-normal">
                 {project.name}
@@ -749,8 +752,10 @@ export function PmGeneration({
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
               {view === "operational"
-                ? "UI 프로토타입·주간 보고서·결정 로그를 생성하고 재생성합니다."
-                : "저장된 요구사항·WBS·일정 결과를 조회하고 최종 WBS를 편집합니다."}
+                ? "주간 스크럼 보고서 등 운영 산출물을 생성하고 재생성합니다."
+                : view === "schedule"
+                  ? "저장된 WBS를 기준으로 일정 계획을 조회합니다."
+                  : "저장된 요구사항·WBS 결과를 조회하고 최종 WBS를 편집합니다."}
             </div>
           </div>
         </CardContent>

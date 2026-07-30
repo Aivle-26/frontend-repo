@@ -80,13 +80,23 @@ interface StaffNoticeProps {
   canCreate?: boolean;
   /** 등록 시 기록할 작성자명. */
   authorName?: string;
+  /**
+   * "full": 독립 공지 화면(KPI·필터·전체 목록).
+   * "compact": 다른 화면(예: 프로젝트 페이지 상단)에 끼워 넣는 요약 패널.
+   */
+  variant?: "full" | "compact";
+  /** compact 변형에서 노출할 공지 개수. */
+  limit?: number;
 }
 
 export function StaffNotice({
   excludeCategories = [],
   canCreate = false,
   authorName = "PM",
+  variant = "full",
+  limit = 4,
 }: StaffNoticeProps) {
+  const isCompact = variant === "compact";
   const allNotices = useNotices();
   const notices = useMemo(
     () => allNotices.filter((n) => !excludeCategories.includes(n.category)),
@@ -163,30 +173,50 @@ export function StaffNotice({
     [notices, filter],
   );
 
+  // compact: 고정 공지 우선 → 최신순 → limit 개
+  const compactList = useMemo(() => {
+    const sorted = [...notices].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+    });
+    return sorted.slice(0, limit);
+  }, [notices, limit]);
+
+  const displayList = isCompact ? compactList : list;
+
   const openNotice = (n: Notice) => {
     setSelected(n);
     setReadIds((prev) => new Set(prev).add(n.id));
   };
 
   return (
-    <div className="space-y-6">
-      {/* KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard icon={<Megaphone className="size-4" />} label="전체 공지" value={notices.length} />
-        <KpiCard icon={<Eye className="size-4 text-destructive" />} label="읽지 않음" value={unreadCount} />
-        <KpiCard icon={<AlertTriangle className="size-4" />} label="중요 공지" value={importantCount} />
-        <KpiCard icon={<Clock className="size-4" />} label="이번 주 신규" value={thisWeekCount} />
-      </div>
+    <div className={isCompact ? "" : "space-y-6"}>
+      {/* KPI (full 전용) */}
+      {!isCompact && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <KpiCard icon={<Megaphone className="size-4" />} label="전체 공지" value={notices.length} />
+          <KpiCard icon={<Eye className="size-4 text-destructive" />} label="읽지 않음" value={unreadCount} />
+          <KpiCard icon={<AlertTriangle className="size-4" />} label="중요 공지" value={importantCount} />
+          <KpiCard icon={<Clock className="size-4" />} label="이번 주 신규" value={thisWeekCount} />
+        </div>
+      )}
 
       {/* 목록 */}
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Megaphone className="size-4" /> 공지 목록
+              <Megaphone className="size-4" /> 공지사항
+              {isCompact && unreadCount > 0 && (
+                <Badge variant="destructive" className="ml-1">
+                  읽지 않음 {unreadCount}
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
-              공지를 클릭하면 상세 내용을 확인할 수 있습니다.
+              {isCompact
+                ? "최근 공지입니다. 클릭하면 상세 내용을 확인할 수 있습니다."
+                : "공지를 클릭하면 상세 내용을 확인할 수 있습니다."}
             </CardDescription>
           </div>
           {canCreate && (
@@ -196,21 +226,23 @@ export function StaffNotice({
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {filters.map((f) => (
-              <Button
-                key={f}
-                size="sm"
-                variant={filter === f ? "default" : "outline"}
-                onClick={() => setFilter(f)}
-              >
-                {f}
-              </Button>
-            ))}
-          </div>
+          {!isCompact && (
+            <div className="flex flex-wrap gap-2">
+              {filters.map((f) => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={filter === f ? "default" : "outline"}
+                  onClick={() => setFilter(f)}
+                >
+                  {f}
+                </Button>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-3">
-            {list.map((n) => (
+            {displayList.map((n) => (
               <button
                 key={n.id}
                 onClick={() => openNotice(n)}
@@ -240,9 +272,9 @@ export function StaffNotice({
                 </div>
               </button>
             ))}
-            {list.length === 0 && (
+            {displayList.length === 0 && (
               <p className="text-muted-foreground text-sm text-center py-10">
-                해당 카테고리의 공지가 없습니다.
+                {isCompact ? "등록된 공지가 없습니다." : "해당 카테고리의 공지가 없습니다."}
               </p>
             )}
           </div>

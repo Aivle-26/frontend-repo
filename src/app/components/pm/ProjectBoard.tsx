@@ -532,7 +532,7 @@ export function ProjectBoard({
                         onExtract(project);
                       }}
                     >
-                      문서 및 요구사항 <ArrowRight className="size-4" />
+                      요구사항 만들러 가기 <ArrowRight className="size-4" />
                     </Button>
                   </>
                 ) : detail.status === "진행중" || detail.status === "완료" ? (
@@ -1047,7 +1047,7 @@ function ProjectCard({
                 삭제
               </Button>
               <Button variant="outline" size="sm" onClick={onOpenReal}>
-                문서 및 요구사항 <ArrowRight className="size-3.5" />
+                요구사항 만들러 가기 <ArrowRight className="size-3.5" />
               </Button>
             </>
           ) : isActive ? (

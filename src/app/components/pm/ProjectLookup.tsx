@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
+import { Popover, PopoverTrigger, PopoverContent } from "@/app/components/ui/popover";
 import { Badge } from "@/app/components/ui/badge";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/app/components/ui/utils";
@@ -92,54 +93,47 @@ export function ProjectLookup() {
   return (
     <div className="space-y-4">
       {/* 프로젝트 선택 */}
-      <div className="relative inline-block">
-        <button
-          type="button"
-          onClick={() => setDropdownOpen((v) => !v)}
-          className="flex min-w-56 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
-        >
-          <FolderOpen className="size-4 text-muted-foreground" />
-          <span className="flex-1 text-left">{selected ? selected.name : "프로젝트 선택"}</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </button>
-
-        {dropdownOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
-            <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md">
-              {projectStatus === "loading" && (
-                <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground text-sm">
-                  <Loader2 className="size-4 animate-spin" /> 불러오는 중…
-                </div>
-              )}
-              {projectStatus === "error" && (
-                <div className="px-3 py-2 text-red-600 text-sm">{projectError}</div>
-              )}
-              {projectStatus === "ready" && projects.length === 0 && (
-                <div className="px-3 py-2 text-muted-foreground text-sm">
-                  프로젝트가 없습니다.
-                </div>
-              )}
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(p.id);
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    "block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted/60",
-                    p.id === selectedId && "bg-muted",
-                  )}
-                >
-                  {p.name}
-                </button>
-              ))}
+      <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex min-w-56 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
+          >
+            <FolderOpen className="size-4 text-muted-foreground" />
+            <span className="flex-1 text-left">{selected ? selected.name : "프로젝트 선택"}</span>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-72 max-h-72 overflow-y-auto p-1">
+          {projectStatus === "loading" && (
+            <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground text-sm">
+              <Loader2 className="size-4 animate-spin" /> 불러오는 중…
             </div>
-          </>
-        )}
-      </div>
+          )}
+          {projectStatus === "error" && (
+            <div className="px-3 py-2 text-red-600 text-sm">{projectError}</div>
+          )}
+          {projectStatus === "ready" && projects.length === 0 && (
+            <div className="px-3 py-2 text-muted-foreground text-sm">프로젝트가 없습니다.</div>
+          )}
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                setSelectedId(p.id);
+                setDropdownOpen(false);
+              }}
+              className={cn(
+                "block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted/60",
+                p.id === selectedId && "bg-muted",
+              )}
+            >
+              {p.name}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
 
       <Card>
         <CardContent className="p-0">

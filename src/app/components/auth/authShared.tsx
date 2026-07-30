@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import {
   Check,
   FileText,
@@ -149,36 +149,70 @@ function DemoResultRow({
   );
 }
 
-// 데모 완료 여부를 세션 동안 기억 → 로그인↔회원가입 이동 시 완료 상태 유지(재생 X)
+/* ------------------------------------------------------------------ */
+/* 데모 진행 엔진 (모듈 레벨)                                            */
+/* 페이지(로그인↔회원가입) 이동으로 컴포넌트가 언마운트돼도 분석이         */
+/* 끊기지 않고 계속 진행되며, 다시 돌아오면 그 시점부터 이어서 보인다.     */
+/* ------------------------------------------------------------------ */
+let demoStarted = false;
 let demoCompleted = false;
+let demoPhase = 0;
+let demoTimer: ReturnType<typeof setTimeout> | null = null;
+const demoListeners = new Set<() => void>();
+
+function emitDemo() {
+  demoListeners.forEach((listener) => listener());
+}
+
+function scheduleDemoTick() {
+  const last = DEMO_PHASE_MS.length - 1;
+  if (demoTimer !== null || demoPhase >= last) return;
+  demoTimer = setTimeout(() => {
+    demoTimer = null;
+    demoPhase = Math.min(demoPhase + 1, last);
+    if (demoPhase >= last) demoCompleted = true;
+    emitDemo();
+    scheduleDemoTick();
+  }, DEMO_PHASE_MS[demoPhase]);
+}
+
+function startDemo() {
+  if (demoTimer !== null) {
+    clearTimeout(demoTimer);
+    demoTimer = null;
+  }
+  demoStarted = true;
+  demoCompleted = false;
+  demoPhase = 0;
+  emitDemo();
+  scheduleDemoTick();
+}
 
 function LiveExtractDemo() {
   const lastPhase = DEMO_PHASE_MS.length - 1;
-  const [started, setStarted] = useState(() => demoCompleted);
-  const [phase, setPhase] = useState(() => (demoCompleted ? lastPhase : 0));
-  // 복원된 완료 상태에서는 카운트업 애니메이션 없이 즉시 최종값 표시
-  const [instant, setInstant] = useState(() => demoCompleted);
+  const [, forceRender] = useReducer((n: number) => n + 1, 0);
+  // 이 마운트에서 버튼으로 새로 시작한 경우만 카운트업 애니메이션 재생
+  const [justStarted, setJustStarted] = useState(false);
 
+  useEffect(() => {
+    demoListeners.add(forceRender);
+    // 마운트 시 진행 중이던 분석이 있으면 이어서 진행
+    if (demoStarted && !demoCompleted) scheduleDemoTick();
+    return () => {
+      demoListeners.delete(forceRender);
+    };
+  }, [forceRender]);
+
+  const started = demoStarted;
+  const phase = demoPhase;
   const done = started && phase >= lastPhase;
   const running = started && !done;
-
-  useEffect(() => {
-    if (done) demoCompleted = true;
-  }, [done]);
-
-  useEffect(() => {
-    if (!running || instant) return;
-    const timer = window.setTimeout(
-      () => setPhase((current) => Math.min(current + 1, lastPhase)),
-      DEMO_PHASE_MS[phase],
-    );
-    return () => window.clearTimeout(timer);
-  }, [running, instant, phase, lastPhase]);
+  // 새로 시작한 경우가 아니면(복원/이어보기) 숫자 애니메이션 없이 즉시 표시
+  const instant = !justStarted;
 
   const start = () => {
-    setInstant(false);
-    setPhase(0);
-    setStarted(true);
+    setJustStarted(true);
+    startDemo();
   };
 
   const progress = started ? (phase / lastPhase) * 100 : 0;

@@ -137,15 +137,20 @@ export function ProjectBoard({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return projects.filter((p) => {
-      const byTab = filter === "전체" || p.status === filter;
+    const visibleProjects = projects.filter((p) => {
+      const byTab =
+        mode === "real" || filter === "전체" || p.status === filter;
       const byQ =
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.client.toLowerCase().includes(q);
       return byTab && byQ;
     });
-  }, [projects, filter, query]);
+
+    return mode === "real"
+      ? visibleProjects.sort(compareByNearestPlannedEndDate)
+      : visibleProjects;
+  }, [mode, projects, filter, query]);
 
   const startProject = (id: string) => {
     setProjects((prev) =>
@@ -356,30 +361,32 @@ export function ProjectBoard({
 
   return (
     <div className="space-y-5">
-      {/* 상단: 필터 + 검색 + 새 프로젝트 */}
+      {/* 상단: 데모 필터 + 검색 + 새 프로젝트 */}
       <div className="flex flex-wrap items-center gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors",
-              filter === f
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/70",
-            )}
-          >
-            {f}
-            <span
-              className={cn(
-                "rounded-full px-1.5 text-xs",
-                filter === f ? "bg-white/20" : "bg-background",
-              )}
-            >
-              {counts[f]}
-            </span>
-          </button>
-        ))}
+        {mode === "demo"
+          ? FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors",
+                  filter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70",
+                )}
+              >
+                {f}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-xs",
+                    filter === f ? "bg-white/20" : "bg-background",
+                  )}
+                >
+                  {counts[f]}
+                </span>
+              </button>
+            ))
+          : null}
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -934,7 +941,11 @@ function ProjectCard({
   const stepPct = Math.round((p.wizardStep / WIZARD_STEPS.length) * 100);
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card
+      className="transition-shadow hover:shadow-md"
+      data-testid={mode === "real" ? "real-project-card" : undefined}
+      data-project-id={mode === "real" ? p.id : undefined}
+    >
       <CardContent className="pt-5">
         <div className="flex items-start justify-between gap-2">
           <button onClick={onOpenName} className="min-w-0 text-left">
@@ -1092,4 +1103,25 @@ function ProjectCard({
       </CardContent>
     </Card>
   );
+}
+
+function compareByNearestPlannedEndDate(
+  first: ProjectSummary,
+  second: ProjectSummary,
+) {
+  const firstEndDate = parsePlannedEndDate(first.server?.plannedEndDate);
+  const secondEndDate = parsePlannedEndDate(second.server?.plannedEndDate);
+
+  if (firstEndDate !== secondEndDate) {
+    return firstEndDate - secondEndDate;
+  }
+
+  return first.name.localeCompare(second.name, "ko");
+}
+
+function parsePlannedEndDate(value?: string | null) {
+  if (!value) return Number.POSITIVE_INFINITY;
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
 }

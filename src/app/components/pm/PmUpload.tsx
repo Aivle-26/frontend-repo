@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClipboardList,
   Download,
+  Eye,
   FileText,
   Loader2,
   RefreshCw,
@@ -34,9 +35,12 @@ import {
   ApiError,
   projectRepository,
   type ProjectDocumentUploadItem,
+  type RequirementChangeCandidate,
   type RequirementResponse,
   type RequirementsResult,
 } from "@/app/api/projectRepository";
+import { RequirementEvidenceViewer } from "./RequirementEvidenceViewer";
+import { RequirementChangeReview } from "./RequirementChangeReview";
 import {
   PROJECT_DOCUMENT_ACCEPT,
   validateProjectDocumentFiles,
@@ -145,6 +149,11 @@ export function PmUpload({
     () => new Set(),
   );
   const [isReadjusting, setIsReadjusting] = useState(false);
+  const [changeCandidates, setChangeCandidates] = useState<
+    RequirementChangeCandidate[]
+  >([]);
+  const [evidenceRequirement, setEvidenceRequirement] =
+    useState<RequirementResponse | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadDocuments = useCallback(async () => {
@@ -207,6 +216,33 @@ export function PmUpload({
     };
   }, [project.id]);
 
+  useEffect(() => {
+    let ignore = false;
+    setChangeCandidates([]);
+    if (mode !== "real") {
+      return () => {
+        ignore = true;
+      };
+    }
+    projectRepository
+      .listRequirementReadjustments(project.id)
+      .then((result) => {
+        if (!ignore) {
+          setChangeCandidates(
+            Array.isArray(result.changeCandidates)
+              ? result.changeCandidates
+              : [],
+          );
+        }
+      })
+      .catch(() => {
+        // Initial deployments may not have candidates yet; the main page still loads.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [mode, project.id]);
+
   const addFiles = async (selectedFiles: File[]) => {
     if (isUploading || selectedFiles.length === 0) return;
 
@@ -263,6 +299,18 @@ export function PmUpload({
     );
 
     try {
+      if (requirements.length > 0) {
+        const result = await projectRepository.readjustProjectRequirements(
+          project.id,
+          { documentIds: [documentId] },
+        );
+        setChangeCandidates(result.changeCandidates);
+        await loadDocuments();
+        toast.success(
+          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다.`,
+        );
+        return;
+      }
       await projectRepository.analyzeProjectRequirements(project.id, {
         documentIds: [documentId],
       });
@@ -345,32 +393,42 @@ export function PmUpload({
     );
 
     try {
-      await projectRepository.analyzeProjectRequirements(project.id, {
-        documentIds,
-      });
-      const persisted = await projectRepository.getRequirements(project.id);
-      const persistedRequirements = finalRequirements(persisted);
-      setRequirements(persistedRequirements);
-      setRequirementsLoadError("");
-
-      setFiles((current) =>
-        current.map((file) => {
-          if (!activeDocumentIds.has(file.id)) return file;
-          const documentId = Number(file.id);
-          const requirementCount = persistedRequirements.filter(
-            (requirement) => requirement.sourceDocumentId === documentId,
-          ).length;
-          return { ...file, status: "분석 완료", requirementCount };
-        }),
-      );
-
-      toast.success(
-        isInitialAnalysis
-          ? "요구사항 분석을 완료했습니다."
-          : `선택 문서 ${documentIds.length}개를 반영해 요구사항을 재조정했습니다.`,
-      );
+      if (isInitialAnalysis) {
+        await projectRepository.analyzeProjectRequirements(project.id, {
+          documentIds,
+        });
+        const persisted = await projectRepository.getRequirements(project.id);
+        const persistedRequirements = finalRequirements(persisted);
+        setRequirements(persistedRequirements);
+        setRequirementsLoadError("");
+        setFiles((current) =>
+          current.map((file) => {
+            if (!activeDocumentIds.has(file.id)) return file;
+            const documentId = Number(file.id);
+            const requirementCount = persistedRequirements.filter(
+              (requirement) => requirement.sourceDocumentId === documentId,
+            ).length;
+            return { ...file, status: "분석 완료", requirementCount };
+          }),
+        );
+        toast.success("요구사항 분석을 완료했습니다.");
+        onAnalysisComplete?.();
+      } else {
+        const result = await projectRepository.readjustProjectRequirements(
+          project.id,
+          { documentIds },
+        );
+        setChangeCandidates(
+          Array.isArray(result.changeCandidates)
+            ? result.changeCandidates
+            : [],
+        );
+        await loadDocuments();
+        toast.success(
+          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다. 승인 전에는 기존 요구사항이 바뀌지 않습니다.`,
+        );
+      }
       setSelectedDocumentIds(new Set());
-      onAnalysisComplete?.();
     } catch (error) {
       await loadDocuments();
       const message = analysisErrorMessage(error);
@@ -624,11 +682,39 @@ export function PmUpload({
                     <TableHead className="min-w-72">설명</TableHead>
                     <TableHead className="w-32">유형</TableHead>
                     <TableHead className="w-24">상태</TableHead>
+                    <TableHead className="w-20 text-right">근거</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requirements.map((requirement) => (
-                    <TableRow key={requirement.requirementId}>
+                  {requirements.map((requirement) => {
+                    const canOpenEvidence =
+                      (Array.isArray(requirement.evidences) &&
+                        requirement.evidences.length > 0) ||
+                      Boolean(requirement.sourceExcerpt);
+                    return (
+                    <TableRow
+                      key={requirement.requirementId}
+                      role={canOpenEvidence ? "button" : undefined}
+                      tabIndex={canOpenEvidence ? 0 : undefined}
+                      className={cn(
+                        canOpenEvidence &&
+                          "cursor-pointer hover:bg-primary/[0.035]",
+                      )}
+                      onClick={() => {
+                        if (canOpenEvidence) {
+                          setEvidenceRequirement(requirement);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          canOpenEvidence &&
+                          (event.key === "Enter" || event.key === " ")
+                        ) {
+                          event.preventDefault();
+                          setEvidenceRequirement(requirement);
+                        }
+                      }}
+                    >
                       <TableCell className="font-medium text-foreground">
                         {requirement.title}
                       </TableCell>
@@ -651,8 +737,24 @@ export function PmUpload({
                           {requirementStatusLabel(requirement.status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={!canOpenEvidence}
+                          title="원문 근거 확인"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEvidenceRequirement(requirement);
+                          }}
+                        >
+                          <Eye className="size-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -721,7 +823,7 @@ export function PmUpload({
               </CardTitle>
               <CardDescription className="mt-1">
                 {requirements.length > 0
-                  ? "프로젝트 계획 조정 과정에서 추가 문서를 선택해 기존 요구사항을 다시 분석하고 반영합니다."
+                  ? "추가 문서를 기준으로 변경 후보를 만들고 PM 검토 후 승인한 결과만 반영합니다."
                   : "업로드한 문서를 선택해 프로젝트 요구사항을 분석합니다."}
               </CardDescription>
             </div>
@@ -735,7 +837,8 @@ export function PmUpload({
                 재조정에 반영할 문서 선택
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                선택한 모든 문서를 한 번에 분석해 요구사항을 갱신합니다.
+                기존 요구사항이 있으면 변경 후보만 생성하며 즉시 반영하지
+                않습니다.
               </div>
             </div>
             <Button
@@ -809,6 +912,45 @@ export function PmUpload({
           </div>
         </CardContent>
       </Card>
+
+      {changeCandidates.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>AI 재조정 검토</CardTitle>
+            <CardDescription>
+              추가·수정·삭제·유지 후보를 비교하고 PM이 승인한 항목만
+              반영합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RequirementChangeReview
+              projectId={project.id}
+              candidates={changeCandidates}
+              onCandidatesChange={setChangeCandidates}
+              onApplied={(result) => {
+                setRequirements(finalRequirements(result));
+                setRequirementsLoadError("");
+              }}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <RequirementEvidenceViewer
+        open={evidenceRequirement !== null}
+        onOpenChange={(open) => {
+          if (!open) setEvidenceRequirement(null);
+        }}
+        projectId={project.id}
+        requirementTitle={evidenceRequirement?.title ?? "요구사항 근거"}
+        evidences={
+          Array.isArray(evidenceRequirement?.evidences)
+            ? evidenceRequirement.evidences
+            : []
+        }
+        fallbackSourceDocument={evidenceRequirement?.sourceDocumentName}
+        fallbackExcerpt={evidenceRequirement?.sourceExcerpt}
+      />
     </div>
   );
 }

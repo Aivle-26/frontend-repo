@@ -156,6 +156,25 @@ export type RequirementType =
   | "PROJECT_MANAGEMENT"
   | "UNSPECIFIED";
 
+export interface NormalizedBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface RequirementEvidence {
+  evidenceId: number | null;
+  documentId: number;
+  sourceDocument: string;
+  pageNumber: number | null;
+  chunkId: string;
+  quoteText: string;
+  startOffset: number | null;
+  endOffset: number | null;
+  boundingBoxes: NormalizedBoundingBox[];
+}
+
 export interface RequirementResponse {
   requirementId: number;
   analysisResultId: number | null;
@@ -175,12 +194,63 @@ export interface RequirementResponse {
   confirmed: boolean;
   createdAt: string;
   updatedAt: string;
+  evidences: RequirementEvidence[];
 }
 
 export interface RequirementsResult {
   projectId: number;
   aiSuggestions: RequirementResponse[];
   finalRequirements: RequirementResponse[];
+}
+
+export type RequirementChangeType =
+  | "ADDED"
+  | "MODIFIED"
+  | "REMOVED"
+  | "UNCHANGED";
+export type RequirementChangeReviewStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED";
+
+export interface RequirementChangeProposal {
+  requirementId: number | null;
+  sourceDocumentId: number;
+  functionName: string;
+  requirementText: string;
+  category: RequirementType;
+  priority: RequirementPriority;
+  acceptanceCriteria: string | null;
+  dueDate: string | null;
+  deliverableName: string | null;
+  securityCondition: string | null;
+  sourceDocument: string;
+  sourceExcerpt: string | null;
+  evidences: RequirementEvidence[];
+}
+
+export interface RequirementChangeCandidate {
+  candidateId: number;
+  existingRequirementId: number | null;
+  changeType: RequirementChangeType;
+  reviewStatus: RequirementChangeReviewStatus;
+  changeReason: string;
+  existingRequirement: RequirementChangeProposal | null;
+  proposedRequirement: RequirementChangeProposal | null;
+  evidences: RequirementEvidence[];
+  applied: boolean;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface RequirementReadjustmentResult {
+  projectId: number;
+  changeCandidates: RequirementChangeCandidate[];
+}
+
+export interface ReviewRequirementChangeRequest {
+  reviewStatus: RequirementChangeReviewStatus;
+  proposedRequirement?: RequirementChangeProposal | null;
 }
 
 export interface SaveFinalRequirement {
@@ -523,6 +593,52 @@ async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> 
   return payload as T;
 }
 
+async function apiFetchBlob(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<Blob> {
+  const {
+    auth = false,
+    retryOnUnauthorized = true,
+    headers,
+    ...requestInit
+  } = init;
+  const requestHeaders = new Headers(headers);
+  if (auth) {
+    const session = readSession();
+    if (session?.accessToken) {
+      requestHeaders.set("Authorization", `Bearer ${session.accessToken}`);
+    }
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...requestInit,
+    headers: requestHeaders,
+  });
+  if (!response.ok) {
+    if (auth && response.status === 401 && retryOnUnauthorized) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        return apiFetchBlob(path, {
+          ...init,
+          retryOnUnauthorized: false,
+        });
+      }
+    }
+    const payload = await parseResponse(response);
+    if (auth && response.status === 401) {
+      clearSession();
+      emitAuthExpired();
+    }
+    throw new ApiError(
+      response.status,
+      getErrorMessage(payload, response.statusText),
+      payload,
+    );
+  }
+  return response.blob();
+}
+
 export function toFrontendRole(role?: string): Role {
   return role?.trim().toLowerCase() === "pm" ? "pm" : "staff";
 }
@@ -702,6 +818,16 @@ export const projectRepository = {
     );
   },
 
+  getProjectDocumentContent(
+    projectId: string | number,
+    documentId: string | number,
+  ) {
+    return apiFetchBlob(
+      `/projects/${encodeURIComponent(String(projectId))}/documents/${encodeURIComponent(String(documentId))}/content`,
+      { auth: true },
+    );
+  },
+
   analyzeProjectRequirements(
     projectId: string | number,
     input: AnalyzeProjectRequirementsRequest,
@@ -713,6 +839,57 @@ export const projectRepository = {
         body: JSON.stringify(input),
         auth: true,
         expectedStatuses: [200],
+      },
+    );
+  },
+
+  readjustProjectRequirements(
+    projectId: string | number,
+    input: AnalyzeProjectRequirementsRequest,
+  ) {
+    return apiFetch<RequirementReadjustmentResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjust`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+        expectedStatuses: [200],
+      },
+    );
+  },
+
+  listRequirementReadjustments(projectId: string | number) {
+    return apiFetch<RequirementReadjustmentResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments`,
+      { auth: true },
+    );
+  },
+
+  reviewRequirementChange(
+    projectId: string | number,
+    candidateId: string | number,
+    input: ReviewRequirementChangeRequest,
+  ) {
+    return apiFetch<RequirementChangeCandidate>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/${encodeURIComponent(String(candidateId))}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  applyRequirementChanges(
+    projectId: string | number,
+    candidateIds: number[],
+  ) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds }),
+        auth: true,
       },
     );
   },

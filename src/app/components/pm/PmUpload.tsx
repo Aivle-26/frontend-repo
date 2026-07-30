@@ -356,11 +356,15 @@ export function PmUpload({
     });
   };
 
+  // 분석이 완료된 문서는 재조정 대상에서 제외(체크 불가)한다.
   const toggleAllDocuments = () => {
+    const selectableIds = files
+      .filter((file) => file.status !== "분석 완료")
+      .map((file) => file.id);
     setSelectedDocumentIds((current) =>
-      current.size === files.length
+      current.size === selectableIds.length
         ? new Set()
-        : new Set(files.map((file) => file.id)),
+        : new Set(selectableIds),
     );
   };
 
@@ -877,42 +881,65 @@ export function PmUpload({
               type="button"
               variant="outline"
               size="sm"
-              disabled={files.length === 0 || analysisInProgress}
+              disabled={
+                files.every((file) => file.status === "분석 완료") ||
+                analysisInProgress
+              }
               onClick={toggleAllDocuments}
             >
-              {selectedDocumentIds.size === files.length && files.length > 0
+              {selectedDocumentIds.size > 0 &&
+              selectedDocumentIds.size ===
+                files.filter((file) => file.status !== "분석 완료").length
                 ? "전체 해제"
                 : "전체 선택"}
             </Button>
           </div>
 
           <div className="grid gap-2 md:grid-cols-2">
-            {files.map((file) => (
-              <label
-                key={file.id}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
-                  selectedDocumentIds.has(file.id)
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-background hover:bg-muted/40",
-                )}
-              >
-                <Checkbox
-                  checked={selectedDocumentIds.has(file.id)}
-                  disabled={analysisInProgress}
-                  onCheckedChange={() => toggleDocument(file.id)}
-                />
-                <FileText className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-foreground">
-                    {file.name}
+            {files.map((file) => {
+              const isDone = file.status === "분석 완료";
+              return (
+                <label
+                  key={file.id}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+                    isDone
+                      ? "cursor-not-allowed border-border bg-muted/30"
+                      : "cursor-pointer",
+                    !isDone && selectedDocumentIds.has(file.id)
+                      ? "border-primary/40 bg-primary/5"
+                      : !isDone && "border-border bg-background hover:bg-muted/40",
+                  )}
+                >
+                  <Checkbox
+                    checked={selectedDocumentIds.has(file.id)}
+                    disabled={analysisInProgress || isDone}
+                    onCheckedChange={() => toggleDocument(file.id)}
+                  />
+                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {file.name}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>{file.size}</span>
+                      <span>·</span>
+                      {isDone ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600">
+                          <span
+                            className="size-1.5 rounded-full bg-emerald-500"
+                            aria-hidden="true"
+                          />
+                          분석 완료
+                        </span>
+                      ) : (
+                        <span>{file.status}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {file.size} · {file.status}
-                  </div>
-                </div>
-              </label>
-            ))}
+                </label>
+              );
+            })}
 
             {!isLoadingDocuments && files.length === 0 && (
               <div className="md:col-span-2 rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">

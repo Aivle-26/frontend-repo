@@ -585,7 +585,9 @@ export function PmUpload({
             <div>
               <CardTitle>도출된 요구사항</CardTitle>
               <CardDescription className="mt-1">
-                서버에 저장된 요구사항 제목·설명·검토 상태를 표시합니다.
+                {mode === "real"
+                  ? "서버에 저장된 요구사항 제목·유형·검토 상태를 표시합니다."
+                  : "서버에 저장된 요구사항 제목·설명·검토 상태를 표시합니다."}
               </CardDescription>
             </div>
           </div>
@@ -617,11 +619,17 @@ export function PmUpload({
             </div>
           ) : requirements.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
+              <Table className={mode === "real" ? "table-fixed" : undefined}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-52">제목</TableHead>
-                    <TableHead className="min-w-72">설명</TableHead>
+                    <TableHead
+                      className={mode === "real" ? "w-auto" : "min-w-52"}
+                    >
+                      제목
+                    </TableHead>
+                    {mode === "demo" ? (
+                      <TableHead className="min-w-72">설명</TableHead>
+                    ) : null}
                     <TableHead className="w-32">유형</TableHead>
                     <TableHead className="w-24">상태</TableHead>
                   </TableRow>
@@ -629,12 +637,20 @@ export function PmUpload({
                 <TableBody>
                   {requirements.map((requirement) => (
                     <TableRow key={requirement.requirementId}>
-                      <TableCell className="font-medium text-foreground">
+                      <TableCell
+                        className={cn(
+                          "font-medium text-foreground",
+                          mode === "real" &&
+                            "whitespace-normal break-words leading-5",
+                        )}
+                      >
                         {requirement.title}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {requirement.description}
-                      </TableCell>
+                      {mode === "demo" ? (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {requirement.description}
+                        </TableCell>
+                      ) : null}
                       <TableCell>
                         <Badge variant="outline" className="font-normal">
                           {requirement.type}

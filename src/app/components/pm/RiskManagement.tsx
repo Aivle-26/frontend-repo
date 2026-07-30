@@ -18,6 +18,7 @@ import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import { CommunicationRiskCard } from "@/app/components/common/CommunicationRiskCard";
 import { ImpactAnalysisCard } from "@/app/components/common/ImpactAnalysisCard";
+import { MemberDelayCard } from "@/app/components/common/MemberDelayCard";
 import {
   MANAGED_RISKS,
   type ManagedRisk,
@@ -308,6 +309,9 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
 
       {/* 프로젝트 조정 여부 평가 (요구사항 변경 영향도, AI 서버 연동) */}
       <ImpactAnalysisCard projectId={project.id} />
+
+      {/* 팀원별 업무 진행 지연 분석 (AI 서버 연동, 팀원 데이터 기반) */}
+      <MemberDelayCard projectId={project.id} />
 
       <p className="text-muted-foreground text-xs">
         {project.name} 기준 · AI가 탐지한 리스크를 검토합니다.

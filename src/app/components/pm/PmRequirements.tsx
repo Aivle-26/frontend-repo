@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -236,6 +237,7 @@ export function PmRequirements({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [aiUpdating, setAiUpdating] = useState(false);
   const [editor, setEditor] = useState<RequirementEditorState>(null);
 
   const loadRequirements = useCallback(async () => {
@@ -262,6 +264,21 @@ export function PmRequirements({
   useEffect(() => {
     void loadRequirements();
   }, [loadRequirements]);
+
+  // [AI 업데이트] 업로드된 문서에서 요구사항을 다시 추출(재분석)한 뒤 다시 불러온다.
+  const aiUpdateRequirements = async () => {
+    if (aiUpdating || loading || saving) return;
+    setAiUpdating(true);
+    try {
+      await projectRepository.reanalyzeProjectRequirements(project.id);
+      await loadRequirements();
+      toast.success("업로드된 문서에서 요구사항을 다시 추출했습니다.");
+    } catch (error) {
+      toast.error(errorMessage(error, "AI 업데이트에 실패했습니다."));
+    } finally {
+      setAiUpdating(false);
+    }
+  };
 
   const moveRequirement = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -456,9 +473,23 @@ export function PmRequirements({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
+                size="sm"
+                disabled={loading || saving || aiUpdating}
+                onClick={() => void aiUpdateRequirements()}
+                title="업로드된 문서에서 요구사항을 다시 추출해 반영합니다"
+              >
+                {aiUpdating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                AI 업데이트
+              </Button>
+              <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                disabled={loading || saving}
+                disabled={loading || saving || aiUpdating}
                 onClick={() => void loadRequirements()}
               >
                 <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />

@@ -16,6 +16,8 @@ export interface SidebarItem {
 
 interface SidebarProps {
   items: SidebarItem[];
+  /** 구분선 아래(하단)에 별도로 노출할 보조 항목 (예: 유사 프로젝트 검색). */
+  bottomItems?: SidebarItem[];
   active: string;
   onSelect: (key: string) => void;
   showIntegrations?: boolean;
@@ -30,6 +32,7 @@ const MAX_SIDEBAR_WIDTH = 380;
 
 export function Sidebar({
   items,
+  bottomItems,
   active,
   onSelect,
   showIntegrations = true,
@@ -185,6 +188,52 @@ export function Sidebar({
             </div>
           </section>
         ))}
+
+        {bottomItems && bottomItems.length > 0 ? (
+          <div className="space-y-0.5 pt-1">
+            <div
+              role="separator"
+              className="mx-2 my-2 border-t border-border/60"
+              aria-hidden="true"
+            />
+            {bottomItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.key === active;
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onSelect(item.key)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                    isActive
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                      isActive ? "opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <Icon
+                    className={cn(
+                      "size-4 shrink-0 transition-colors",
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-sidebar-foreground",
+                    )}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </nav>
 
       {showIntegrations ? (

@@ -228,13 +228,23 @@ function parseNumberList(value: string) {
   );
 }
 
+/**
+ * view:
+ *  - "wbs"         : 계획 백본(요구사항 조회·마일스톤·WBS·일정)만 노출 → [WBS · 일정] 메뉴
+ *  - "operational" : 추가 산출물(UI 프로토타입·주간 보고서·결정 로그)만 노출 → [운영 산출물] 메뉴
+ *  - "all"         : 두 섹션 모두 노출(기본, 하위 호환)
+ */
 export function PmGeneration({
   project,
   onOpenDocuments,
+  view = "all",
 }: {
   project: ProjectSummary;
   onOpenDocuments?: () => void;
+  view?: "wbs" | "operational" | "all";
 }) {
+  const showBackbone = view !== "operational";
+  const showExtras = view !== "wbs";
   const done = useGenerated(project.id);
   const [busy, setBusy] = useState<Partial<Record<Key, boolean>>>({});
   const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
@@ -391,6 +401,30 @@ export function PmGeneration({
       toast.error(message);
     } finally {
       setBusy((current) => ({ ...current, [target]: false }));
+    }
+  };
+
+  // [AI 업데이트] 저장된 최종 요구사항 기반으로 WBS를 재생성한다(generateWbs → getWbs).
+  const regenerateWbs = async () => {
+    setBusy((current) => ({ ...current, wbs: true }));
+    setWbsError("");
+    try {
+      await projectRepository.generateWbs(project.id);
+      await loadWbs();
+      setPreviewOpen(true);
+      requestAnimationFrame(() =>
+        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+      toast.success("요구사항 기반으로 WBS를 다시 생성했습니다.");
+    } catch (error) {
+      const message =
+        error instanceof ApiError && error.status === 404
+          ? "먼저 요구사항을 확정해 주세요."
+          : errorMessage(error, "WBS 생성에 실패했습니다.");
+      setWbsError(message);
+      toast.error(message);
+    } finally {
+      setBusy((current) => ({ ...current, wbs: false }));
     }
   };
 
@@ -702,23 +736,50 @@ export function PmGeneration({
           </div>
           <div className="leading-tight">
             <div className="flex items-center gap-2">
-              <span className="text-foreground">계획 문서 조회</span>
+              <span className="text-foreground">
+                {view === "operational"
+                  ? "운영 산출물"
+                  : view === "wbs"
+                    ? "WBS · 일정"
+                    : "계획 문서 조회"}
+              </span>
               <Badge variant="secondary" className="font-normal">
                 {project.name}
               </Badge>
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              저장된 요구사항·WBS·일정 결과를 조회하고 최종 WBS를 편집합니다.
+              {view === "operational"
+                ? "UI 프로토타입·주간 보고서·결정 로그를 생성하고 재생성합니다."
+                : "저장된 요구사항·WBS·일정 결과를 조회하고 최종 WBS를 편집합니다."}
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {showBackbone && (
       <section className="space-y-3">
-        <SectionTitle
-          title="계획 백본"
-          hint="저장된 계획 결과를 조회합니다. 이 영역에서는 AI 생성 API를 호출하지 않습니다"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SectionTitle
+            title="계획 백본"
+            hint="저장된 계획 결과를 조회하고, 요구사항 기반으로 WBS를 재생성합니다"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={statusOf("wbs") === "generating" || wbsLoading}
+            onClick={() => void regenerateWbs()}
+          >
+            {statusOf("wbs") === "generating" ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> 생성 중…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="size-3.5" /> WBS 다시 생성 · 일정 재산정
+              </>
+            )}
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {BACKBONE.map((step) => {
@@ -837,7 +898,9 @@ export function PmGeneration({
           </div>
         )}
       </section>
+      )}
 
+      {showExtras && (
       <section className="space-y-3">
         <SectionTitle title="추가 산출물" hint="필요할 때 개별로 생성" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -993,6 +1056,7 @@ export function PmGeneration({
           </GeneratorCard>
         </div>
       </section>
+      )}
 
       <TaskEditorDialog
         editor={editor}

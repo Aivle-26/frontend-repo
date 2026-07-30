@@ -79,6 +79,23 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
 
   const isAssigned = (r: AssignRow) => ASSIGNED_STATES.includes(r.status);
 
+  // [AI 업데이트] 미배정 행의 담당자를 AI 추천값으로 다시 채운다.
+  const recommendAgain = () => {
+    setPick((prev) => {
+      const next = { ...prev };
+      rows.forEach((r) => {
+        if (!isAssigned(r)) {
+          next[r.id] = {
+            owner: r.recommendedOwner,
+            due: next[r.id]?.due ?? "",
+          };
+        }
+      });
+      return next;
+    });
+    toast.success("AI 추천 담당자를 다시 채웠어요.");
+  };
+
   const counts = useMemo(() => {
     const unassigned = rows.filter((r) => !isAssigned(r)).length;
     return {
@@ -217,10 +234,17 @@ const progressByMember = useMemo(() => {
       {/* 업무 배정 */}
       <Card>
         <CardHeader>
-          <CardTitle>업무 배정</CardTitle>
-          <CardDescription>
-            AI 추천 담당자를 참고해 요구사항을 팀원에게 배정하세요.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>업무 배정</CardTitle>
+              <CardDescription>
+                AI 추천 담당자를 참고해 요구사항을 팀원에게 배정하세요.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={recommendAgain}>
+              <Sparkles className="size-3.5" /> 담당자 다시 추천
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">

@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
-  UploadCloud,
-  Bot,
-  Sparkles,
   Users,
   AlertTriangle,
   ClipboardCheck,
@@ -15,6 +12,9 @@ import {
   FolderKanban,
   Megaphone,
   FileSearch,
+  FileText,
+  Network,
+  Wand2,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
@@ -23,7 +23,7 @@ import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
-import { ProjectLookup } from "@/app/components/pm/ProjectLookup";
+import { PmRequirements } from "@/app/components/pm/PmRequirements";
 import { DocumentLibrary } from "@/app/components/pm/DocumentLibrary";
 import { RiskManagement } from "@/app/components/pm/RiskManagement";
 import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
@@ -61,18 +61,27 @@ import {
 import { mapApiProject } from "@/app/projects/projectMapping";
 import { RealApplication } from "@/app/real/RealApplication";
 
+// 업무 중심(Task Flow) IA. AI 기능은 독립 메뉴가 아니라 각 화면 내 액션으로 흡수한다.
 const PM_MENU: SidebarItem[] = [
+  // [개요]
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "개요" },
-  { key: "projectLookup", label: "프로젝트 조회", icon: FileSearch, group: "개요" },
-  { key: "upload", label: "문서 업로드", icon: UploadCloud, group: "계획 조정" },
-  { key: "generation", label: "AI 생성", icon: Bot, group: "계획 조정" },
-  { key: "analysis", label: "AI 분석", icon: Sparkles, group: "계획 조정" },
-  { key: "assign", label: "업무", icon: Users, group: "업무" },
-  { key: "review", label: "검토", icon: ClipboardCheck, group: "업무" },
-  { key: "risk", label: "리스크 관리", icon: AlertTriangle, group: "업무" },
-  { key: "documents", label: "문서함", icon: FolderKanban, group: "자료" },
-  { key: "search", label: "AI 통합 질의응답", icon: MessagesSquare, group: "자료" },
+  // [계획]
+  { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
+  { key: "generation", label: "WBS · 일정", icon: Network, group: "계획" },
+  { key: "assign", label: "업무 (배정)", icon: Users, group: "계획" },
+  // [실행]
+  { key: "review", label: "검토", icon: ClipboardCheck, group: "실행" },
+  { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
+  { key: "documents", label: "문서함", icon: FolderKanban, group: "실행" },
+  // [도구]
+  { key: "operational", label: "운영 산출물", icon: Wand2, group: "도구" },
+  { key: "search", label: "통합 질의응답", icon: MessagesSquare, group: "도구" },
+];
+
+// 사이드바 하단(구분선 아래)에 두는 보조 도구. 요구사항 화면 우측 패널로도 연동된다.
+const PM_FOOTER_MENU: SidebarItem[] = [
+  { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch },
 ];
 
 const STAFF_MENU: SidebarItem[] = [
@@ -90,13 +99,15 @@ const STAFF_MENU: SidebarItem[] = [
 
 const SCOPED_PM = new Set([
   "upload",
+  "requirements",
   "generation",
-  "analysis",
+  "operational",
   "assign",
   "documents",
   "search",
   "risk",
   "review",
+  "similar",
 ]);
 
 export type ApplicationMode = "demo" | "real";
@@ -299,9 +310,23 @@ function DemoApplication() {
     } else if (pmMenu === "notice") {
       subtitle = "공지사항";
       body = <StaffNotice excludeCategories={["PM 피드백"]} canCreate />;
-    } else if (pmMenu === "projectLookup") {
-      subtitle = "프로젝트 조회";
-      body = <ProjectLookup />;
+    } else if (pmMenu === "requirements") {
+      subtitle = "요구사항";
+      body = (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <PmRequirements
+            key={selectedProject?.id}
+            project={selectedProject!}
+            onBackToGeneration={() => handleSelect("generation")}
+          />
+          <div className="xl:sticky xl:top-0 xl:self-start">
+            <PmAnalysis variant="panel" project={selectedProject!} />
+          </div>
+        </div>
+      );
+    } else if (pmMenu === "similar") {
+      subtitle = "유사 프로젝트 검색";
+      body = <PmAnalysis key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "upload") {
       subtitle = "문서 업로드";
       body = (
@@ -309,7 +334,7 @@ function DemoApplication() {
           key={selectedProject?.id}
           project={selectedProject!}
           onAnalysisComplete={() => {
-            setPmMenu("generation");
+            setPmMenu("requirements");
           }}
           onDocumentsUploaded={(documents) => {
             setProjects((currentProjects) =>
@@ -333,11 +358,24 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "generation") {
-      subtitle = "AI 생성";
+      subtitle = "WBS · 일정";
       body = (
         <PmGeneration
           key={selectedProject?.id}
           project={selectedProject!}
+          view="wbs"
+          onOpenDocuments={() => {
+            setPmMenu("documents");
+          }}
+        />
+      );
+    } else if (pmMenu === "operational") {
+      subtitle = "운영 산출물";
+      body = (
+        <PmGeneration
+          key={selectedProject?.id}
+          project={selectedProject!}
+          view="operational"
           onOpenDocuments={() => {
             setPmMenu("documents");
           }}
@@ -358,7 +396,7 @@ function DemoApplication() {
           key={selectedProject?.id}
           project={selectedProject!}
           onOpenAiGeneration={() => {
-            setPmMenu("generation");
+            setPmMenu("operational");
           }}
         />
       );
@@ -368,7 +406,7 @@ function DemoApplication() {
         <AiDocSearch
           key={selectedProject?.id}
           project={selectedProject!}
-          onOpenRequirements={() => handleSelect("generation")}
+          onOpenRequirements={() => handleSelect("requirements")}
           onOpenRisk={() => handleSelect("risk")}
         />
       );
@@ -384,14 +422,6 @@ function DemoApplication() {
       subtitle = "산출물 검토";
       body = (
         <PmReview
-          key={selectedProject?.id}
-          project={selectedProject!}
-        />
-      );
-    } else if (pmMenu === "analysis") {
-      subtitle = "AI 분석";
-      body = (
-        <PmAnalysis
           key={selectedProject?.id}
           project={selectedProject!}
         />
@@ -535,7 +565,12 @@ function DemoApplication() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
-      <Sidebar items={menu} active={activeMenu} onSelect={handleSelect} />
+      <Sidebar
+        items={menu}
+        bottomItems={isPm ? PM_FOOTER_MENU : undefined}
+        active={activeMenu}
+        onSelect={handleSelect}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           title={subtitle}

@@ -66,7 +66,15 @@ function similarityBadgeVariant(similarity: number) {
   return "outline" as const;
 }
 
-export function PmAnalysis({ project }: { project: ProjectSummary }) {
+export function PmAnalysis({
+  project,
+  variant = "full",
+}: {
+  project: ProjectSummary;
+  /** "full": 독립 화면(3열 그리드) · "panel": 요구사항 화면 우측 사이드 패널(단일 열) */
+  variant?: "full" | "panel";
+}) {
+  const isPanel = variant === "panel";
   const [query, setQuery] = useState(project.name);
   const [isCrawling, setIsCrawling] = useState(false);
   const [lastCrawledAt, setLastCrawledAt] = useState("방금 전");
@@ -153,7 +161,13 @@ export function PmAnalysis({ project }: { project: ProjectSummary }) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <div
+        className={
+          isPanel
+            ? "grid grid-cols-1 gap-3"
+            : "grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+        }
+      >
         {similarProjects.map((item) => (
           <Card key={item.id} className="h-full">
             <CardHeader className="pb-3">

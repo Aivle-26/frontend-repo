@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -10,6 +10,9 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
+  RefreshCw,
+  Wand2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,8 +31,60 @@ import { Progress } from "@/app/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { cn } from "@/app/components/ui/utils";
 import { demoRepository } from "@/app/data/demoRepository";
+import {
+  ApiError,
+  projectRepository,
+  type SaveFinalWbsTask,
+  type WbsTask,
+} from "@/app/api/projectRepository";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 import { WIZARD_STEPS } from "@/app/projects/projectWorkflow";
+
+/** 백엔드 WbsTask를 마법사에서 편집 가능한 형태로 정규화. */
+function normalizeWbsTasks(tasks: WbsTask[]): WbsTask[] {
+  return tasks
+    .slice()
+    .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+    .map((task, index) => ({
+      taskId: task.taskId ?? null,
+      externalTaskId: String(task.externalTaskId ?? `TASK-${index + 1}`),
+      parentExternalTaskId: task.parentExternalTaskId ?? null,
+      taskCode: String(task.taskCode ?? index + 1),
+      taskName: String(task.taskName ?? ""),
+      description: String(task.description ?? ""),
+      phase: String(task.phase ?? "ANALYSIS"),
+      requiredSkills: Array.isArray(task.requiredSkills) ? task.requiredSkills : [],
+      difficulty: String(task.difficulty ?? "MEDIUM"),
+      estimatedHours: Number.isFinite(Number(task.estimatedHours))
+        ? Number(task.estimatedHours)
+        : 0,
+      orderIndex: index,
+      requirementIds: Array.isArray(task.requirementIds) ? task.requirementIds : [],
+      confirmed: Boolean(task.confirmed),
+    }));
+}
+
+function newManualTask(name: string, orderIndex: number): WbsTask {
+  const suffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    taskId: null,
+    externalTaskId: `USER-${suffix}`,
+    parentExternalTaskId: null,
+    taskCode: String(orderIndex + 1),
+    taskName: name,
+    description: "",
+    phase: "ANALYSIS",
+    requiredSkills: [],
+    difficulty: "MEDIUM",
+    estimatedHours: 8,
+    orderIndex,
+    requirementIds: [],
+    confirmed: false,
+  };
+}
 
 interface ProjectWizardProps {
   project: ProjectSummary;
@@ -65,15 +120,128 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
     })),
   );
   const [newReq, setNewReq] = useState("");
-  const [wbs, setWbs] = useState<string[]>([
-    "요구사항 분석 · 정의",
-    "화면 설계(IA/와이어프레임)",
-    "API/데이터 설계",
-    "개발(FE/BE)",
-    "통합 테스트",
-    "배포 · 안정화",
-  ]);
+
+  // ===== WBS 단계: 실제 백엔드 API 연동 (generateWbs / getWbs / saveFinalWbs) =====
+  const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
+  const [wbsLoading, setWbsLoading] = useState(true);
+  const [wbsGenerating, setWbsGenerating] = useState(false);
+  const [wbsSaving, setWbsSaving] = useState(false);
+  const [wbsError, setWbsError] = useState("");
   const [newWbs, setNewWbs] = useState("");
+
+  // 저장된 WBS를 최초 1회 조회 (없으면 빈 상태)
+  useEffect(() => {
+    let ignore = false;
+    setWbsLoading(true);
+    setWbsError("");
+    projectRepository
+      .getWbs(project.id)
+      .then((result) => {
+        if (ignore) return;
+        const source =
+          result.finalTasks && result.finalTasks.length > 0
+            ? result.finalTasks
+            : result.aiSuggestionTasks ?? [];
+        setWbsTasks(normalizeWbsTasks(source));
+      })
+      .catch((error) => {
+        if (ignore) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setWbsTasks([]);
+        } else {
+          setWbsError(
+            error instanceof ApiError && error.message
+              ? error.message
+              : "저장된 WBS를 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) setWbsLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [project.id]);
+
+  // [AI 생성] 확정된 요구사항 기반으로 WBS 생성 → 저장된 결과 재조회
+  const generateWbs = async () => {
+    if (wbsGenerating) return;
+    setWbsGenerating(true);
+    setWbsError("");
+    try {
+      await projectRepository.generateWbs(project.id);
+      const result = await projectRepository.getWbs(project.id);
+      const source =
+        result.finalTasks && result.finalTasks.length > 0
+          ? result.finalTasks
+          : result.aiSuggestionTasks ?? [];
+      setWbsTasks(normalizeWbsTasks(source));
+      toast.success(`AI가 WBS ${source.length}개 작업을 생성했어요.`);
+    } catch (error) {
+      const message =
+        error instanceof ApiError && error.status === 404
+          ? "먼저 요구사항을 확정해 주세요."
+          : error instanceof ApiError && error.message
+            ? error.message
+            : "WBS 생성에 실패했습니다.";
+      setWbsError(message);
+      toast.error(message);
+    } finally {
+      setWbsGenerating(false);
+    }
+  };
+
+  const removeWbsTask = (externalTaskId: string) =>
+    setWbsTasks((prev) =>
+      prev
+        .filter((task) => task.externalTaskId !== externalTaskId)
+        .map((task, index) => ({ ...task, orderIndex: index })),
+    );
+
+  const addWbsTask = () => {
+    const name = newWbs.trim();
+    if (!name) return;
+    setWbsTasks((prev) => [...prev, newManualTask(name, prev.length)]);
+    setNewWbs("");
+  };
+
+  // [저장] 최종 WBS를 백엔드에 저장 (WBS 단계에서 다음으로 넘어갈 때 호출)
+  const saveWbs = async (): Promise<boolean> => {
+    if (wbsTasks.length === 0) return true; // 저장할 WBS가 없으면 통과
+    setWbsSaving(true);
+    try {
+      const tasks: SaveFinalWbsTask[] = wbsTasks.map((task, index) => ({
+        externalTaskId: task.externalTaskId,
+        parentExternalTaskId: task.parentExternalTaskId ?? null,
+        taskCode: task.taskCode || String(index + 1),
+        taskName: task.taskName,
+        description: task.description ?? "",
+        phase: task.phase || "ANALYSIS",
+        requiredSkills: task.requiredSkills ?? [],
+        difficulty: task.difficulty || "MEDIUM",
+        estimatedHours: Number(task.estimatedHours) || 0,
+        orderIndex: index,
+        requirementIds: task.requirementIds ?? [],
+      }));
+      const saved = await projectRepository.saveFinalWbs(project.id, { tasks });
+      const source =
+        saved.finalTasks && saved.finalTasks.length > 0
+          ? saved.finalTasks
+          : tasks.map((task, index) => ({ ...task, taskId: null, orderIndex: index, confirmed: true }));
+      setWbsTasks(normalizeWbsTasks(source as WbsTask[]));
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.message
+          ? error.message
+          : "최종 WBS 저장에 실패했습니다.",
+      );
+      return false;
+    } finally {
+      setWbsSaving(false);
+    }
+  };
   const [milestones, setMilestones] = useState([
     { label: "요구사항 확정", date: "2026-07-25" },
     { label: "설계 완료", date: "2026-08-10" },
@@ -90,7 +258,12 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
 
   const allDone = done.every(Boolean);
 
-  const goNext = () => {
+  const goNext = async () => {
+    // WBS 단계에서는 편집한 최종 WBS를 백엔드에 저장한 뒤 다음으로 이동
+    if (step === 1) {
+      const saved = await saveWbs();
+      if (!saved) return;
+    }
     markDone(step, true);
     if (step < WIZARD_STEPS.length - 1) setStep(step + 1);
     else toast.success("모든 단계를 완료했어요. 이제 시작할 수 있어요.");
@@ -232,36 +405,92 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
           </>
         )}
 
-        {/* ===== 2. WBS ===== */}
+        {/* ===== 2. WBS (백엔드 generateWbs / getWbs / saveFinalWbs 실연동) ===== */}
         {step === 1 && (
           <>
-            <AiCard title="AI 작업 분해(WBS) 제안" desc="요구사항을 작업 단위로 분해했어요.">
-              <ol className="space-y-2">
-                {wbs.map((w, i) => (
-                  <li key={w} className="flex items-center gap-2 text-sm">
-                    <span className="flex size-5 items-center justify-center rounded-md bg-blue-50 text-blue-600 text-xs">
-                      {i + 1}
-                    </span>
-                    <span className="text-foreground">{w}</span>
-                  </li>
-                ))}
-              </ol>
+            <AiCard
+              title="AI 작업 분해(WBS) 제안"
+              desc="확정한 요구사항을 기반으로 백엔드 AI가 작업을 분해합니다."
+            >
+              {wbsError && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  {wbsError}
+                </div>
+              )}
+
+              <Button
+                onClick={() => void generateWbs()}
+                disabled={wbsGenerating || wbsLoading}
+                className="w-full"
+              >
+                {wbsGenerating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> WBS 생성 중…
+                  </>
+                ) : wbsTasks.length > 0 ? (
+                  <>
+                    <RefreshCw className="size-4" /> WBS 다시 생성
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="size-4" /> AI로 WBS 생성
+                  </>
+                )}
+              </Button>
+
+              <div className="mt-3 space-y-2">
+                {wbsLoading ? (
+                  <p className="py-6 text-center text-muted-foreground text-sm">
+                    저장된 WBS를 불러오는 중…
+                  </p>
+                ) : wbsTasks.length === 0 ? (
+                  <p className="py-6 text-center text-muted-foreground text-sm">
+                    아직 생성된 WBS가 없습니다. 위 버튼으로 생성하세요.
+                  </p>
+                ) : (
+                  <ol className="space-y-2">
+                    {wbsTasks.map((task, i) => (
+                      <li
+                        key={task.externalTaskId}
+                        className="flex items-start gap-2 text-sm"
+                      >
+                        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600 text-xs">
+                          {i + 1}
+                        </span>
+                        <span className="text-foreground">{task.taskName}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
             </AiCard>
-            <PmCard title="WBS 편집" desc="작업을 추가하거나 제거하세요.">
+
+            <PmCard title="WBS 편집" desc="작업을 추가하거나 제거하세요. 다음 단계로 넘어가면 저장됩니다.">
               <div className="space-y-2">
-                {wbs.map((w, i) => (
-                  <div key={w} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
-                    <span className="text-muted-foreground text-xs">{i + 1}</span>
-                    <span className="flex-1 truncate text-foreground text-sm">{w}</span>
-                    <button
-                      onClick={() => setWbs((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label="삭제"
+                {wbsTasks.length === 0 ? (
+                  <p className="py-4 text-center text-muted-foreground text-sm">
+                    편집할 작업이 없습니다.
+                  </p>
+                ) : (
+                  wbsTasks.map((task, i) => (
+                    <div
+                      key={task.externalTaskId}
+                      className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
                     >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ))}
+                      <span className="text-muted-foreground text-xs">{i + 1}</span>
+                      <span className="flex-1 truncate text-foreground text-sm">
+                        {task.taskName}
+                      </span>
+                      <button
+                        onClick={() => removeWbsTask(task.externalTaskId)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="삭제"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-3 flex gap-2">
                 <Input
@@ -269,20 +498,10 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
                   onChange={(e) => setNewWbs(e.target.value)}
                   placeholder="작업 추가"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && newWbs.trim()) {
-                      setWbs((prev) => [...prev, newWbs.trim()]);
-                      setNewWbs("");
-                    }
+                    if (e.key === "Enter") addWbsTask();
                   }}
                 />
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!newWbs.trim()) return;
-                    setWbs((prev) => [...prev, newWbs.trim()]);
-                    setNewWbs("");
-                  }}
-                >
+                <Button variant="outline" onClick={addWbsTask}>
                   <Plus className="size-4" /> 추가
                 </Button>
               </div>
@@ -415,7 +634,7 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
                 <div className="text-foreground text-2xl mt-1">3,200 ~ 3,600만원</div>
               </div>
               <p className="mt-3 text-muted-foreground text-xs">
-                요구사항 {reqs.length}건 · WBS {wbs.length}개 기준 산정
+                요구사항 {reqs.length}건 · WBS {wbsTasks.length}개 기준 산정
               </p>
             </AiCard>
             <PmCard title="견적 확정" desc="최종 견적을 입력하세요.">
@@ -448,8 +667,16 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
           {step + 1} / {WIZARD_STEPS.length} 단계 · {done.filter(Boolean).length}개 완료
         </div>
         {step < WIZARD_STEPS.length - 1 ? (
-          <Button onClick={goNext}>
-            저장 후 다음 <ChevronRight className="size-4" />
+          <Button onClick={() => void goNext()} disabled={step === 1 && wbsSaving}>
+            {step === 1 && wbsSaving ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> 저장 중…
+              </>
+            ) : (
+              <>
+                저장 후 다음 <ChevronRight className="size-4" />
+              </>
+            )}
           </Button>
         ) : (
           <Button

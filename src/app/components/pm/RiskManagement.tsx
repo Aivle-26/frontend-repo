@@ -72,7 +72,21 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
   const selected = risks.find((r) => r.id === selectedId) ?? null;
 
   const [reporting, setReporting] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [lastReportAt, setLastReportAt] = useState<string | null>(null);
+
+  // [AI 업데이트] 리스크 재분석. 백엔드 리스크 탐지 API 연동 시 이 핸들러를 교체하세요.
+  const reanalyzeRisks = async () => {
+    if (analyzing) return;
+    setAnalyzing(true);
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+      setRisks(MANAGED_RISKS);
+      toast.success("리스크를 다시 분석했어요.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const generateWeeklyReport = async () => {
     setReporting(true);
@@ -116,6 +130,21 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
               최근 생성 {lastReportAt}
             </span>
           )}
+          <Button
+            variant="outline"
+            onClick={reanalyzeRisks}
+            disabled={analyzing || reporting}
+          >
+            {analyzing ? (
+              <>
+                <Clock className="size-4 animate-spin" /> 분석 중…
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" /> 다시 분석
+              </>
+            )}
+          </Button>
           <Button onClick={generateWeeklyReport} disabled={reporting}>
             {reporting ? (
               <>

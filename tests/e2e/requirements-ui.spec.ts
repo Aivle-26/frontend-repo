@@ -328,6 +328,131 @@ test("keeps readjustment candidates separate until PM approval and apply", async
   expect(applyCalls).toBe(1);
 });
 
+test("drops stale candidate selections when readjustment results change", async ({
+  page,
+}) => {
+  const proposedRequirement = {
+    requirementId: 801,
+    sourceDocumentId: document.documentId,
+    functionName: "Legacy candidate",
+    requirementText: "The legacy candidate should not be applied.",
+    category: "FUNCTIONAL",
+    priority: "HIGH",
+    acceptanceCriteria: null,
+    dueDate: null,
+    deliverableName: null,
+    securityCondition: null,
+    sourceDocument: document.originalFileName,
+    sourceExcerpt: "Legacy candidate",
+    evidences: [],
+  };
+  const replacementRequirement = {
+    ...proposedRequirement,
+    requirementId: 802,
+    functionName: "Replacement candidate",
+    requirementText: "The replacement candidate should be applied.",
+  };
+  const firstCandidate = {
+    candidateId: 8101,
+    existingRequirementId: null,
+    changeType: "ADDED",
+    reviewStatus: "PENDING_REVIEW",
+    changeReason: "First readjustment result",
+    existingRequirement: null,
+    proposedRequirement,
+    evidences: [],
+    applied: false,
+    createdAt: "2026-07-30T00:00:00",
+    reviewedAt: null,
+  };
+  const replacementCandidate = {
+    ...firstCandidate,
+    candidateId: 8102,
+    reviewStatus: "APPROVED",
+    changeReason: "Replacement readjustment result",
+    proposedRequirement: replacementRequirement,
+  };
+  let readjustCalls = 0;
+  let appliedCandidateIds: number[] = [];
+
+  await page.route(
+    `**/api/projects/${project.projectId}/requirements/readjust`,
+    async (route) => {
+      const changeCandidates =
+        readjustCalls++ === 0 ? [firstCandidate] : [replacementCandidate];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          projectId: project.projectId,
+          changeCandidates,
+        }),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${project.projectId}/requirements/readjustments/${firstCandidate.candidateId}`,
+    async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...firstCandidate,
+          reviewStatus: body.reviewStatus,
+          proposedRequirement:
+            body.proposedRequirement ?? firstCandidate.proposedRequirement,
+          reviewedAt: "2026-07-30T00:01:00",
+        }),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${project.projectId}/requirements/readjustments/apply`,
+    async (route) => {
+      appliedCandidateIds = route.request().postDataJSON().candidateIds;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(requirementsResponse([requirement])),
+      });
+    },
+  );
+  await openUpload(page, {
+    documents: [document],
+    requirements: [requirement],
+    real: true,
+  });
+
+  const readjustmentCard = page
+    .getByRole("heading", { name: "요구사항 재조정" })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await readjustmentCard.getByRole("checkbox").check();
+  await readjustmentCard
+    .getByRole("button", { name: "선택 문서로 요구사항 재조정" })
+    .click();
+
+  const firstRow = page.getByRole("row").filter({ hasText: "Legacy candidate" });
+  await firstRow.getByTitle("승인").click();
+  await firstRow.getByRole("checkbox").check();
+
+  await readjustmentCard.getByRole("checkbox").check();
+  await readjustmentCard
+    .getByRole("button", { name: "선택 문서로 요구사항 재조정" })
+    .click();
+
+  await expect(firstRow).toHaveCount(0);
+  const replacementRow = page
+    .getByRole("row")
+    .filter({ hasText: "Replacement candidate" });
+  await expect(replacementRow.getByRole("checkbox")).not.toBeChecked();
+  await replacementRow.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "선택한 승인 결과 반영" }).click();
+  await page.getByRole("button", { name: "반영", exact: true }).click();
+
+  expect(appliedCandidateIds).toEqual([replacementCandidate.candidateId]);
+});
+
 test("shows analysis progress and blocks duplicate submissions", async ({
   page,
 }) => {

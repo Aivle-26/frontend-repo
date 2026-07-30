@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Eye,
@@ -83,6 +83,35 @@ export function RequirementChangeReview({
     [candidates],
   );
 
+  const selectableCandidateIds = useMemo(
+    () => new Set(approvedCandidateIds),
+    [approvedCandidateIds],
+  );
+
+  const selectedCandidateIds = useMemo(
+    () =>
+      approvedCandidateIds.filter((candidateId) => selectedIds.has(candidateId)),
+    [approvedCandidateIds, selectedIds],
+  );
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [projectId]);
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = new Set(
+        [...current].filter((candidateId) =>
+          selectableCandidateIds.has(candidateId),
+        ),
+      );
+      if (next.size === current.size && [...next].every((id) => current.has(id))) {
+        return current;
+      }
+      return next;
+    });
+  }, [selectableCandidateIds]);
+
   const updateCandidate = (updated: RequirementChangeCandidate) => {
     onCandidatesChange(
       candidates.map((candidate) =>
@@ -149,7 +178,7 @@ export function RequirementChangeReview({
   };
 
   const applySelected = async () => {
-    const candidateIds = [...selectedIds];
+    const candidateIds = selectedCandidateIds;
     if (candidateIds.length === 0 || isApplying) return;
     setIsApplying(true);
     try {
@@ -159,7 +188,7 @@ export function RequirementChangeReview({
       );
       onCandidatesChange(
         candidates.map((candidate) =>
-          selectedIds.has(candidate.candidateId)
+          candidateIds.includes(candidate.candidateId)
             ? { ...candidate, applied: true }
             : candidate,
         ),
@@ -374,13 +403,13 @@ export function RequirementChangeReview({
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
           <span className="text-sm text-muted-foreground">
-            반영할 승인 후보 {selectedIds.size}건
+            반영할 승인 후보 {selectedCandidateIds.length}건
           </span>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 type="button"
-                disabled={selectedIds.size === 0 || isApplying}
+                disabled={selectedCandidateIds.length === 0 || isApplying}
               >
                 {isApplying ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -394,7 +423,7 @@ export function RequirementChangeReview({
               <AlertDialogHeader>
                 <AlertDialogTitle>승인 결과를 반영할까요?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  선택한 {selectedIds.size}건만 실제 요구사항에 반영됩니다.
+                  선택한 {selectedCandidateIds.length}건만 실제 요구사항에 반영됩니다.
                   미승인·거절 후보는 변경되지 않습니다.
                 </AlertDialogDescription>
               </AlertDialogHeader>

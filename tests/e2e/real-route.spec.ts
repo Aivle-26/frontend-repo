@@ -277,7 +277,32 @@ test("renders persisted documents and requirements without placeholders", async 
   ).toBeVisible();
   await expect(
     page.getByText(realRequirement.description, { exact: true }),
+  ).toHaveCount(0);
+  const requirementsTable = page.getByRole("table").nth(1);
+  await expect(
+    requirementsTable.getByRole("columnheader", {
+      name: "제목",
+      exact: true,
+    }),
   ).toBeVisible();
+  await expect(
+    requirementsTable.getByRole("columnheader", {
+      name: "설명",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(requirementsTable).toHaveClass(/table-fixed/);
+  await expect(
+    page.getByText(
+      "서버에 저장된 요구사항 제목·유형·검토 상태를 표시합니다.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  expect(
+    await requirementsTable
+      .getByText(realRequirement.title, { exact: true })
+      .evaluate((element) => getComputedStyle(element).whiteSpace),
+  ).toBe("normal");
   await expect(page.getByText("검토 전", { exact: true })).toBeVisible();
   await expect(
     page.getByText("AI 요구사항 추출은 아직 연결되지 않았습니다."),
@@ -530,7 +555,12 @@ test("keeps the real workspace usable without page overflow on mobile", async ({
   page.on("pageerror", (error) => consoleErrors.push(error.message));
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await setupProjectData(page, [realDocument], [realRequirement]);
+  const longTitleRequirement = {
+    ...realRequirement,
+    title:
+      "프로젝트 문서에서 도출된 매우 긴 요구사항 제목도 화면 너비 안에서 자연스럽게 줄바꿈되어야 합니다.",
+  };
+  await setupProjectData(page, [realDocument], [longTitleRequirement]);
   await login(page);
   await openProjectData(page);
 
@@ -546,6 +576,16 @@ test("keeps the real workspace usable without page overflow on mobile", async ({
   }));
   expect(widths.page).toBe(widths.viewport);
   expect(widths.main).toBe(widths.mainViewport);
+  const requirementsTableContainer = page.getByRole("table").nth(1).locator("..");
+  const requirementsTableWidths = await requirementsTableContainer.evaluate(
+    (element) => ({
+      content: element.scrollWidth,
+      viewport: element.clientWidth,
+    }),
+  );
+  expect(requirementsTableWidths.content).toBe(
+    requirementsTableWidths.viewport,
+  );
   expect(consoleErrors).toEqual([]);
 });
 

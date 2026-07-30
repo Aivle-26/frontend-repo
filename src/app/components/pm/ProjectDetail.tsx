@@ -195,6 +195,7 @@ export function ProjectDetail({
           icon={<CalendarClock className="size-4 text-muted-foreground" />}
           label="마감일"
           value={p.dueDate}
+          raw
         />
         <KpiCard
           icon={<AlertTriangle className="size-4 text-destructive" />}
@@ -414,10 +415,13 @@ function KpiCard({
   icon,
   label,
   value,
+  raw,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  /** true면 CountUp 애니메이션 없이 값을 그대로 표시한다. 날짜처럼 숫자를 세는 게 어색한 값에 사용. */
+  raw?: boolean;
 }) {
   return (
     <Card>
@@ -427,7 +431,7 @@ function KpiCard({
           <span>{icon}</span>
         </div>
         <div className="mt-2 text-foreground text-2xl">
-          <CountUp value={value} />
+          {raw ? value : <CountUp value={value} />}
         </div>
       </CardContent>
     </Card>

@@ -76,6 +76,28 @@ test("shows an honest project empty state without demo projects", async ({
   await expect(page.getByText("Slack 연동", { exact: true })).toHaveCount(0);
 });
 
+test("accepts the current backend login session contract", async ({ page }) => {
+  await mockLogin(page);
+  await mockProjectList(page, []);
+  await login(page);
+
+  const storedSession = await page.evaluate(() => {
+    const raw = localStorage.getItem("aipm.authSession");
+    return raw ? JSON.parse(raw) : null;
+  });
+
+  expect(storedSession).toEqual(
+    expect.objectContaining({
+      employeeNumber: "PM-REAL",
+      accessToken: "real-route-access-token",
+      refreshToken: "real-route-refresh-token",
+    }),
+  );
+  expect(storedSession).not.toHaveProperty("lastActivityAt");
+  expect(storedSession).not.toHaveProperty("inactivityTimeoutMinutes");
+  await expect(page.locator("#email")).toHaveCount(0);
+});
+
 test("uses the overview label, hides real filters, and sorts by nearest end date", async ({
   page,
 }) => {
@@ -166,6 +188,69 @@ test("keeps 403 separate from authentication failure", async ({ page }) => {
   ).toBeVisible();
   await expect(page.locator("#email")).toHaveCount(0);
   await expectNoDemoProjects(page);
+});
+
+test("refreshes once with the current backend session contract", async ({
+  page,
+}) => {
+  let projectRequests = 0;
+  let refreshRequests = 0;
+  let refreshRequestBody: unknown;
+
+  await mockLogin(page);
+  await page.route("**/api/users/refresh", async (route) => {
+    refreshRequests += 1;
+    refreshRequestBody = route.request().postDataJSON();
+    const now = Date.now();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        employeeNumber: "PM-REAL",
+        name: "Real Route PM",
+        role: "PM",
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+        accessTokenExpiresAt: now + 3_600_000,
+        absoluteExpiresAt: now + 86_400_000,
+        serverTime: now,
+      }),
+    });
+  });
+  await page.route("**/api/projects", async (route) => {
+    projectRequests += 1;
+    if (projectRequests === 1) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "access expired" }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([realProject]),
+    });
+  });
+  await login(page);
+
+  await expect(page.getByText(realProject.name, { exact: true })).toBeVisible();
+  expect(projectRequests).toBe(2);
+  expect(refreshRequests).toBe(1);
+  expect(refreshRequestBody).toEqual({
+    refreshToken: "real-route-refresh-token",
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("aipm.authSession");
+        return raw ? JSON.parse(raw).accessToken : null;
+      }),
+    )
+    .toBe("refreshed-access-token");
 });
 
 test("returns to login when a 401 cannot be refreshed", async ({ page }) => {
@@ -277,7 +362,32 @@ test("renders persisted documents and requirements without placeholders", async 
   ).toBeVisible();
   await expect(
     page.getByText(realRequirement.description, { exact: true }),
+  ).toHaveCount(0);
+  const requirementsTable = page.getByRole("table").nth(1);
+  await expect(
+    requirementsTable.getByRole("columnheader", {
+      name: "제목",
+      exact: true,
+    }),
   ).toBeVisible();
+  await expect(
+    requirementsTable.getByRole("columnheader", {
+      name: "설명",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(requirementsTable).toHaveClass(/table-fixed/);
+  await expect(
+    page.getByText(
+      "서버에 저장된 요구사항 제목·유형·검토 상태를 표시합니다.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  expect(
+    await requirementsTable
+      .getByText(realRequirement.title, { exact: true })
+      .evaluate((element) => getComputedStyle(element).whiteSpace),
+  ).toBe("normal");
   await expect(page.getByText("검토 전", { exact: true })).toBeVisible();
   await expect(
     page.getByText("AI 요구사항 추출은 아직 연결되지 않았습니다."),
@@ -530,7 +640,12 @@ test("keeps the real workspace usable without page overflow on mobile", async ({
   page.on("pageerror", (error) => consoleErrors.push(error.message));
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await setupProjectData(page, [realDocument], [realRequirement]);
+  const longTitleRequirement = {
+    ...realRequirement,
+    title:
+      "프로젝트 문서에서 도출된 매우 긴 요구사항 제목도 화면 너비 안에서 자연스럽게 줄바꿈되어야 합니다.",
+  };
+  await setupProjectData(page, [realDocument], [longTitleRequirement]);
   await login(page);
   await openProjectData(page);
 
@@ -546,6 +661,16 @@ test("keeps the real workspace usable without page overflow on mobile", async ({
   }));
   expect(widths.page).toBe(widths.viewport);
   expect(widths.main).toBe(widths.mainViewport);
+  const requirementsTableContainer = page.getByRole("table").nth(1).locator("..");
+  const requirementsTableWidths = await requirementsTableContainer.evaluate(
+    (element) => ({
+      content: element.scrollWidth,
+      viewport: element.clientWidth,
+    }),
+  );
+  expect(requirementsTableWidths.content).toBe(
+    requirementsTableWidths.viewport,
+  );
   expect(consoleErrors).toEqual([]);
 });
 
@@ -618,9 +743,7 @@ async function mockLogin(page: Page) {
         refreshToken: "real-route-refresh-token",
         accessTokenExpiresAt: now + 3_600_000,
         absoluteExpiresAt: now + 86_400_000,
-        lastActivityAt: now,
         serverTime: now,
-        inactivityTimeoutMinutes: 30,
       }),
     });
   });

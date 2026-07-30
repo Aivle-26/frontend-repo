@@ -168,9 +168,7 @@ async function mockLogin(page: Page) {
         refreshToken: "e2e-refresh-token",
         accessTokenExpiresAt: now + 3_600_000,
         absoluteExpiresAt: now + 86_400_000,
-        lastActivityAt: now,
         serverTime: now,
-        inactivityTimeoutMinutes: 30,
       }),
     });
   });

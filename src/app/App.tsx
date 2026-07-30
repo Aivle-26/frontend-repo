@@ -4,11 +4,8 @@ import {
   Users,
   AlertTriangle,
   ListTodo,
-  BookOpen,
   Send,
-  MessageSquareReply,
   MessagesSquare,
-  FolderKanban,
   Megaphone,
   FileSearch,
   FileText,
@@ -34,12 +31,8 @@ import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
-import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
 import { StaffRisk, StaffRiskActions } from "@/app/components/staff/StaffRisk";
-import { StaffContext } from "@/app/components/staff/StaffContext";
 import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
-import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
-import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
 import {
   projectRepository,
@@ -82,10 +75,6 @@ const STAFF_MENU: SidebarItem[] = [
   { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
-  { key: "context", label: "RFP 맥락", icon: BookOpen, group: "자료" },
-  { key: "documents", label: "문서 통합 관리", icon: FolderKanban, group: "자료" },
-  { key: "feedback", label: "피드백", icon: MessageSquareReply, group: "소통" },
-  { key: "comments", label: "댓글", icon: MessagesSquare, group: "소통" },
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
@@ -302,16 +291,11 @@ function DemoApplication() {
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
       body = (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <PmRequirements
-            key={selectedProject?.id}
-            project={selectedProject!}
-            onBackToGeneration={() => handleSelect("wbs")}
-          />
-          <div className="xl:sticky xl:top-0 xl:self-start">
-            <PmAnalysis variant="panel" project={selectedProject!} />
-          </div>
-        </div>
+        <PmRequirements
+          key={selectedProject?.id}
+          project={selectedProject!}
+          onBackToGeneration={() => handleSelect("wbs")}
+        />
       );
     } else if (pmMenu === "similar") {
       subtitle = "유사 프로젝트 검색";
@@ -478,25 +462,13 @@ function DemoApplication() {
     } else if (staffMenu === "notice") {
       subtitle = "공지사항";
       body = <StaffNotice />;
-    } else if (staffMenu === "documents") {
-      subtitle = "문서 통합 관리";
-      body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
       body = <StaffRisk projectId={selectedProjectId} />;
       actions = <StaffRiskActions />;
-    } else if (staffMenu === "context") {
-      subtitle = "RFP 맥락";
-      body = <StaffContext />;
     } else if (staffMenu === "submit") {
       subtitle = "산출물 제출";
       body = <StaffSubmit />;
-    } else if (staffMenu === "feedback") {
-      subtitle = "피드백";
-      body = <StaffFeedback />;
-    } else if (staffMenu === "comments") {
-      subtitle = "댓글";
-      body = <StaffComments />;
     } else if (selectedTaskId) {
       subtitle = "업무 상세";
       body = (
@@ -547,6 +519,7 @@ function DemoApplication() {
           projects={projects}
           selectedProjectId={selectedProjectId}
           isPm={isPm}
+          showNotifications={false}
         />
         <main className="flex-1 overflow-y-auto p-6">{body}</main>
       </div>

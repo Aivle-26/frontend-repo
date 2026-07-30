@@ -5,6 +5,7 @@ import featureSchedule from "@assets/landing/feature-schedule.png";
 import featureRisk from "@assets/landing/feature-risk.png";
 import { Label } from "@/app/components/ui/label";
 import { cn } from "@/app/components/ui/utils";
+import { SiteFooter } from "@/app/components/common/SiteFooter_our";
 
 export const LOGIN_BLUE = "#2F6FF2";
 export const EMAIL_EXAMPLE = "user@bidworks.ai";
@@ -110,8 +111,8 @@ interface AuthShellProps {
 /** 좌측 소개 패널 + 우측 카드 2단 레이아웃 */
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
-    <div className="min-h-screen bg-[#f8fbff] px-4 py-4 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1560px] items-center">
+    <div className="flex min-h-screen flex-col bg-[#f8fbff]">
+      <div className="mx-auto flex w-full max-w-[1560px] flex-1 items-center px-4 py-4 sm:px-6">
         <div className="grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:gap-16">
           <LandingPanel />
 
@@ -141,6 +142,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
           </div>
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

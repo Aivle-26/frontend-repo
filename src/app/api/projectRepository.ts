@@ -76,9 +76,7 @@ export interface LoginVerifyResponse {
   refreshToken: string | null;
   accessTokenExpiresAt: number;
   absoluteExpiresAt: number;
-  lastActivityAt: number;
   serverTime: number;
-  inactivityTimeoutMinutes: number;
 }
 
 export interface AuthSession {
@@ -89,9 +87,7 @@ export interface AuthSession {
   refreshToken: string | null;
   accessTokenExpiresAt: number;
   absoluteExpiresAt: number;
-  lastActivityAt: number;
   serverTime: number;
-  inactivityTimeoutMinutes: number;
 }
 
 export interface AuthSessionResponse extends AuthSession {
@@ -300,9 +296,7 @@ function normalizeSession(response: LoginVerifyResponse | AuthSessionResponse): 
     refreshToken: response.refreshToken,
     accessTokenExpiresAt: response.accessTokenExpiresAt,
     absoluteExpiresAt: response.absoluteExpiresAt,
-    lastActivityAt: response.lastActivityAt,
     serverTime: response.serverTime,
-    inactivityTimeoutMinutes: response.inactivityTimeoutMinutes,
   };
 }
 
@@ -365,12 +359,8 @@ function isStoredSession(session: unknown): session is AuthSession {
     Number.isFinite(candidate.accessTokenExpiresAt) &&
     typeof candidate.absoluteExpiresAt === "number" &&
     Number.isFinite(candidate.absoluteExpiresAt) &&
-    typeof candidate.lastActivityAt === "number" &&
-    Number.isFinite(candidate.lastActivityAt) &&
     typeof candidate.serverTime === "number" &&
-    Number.isFinite(candidate.serverTime) &&
-    typeof candidate.inactivityTimeoutMinutes === "number" &&
-    Number.isFinite(candidate.inactivityTimeoutMinutes)
+    Number.isFinite(candidate.serverTime)
   );
 }
 

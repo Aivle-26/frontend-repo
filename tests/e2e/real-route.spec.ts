@@ -76,6 +76,28 @@ test("shows an honest project empty state without demo projects", async ({
   await expect(page.getByText("Slack 연동", { exact: true })).toHaveCount(0);
 });
 
+test("accepts the current backend login session contract", async ({ page }) => {
+  await mockLogin(page);
+  await mockProjectList(page, []);
+  await login(page);
+
+  const storedSession = await page.evaluate(() => {
+    const raw = localStorage.getItem("aipm.authSession");
+    return raw ? JSON.parse(raw) : null;
+  });
+
+  expect(storedSession).toEqual(
+    expect.objectContaining({
+      employeeNumber: "PM-REAL",
+      accessToken: "real-route-access-token",
+      refreshToken: "real-route-refresh-token",
+    }),
+  );
+  expect(storedSession).not.toHaveProperty("lastActivityAt");
+  expect(storedSession).not.toHaveProperty("inactivityTimeoutMinutes");
+  await expect(page.locator("#email")).toHaveCount(0);
+});
+
 test("uses the overview label, hides real filters, and sorts by nearest end date", async ({
   page,
 }) => {
@@ -166,6 +188,69 @@ test("keeps 403 separate from authentication failure", async ({ page }) => {
   ).toBeVisible();
   await expect(page.locator("#email")).toHaveCount(0);
   await expectNoDemoProjects(page);
+});
+
+test("refreshes once with the current backend session contract", async ({
+  page,
+}) => {
+  let projectRequests = 0;
+  let refreshRequests = 0;
+  let refreshRequestBody: unknown;
+
+  await mockLogin(page);
+  await page.route("**/api/users/refresh", async (route) => {
+    refreshRequests += 1;
+    refreshRequestBody = route.request().postDataJSON();
+    const now = Date.now();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        employeeNumber: "PM-REAL",
+        name: "Real Route PM",
+        role: "PM",
+        accessToken: "refreshed-access-token",
+        refreshToken: "refreshed-refresh-token",
+        accessTokenExpiresAt: now + 3_600_000,
+        absoluteExpiresAt: now + 86_400_000,
+        serverTime: now,
+      }),
+    });
+  });
+  await page.route("**/api/projects", async (route) => {
+    projectRequests += 1;
+    if (projectRequests === 1) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "access expired" }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([realProject]),
+    });
+  });
+  await login(page);
+
+  await expect(page.getByText(realProject.name, { exact: true })).toBeVisible();
+  expect(projectRequests).toBe(2);
+  expect(refreshRequests).toBe(1);
+  expect(refreshRequestBody).toEqual({
+    refreshToken: "real-route-refresh-token",
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("aipm.authSession");
+        return raw ? JSON.parse(raw).accessToken : null;
+      }),
+    )
+    .toBe("refreshed-access-token");
 });
 
 test("returns to login when a 401 cannot be refreshed", async ({ page }) => {
@@ -658,9 +743,7 @@ async function mockLogin(page: Page) {
         refreshToken: "real-route-refresh-token",
         accessTokenExpiresAt: now + 3_600_000,
         absoluteExpiresAt: now + 86_400_000,
-        lastActivityAt: now,
         serverTime: now,
-        inactivityTimeoutMinutes: 30,
       }),
     });
   });

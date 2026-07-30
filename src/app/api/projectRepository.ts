@@ -152,25 +152,6 @@ export type RequirementType =
   | "PROJECT_MANAGEMENT"
   | "UNSPECIFIED";
 
-export interface NormalizedBoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface RequirementEvidence {
-  evidenceId: number | null;
-  documentId: number;
-  sourceDocument: string;
-  pageNumber: number | null;
-  chunkId: string;
-  quoteText: string;
-  startOffset: number | null;
-  endOffset: number | null;
-  boundingBoxes: NormalizedBoundingBox[];
-}
-
 export interface RequirementResponse {
   requirementId: number;
   analysisResultId: number | null;
@@ -190,63 +171,12 @@ export interface RequirementResponse {
   confirmed: boolean;
   createdAt: string;
   updatedAt: string;
-  evidences: RequirementEvidence[];
 }
 
 export interface RequirementsResult {
   projectId: number;
   aiSuggestions: RequirementResponse[];
   finalRequirements: RequirementResponse[];
-}
-
-export type RequirementChangeType =
-  | "ADDED"
-  | "MODIFIED"
-  | "REMOVED"
-  | "UNCHANGED";
-export type RequirementChangeReviewStatus =
-  | "PENDING_REVIEW"
-  | "APPROVED"
-  | "REJECTED";
-
-export interface RequirementChangeProposal {
-  requirementId: number | null;
-  sourceDocumentId: number;
-  functionName: string;
-  requirementText: string;
-  category: RequirementType;
-  priority: RequirementPriority;
-  acceptanceCriteria: string | null;
-  dueDate: string | null;
-  deliverableName: string | null;
-  securityCondition: string | null;
-  sourceDocument: string;
-  sourceExcerpt: string | null;
-  evidences: RequirementEvidence[];
-}
-
-export interface RequirementChangeCandidate {
-  candidateId: number;
-  existingRequirementId: number | null;
-  changeType: RequirementChangeType;
-  reviewStatus: RequirementChangeReviewStatus;
-  changeReason: string;
-  existingRequirement: RequirementChangeProposal | null;
-  proposedRequirement: RequirementChangeProposal | null;
-  evidences: RequirementEvidence[];
-  applied: boolean;
-  createdAt: string;
-  reviewedAt: string | null;
-}
-
-export interface RequirementReadjustmentResult {
-  projectId: number;
-  changeCandidates: RequirementChangeCandidate[];
-}
-
-export interface ReviewRequirementChangeRequest {
-  reviewStatus: RequirementChangeReviewStatus;
-  proposedRequirement?: RequirementChangeProposal | null;
 }
 
 export interface SaveFinalRequirement {
@@ -310,6 +240,14 @@ export interface WbsTask {
   orderIndex: number;
   requirementIds: number[];
   confirmed: boolean;
+  itemType?: string | null;
+  level?: number | null;
+  completionCriteria?: string[];
+  relatedArtifacts?: Array<{
+    artifactType: string;
+    artifactName: string;
+    requiredVersion: string | null;
+  }>;
 }
 
 export interface WbsResult {
@@ -335,11 +273,58 @@ export interface SaveFinalWbsTask {
   estimatedHours: number;
   orderIndex: number;
   requirementIds: number[];
+  relatedArtifacts?: Array<{
+    artifactType: string;
+    artifactName: string;
+    requiredVersion: string | null;
+  }>;
+  completionCriteria?: string[];
 }
 
 export interface SaveFinalWbsRequest {
   tasks: SaveFinalWbsTask[];
 }
+
+export interface ScheduleDateRange {
+  startDate: string;
+  endDate: string;
+}
+
+export interface WbsScheduleRecommendation {
+  wbsId: number;
+  expected: ScheduleDateRange;
+  recommended: ScheduleDateRange;
+  conservative: ScheduleDateRange;
+}
+
+export interface ScheduleRecommendationResponse {
+  projectId: number;
+  wbsSchedules: WbsScheduleRecommendation[];
+  warnings: string[];
+}
+
+type RawScheduleDateRange = {
+  startDate?: unknown;
+  endDate?: unknown;
+  start_date?: unknown;
+  end_date?: unknown;
+};
+
+type RawWbsScheduleRecommendation = {
+  wbsId?: unknown;
+  wbs_id?: unknown;
+  expected?: RawScheduleDateRange;
+  recommended?: RawScheduleDateRange;
+  conservative?: RawScheduleDateRange;
+};
+
+type RawScheduleRecommendationResponse = {
+  projectId?: unknown;
+  project_id?: unknown;
+  wbsSchedules?: RawWbsScheduleRecommendation[];
+  wbs_schedules?: RawWbsScheduleRecommendation[];
+  warnings?: unknown;
+};
 
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
@@ -583,54 +568,50 @@ async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> 
   return payload as T;
 }
 
-async function apiFetchBlob(
-  path: string,
-  init: ApiRequestInit = {},
-): Promise<Blob> {
-  const {
-    auth = false,
-    retryOnUnauthorized = true,
-    headers,
-    ...requestInit
-  } = init;
-  const requestHeaders = new Headers(headers);
-  if (auth) {
-    const session = readSession();
-    if (session?.accessToken) {
-      requestHeaders.set("Authorization", `Bearer ${session.accessToken}`);
-    }
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...requestInit,
-    headers: requestHeaders,
-  });
-  if (!response.ok) {
-    if (auth && response.status === 401 && retryOnUnauthorized) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        return apiFetchBlob(path, {
-          ...init,
-          retryOnUnauthorized: false,
-        });
-      }
-    }
-    const payload = await parseResponse(response);
-    if (auth && response.status === 401) {
-      clearSession();
-      emitAuthExpired();
-    }
-    throw new ApiError(
-      response.status,
-      getErrorMessage(payload, response.statusText),
-      payload,
-    );
-  }
-  return response.blob();
-}
-
 export function toFrontendRole(role?: string): Role {
   return role?.trim().toLowerCase() === "pm" ? "pm" : "staff";
+}
+
+function normalizeScheduleDateRange(value: RawScheduleDateRange | undefined): ScheduleDateRange {
+  const startDate = value?.startDate ?? value?.start_date;
+  const endDate = value?.endDate ?? value?.end_date;
+
+  if (typeof startDate !== "string" || typeof endDate !== "string") {
+    throw new ApiError(502, "AI 일정 추천 응답의 날짜 형식이 올바르지 않습니다.", value);
+  }
+
+  return { startDate, endDate };
+}
+
+function normalizeScheduleRecommendation(
+  raw: RawScheduleRecommendationResponse,
+): ScheduleRecommendationResponse {
+  const projectId = Number(raw.projectId ?? raw.project_id);
+  const schedules = raw.wbsSchedules ?? raw.wbs_schedules;
+
+  if (!Number.isInteger(projectId) || !Array.isArray(schedules)) {
+    throw new ApiError(502, "AI 일정 추천 응답 형식이 올바르지 않습니다.", raw);
+  }
+
+  return {
+    projectId,
+    wbsSchedules: schedules.map((item) => {
+      const wbsId = Number(item.wbsId ?? item.wbs_id);
+      if (!Number.isInteger(wbsId)) {
+        throw new ApiError(502, "AI 일정 추천 응답의 WBS 식별자가 올바르지 않습니다.", item);
+      }
+
+      return {
+        wbsId,
+        expected: normalizeScheduleDateRange(item.expected),
+        recommended: normalizeScheduleDateRange(item.recommended),
+        conservative: normalizeScheduleDateRange(item.conservative),
+      };
+    }),
+    warnings: Array.isArray(raw.warnings)
+      ? raw.warnings.filter((item): item is string => typeof item === "string")
+      : [],
+  };
 }
 
 export const projectRepository = {
@@ -786,6 +767,16 @@ export const projectRepository = {
     );
   },
 
+  recommendSchedule(projectId: string | number) {
+    return apiFetch<RawScheduleRecommendationResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/schedules/recommend`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    ).then(normalizeScheduleRecommendation);
+  },
+
   uploadProjectDocuments(projectId: string | number, files: File[]) {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -808,17 +799,6 @@ export const projectRepository = {
     );
   },
 
-  getProjectDocumentContent(
-    projectId: string | number,
-    documentId: string | number,
-    signal?: AbortSignal,
-  ) {
-    return apiFetchBlob(
-      `/projects/${encodeURIComponent(String(projectId))}/documents/${encodeURIComponent(String(documentId))}/content`,
-      { auth: true, signal },
-    );
-  },
-
   analyzeProjectRequirements(
     projectId: string | number,
     input: AnalyzeProjectRequirementsRequest,
@@ -830,57 +810,6 @@ export const projectRepository = {
         body: JSON.stringify(input),
         auth: true,
         expectedStatuses: [200],
-      },
-    );
-  },
-
-  readjustProjectRequirements(
-    projectId: string | number,
-    input: AnalyzeProjectRequirementsRequest,
-  ) {
-    return apiFetch<RequirementReadjustmentResult>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjust`,
-      {
-        method: "POST",
-        body: JSON.stringify(input),
-        auth: true,
-        expectedStatuses: [200],
-      },
-    );
-  },
-
-  listRequirementReadjustments(projectId: string | number) {
-    return apiFetch<RequirementReadjustmentResult>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments`,
-      { auth: true },
-    );
-  },
-
-  reviewRequirementChange(
-    projectId: string | number,
-    candidateId: string | number,
-    input: ReviewRequirementChangeRequest,
-  ) {
-    return apiFetch<RequirementChangeCandidate>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/${encodeURIComponent(String(candidateId))}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(input),
-        auth: true,
-      },
-    );
-  },
-
-  applyRequirementChanges(
-    projectId: string | number,
-    candidateIds: number[],
-  ) {
-    return apiFetch<RequirementsResult>(
-      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/apply`,
-      {
-        method: "POST",
-        body: JSON.stringify({ candidateIds }),
-        auth: true,
       },
     );
   },

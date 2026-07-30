@@ -4,8 +4,11 @@ import {
   Users,
   AlertTriangle,
   ListTodo,
+  BookOpen,
   Send,
+  MessageSquareReply,
   MessagesSquare,
+  FolderKanban,
   Megaphone,
   FileSearch,
   FileText,
@@ -31,8 +34,12 @@ import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
+import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
 import { StaffRisk, StaffRiskActions } from "@/app/components/staff/StaffRisk";
+import { StaffContext } from "@/app/components/staff/StaffContext";
 import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
+import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
+import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
 import {
   projectRepository,
@@ -43,6 +50,8 @@ import {
 import { slackApi } from "@/app/api/slackApi";
 import type { ProjectSummary as FrontendProjectSummary } from "@/app/projects/projectTypes";
 import { PmGeneration } from "@/app/components/pm/PmGeneration";
+import { PmWbs } from "@/app/components/pm/PmWbs";
+import { PmSchedule } from "@/app/components/pm/PmSchedule";
 import {
   getProjectLoadError,
   getProjectLoadStatus,
@@ -52,10 +61,9 @@ import {
 import { mapApiProject } from "@/app/projects/projectMapping";
 import { RealApplication } from "@/app/real/RealApplication";
 
-// 업무 중심(Task Flow) IA — 확정 9개 메뉴.
-// 공지사항은 [프로젝트] 페이지 상단에 통합, AI 기능은 각 화면 내 액션으로 흡수한다.
+// 업무 중심(Task Flow) IA. 공지사항은 프로젝트 화면에서 분리해 사이드바 하단 독립 메뉴로 둔다.
 const PM_MENU: SidebarItem[] = [
-  // [개요] — 프로젝트 페이지 상단에 공지사항 포함
+  // [개요]
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
   // [계획]
   { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
@@ -70,11 +78,19 @@ const PM_MENU: SidebarItem[] = [
   { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
+const PM_BOTTOM_MENU: SidebarItem[] = [
+  { key: "notice", label: "공지사항", icon: Megaphone },
+];
+
 const STAFF_MENU: SidebarItem[] = [
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
+  { key: "context", label: "RFP 맥락", icon: BookOpen, group: "자료" },
+  { key: "documents", label: "문서 통합 관리", icon: FolderKanban, group: "자료" },
+  { key: "feedback", label: "피드백", icon: MessageSquareReply, group: "소통" },
+  { key: "comments", label: "댓글", icon: MessagesSquare, group: "소통" },
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
@@ -123,8 +139,6 @@ function DemoApplication() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     "",
   );
-  // 요구사항 페이지 상단 문서 업로드/분석 후 아래 요구사항 목록을 재조회하기 위한 키
-  const [requirementsRefreshKey, setRequirementsRefreshKey] = useState(0);
 
 
   const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
@@ -293,42 +307,15 @@ function DemoApplication() {
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
       body = (
-        <div className="space-y-4">
-          {/* 상단: 백엔드 연동 문서 업로드(파일 선택·업로드·요구사항 분석) */}
-          <PmUpload
-            key={selectedProject?.id}
-            project={selectedProject!}
-            onDocumentsUploaded={(documents) => {
-              setProjects((currentProjects) =>
-                currentProjects.map((currentProject) =>
-                  currentProject.id === selectedProject!.id
-                    ? {
-                        ...currentProject,
-                        docs: [
-                          ...currentProject.docs,
-                          ...documents.map((document) => ({
-                            name: document.originalFileName,
-                            type: "RFP" as const,
-                          })),
-                        ],
-                        updatedAt: "방금",
-                      }
-                    : currentProject,
-                ),
-              );
-            }}
-            onAnalysisComplete={() =>
-              // 업로드 문서 분석 완료 → 아래 요구사항 목록 재조회
-              setRequirementsRefreshKey((key) => key + 1)
-            }
-          />
-
-          {/* 하단: 업로드/분석된 결과 기반 요구사항 목록 */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <PmRequirements
-            key={`${selectedProject?.id}:${requirementsRefreshKey}`}
+            key={selectedProject?.id}
             project={selectedProject!}
             onBackToGeneration={() => handleSelect("wbs")}
           />
+          <div className="xl:sticky xl:top-0 xl:self-start">
+            <PmAnalysis variant="panel" project={selectedProject!} />
+          </div>
         </div>
       );
     } else if (pmMenu === "similar") {
@@ -367,19 +354,17 @@ function DemoApplication() {
     } else if (pmMenu === "wbs") {
       subtitle = "WBS";
       body = (
-        <PmGeneration
+        <PmWbs
           key={selectedProject?.id}
           project={selectedProject!}
-          view="wbs"
         />
       );
     } else if (pmMenu === "schedule") {
       subtitle = "일정";
       body = (
-        <PmGeneration
+        <PmSchedule
           key={selectedProject?.id}
           project={selectedProject!}
-          view="schedule"
         />
       );
     } else if (pmMenu === "assign") {
@@ -415,6 +400,15 @@ function DemoApplication() {
         <RiskManagement
           key={selectedProject?.id}
           project={selectedProject!}
+        />
+      );
+    } else if (pmMenu === "notice") {
+      subtitle = "공지사항";
+      body = (
+        <StaffNotice
+          canCreate
+          authorName={authSession.name || "PM"}
+          excludeCategories={["PM 피드백"]}
         />
       );
     } else if (pmWizard) {
@@ -463,7 +457,6 @@ function DemoApplication() {
           projects={projects}
           setProjects={setProjects}
           pmEmployeeNumber={authSession.employeeNumber}
-          noticeAuthorName={authSession.name || "PM"}
           projectLoadStatus={projectLoadStatus}
           projectLoadError={projectLoadError}
           onProjectCreated={(project) => {
@@ -496,13 +489,25 @@ function DemoApplication() {
     } else if (staffMenu === "notice") {
       subtitle = "공지사항";
       body = <StaffNotice />;
+    } else if (staffMenu === "documents") {
+      subtitle = "문서 통합 관리";
+      body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
       body = <StaffRisk projectId={selectedProjectId} />;
       actions = <StaffRiskActions />;
+    } else if (staffMenu === "context") {
+      subtitle = "RFP 맥락";
+      body = <StaffContext />;
     } else if (staffMenu === "submit") {
       subtitle = "산출물 제출";
       body = <StaffSubmit />;
+    } else if (staffMenu === "feedback") {
+      subtitle = "피드백";
+      body = <StaffFeedback />;
+    } else if (staffMenu === "comments") {
+      subtitle = "댓글";
+      body = <StaffComments />;
     } else if (selectedTaskId) {
       subtitle = "업무 상세";
       body = (
@@ -541,7 +546,12 @@ function DemoApplication() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
-      <Sidebar items={menu} active={activeMenu} onSelect={handleSelect} />
+      <Sidebar
+        items={menu}
+        bottomItems={isPm ? PM_BOTTOM_MENU : undefined}
+        active={activeMenu}
+        onSelect={handleSelect}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           title={subtitle}
@@ -553,7 +563,6 @@ function DemoApplication() {
           projects={projects}
           selectedProjectId={selectedProjectId}
           isPm={isPm}
-          showNotifications={false}
         />
         <main className="flex-1 overflow-y-auto p-6">{body}</main>
       </div>

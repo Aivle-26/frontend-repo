@@ -5,6 +5,8 @@ import {
   ListChecks,
   Loader2,
   Network,
+  Play,
+  RotateCcw,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -55,21 +57,18 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
 
 const LANDING_FEATURES = [
   {
-    title: "AI 기반 RFP 분석",
-    description:
-      "AI가 문서를 분석해 핵심 요구사항과 평가 기준을 추출하고 정리합니다.",
+    title: "AI 기반 문서 분석",
+    short: "핵심 요구사항·평가 기준 추출",
     icon: featureRfpAnalysis,
   },
   {
     title: "스마트 일정 관리",
-    description:
-      "주요 마일스톤과 일정을 시작부터 진행 상황까지 한눈에 파악하세요.",
+    short: "마일스톤·진행 현황 한눈에",
     icon: featureSchedule,
   },
   {
     title: "리스크 감지 & 대응",
-    description:
-      "잠재 리스크를 AI가 사전에 감지하고 대응 우선순위를 제안합니다.",
+    short: "잠재 리스크 사전 감지·대응",
     icon: featureRisk,
   },
 ] as const;
@@ -87,12 +86,16 @@ const DEMO_ROWS = [
 // 각 단계 지속시간(ms). 마지막 단계는 '분석 완료' 정지 → 이후 루프 리셋.
 const DEMO_PHASE_MS = [1200, 900, 900, 900, 2000];
 
-/** 0 → target 까지 부드럽게 카운트업. run=false면 0으로 리셋. */
-function useCountUp(target: number, run: boolean, duration = 650) {
-  const [value, setValue] = useState(0);
+/** 0 → target 까지 부드럽게 카운트업. run=false면 0으로 리셋. instant=true면 애니메이션 없이 즉시 target. */
+function useCountUp(target: number, run: boolean, instant = false, duration = 650) {
+  const [value, setValue] = useState(run && instant ? target : 0);
   useEffect(() => {
     if (!run) {
       setValue(0);
+      return;
+    }
+    if (instant) {
+      setValue(target);
       return;
     }
     let raf = 0;
@@ -105,18 +108,20 @@ function useCountUp(target: number, run: boolean, duration = 650) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target, run, duration]);
+  }, [target, run, instant, duration]);
   return value;
 }
 
 function DemoResultRow({
   row,
   visible,
+  instant,
 }: {
   row: (typeof DEMO_ROWS)[number];
   visible: boolean;
+  instant: boolean;
 }) {
-  const value = useCountUp(row.target, visible);
+  const value = useCountUp(row.target, visible, instant);
   const Icon = row.icon;
   const done = visible && value >= row.target;
   return (
@@ -144,21 +149,42 @@ function DemoResultRow({
   );
 }
 
+// 데모 완료 여부를 세션 동안 기억 → 로그인↔회원가입 이동 시 완료 상태 유지(재생 X)
+let demoCompleted = false;
+
 function LiveExtractDemo() {
-  const [phase, setPhase] = useState(0);
+  const lastPhase = DEMO_PHASE_MS.length - 1;
+  const [started, setStarted] = useState(() => demoCompleted);
+  const [phase, setPhase] = useState(() => (demoCompleted ? lastPhase : 0));
+  // 복원된 완료 상태에서는 카운트업 애니메이션 없이 즉시 최종값 표시
+  const [instant, setInstant] = useState(() => demoCompleted);
+
+  const done = started && phase >= lastPhase;
+  const running = started && !done;
+
   useEffect(() => {
+    if (done) demoCompleted = true;
+  }, [done]);
+
+  useEffect(() => {
+    if (!running || instant) return;
     const timer = window.setTimeout(
-      () => setPhase((current) => (current + 1) % DEMO_PHASE_MS.length),
+      () => setPhase((current) => Math.min(current + 1, lastPhase)),
       DEMO_PHASE_MS[phase],
     );
     return () => window.clearTimeout(timer);
-  }, [phase]);
+  }, [running, instant, phase, lastPhase]);
 
-  const done = phase === DEMO_PHASE_MS.length - 1;
-  const progress = (phase / (DEMO_PHASE_MS.length - 1)) * 100;
+  const start = () => {
+    setInstant(false);
+    setPhase(0);
+    setStarted(true);
+  };
+
+  const progress = started ? (phase / lastPhase) * 100 : 0;
 
   return (
-    <div className="mt-10 w-full max-w-[380px] rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-sm">
+    <div className="w-full max-w-[380px] shrink-0 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-sm">
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf1ff]">
@@ -173,11 +199,13 @@ function LiveExtractDemo() {
               <>
                 <Check className="size-3.5 text-emerald-500" /> 분석 완료
               </>
-            ) : (
+            ) : running ? (
               <>
                 <Loader2 className="size-3.5 animate-spin text-[#2F6FF2]" /> 제안요청서
                 분석 중…
               </>
+            ) : (
+              <>분석 대기</>
             )}
           </div>
         </div>
@@ -194,18 +222,61 @@ function LiveExtractDemo() {
         />
       </div>
 
-      {/* 결과 (하나씩 카운트업하며 등장) */}
-      <div className="mt-3 space-y-1">
-        {DEMO_ROWS.map((row, index) => (
-          <DemoResultRow key={row.label} row={row} visible={phase >= index + 1} />
-        ))}
+      {/* 결과 영역 — 높이 완전 고정으로 시작 전/후 크기 변화 없음 */}
+      <div className="mt-3 flex h-[152px] flex-col justify-center overflow-hidden">
+        {started ? (
+          <div className="space-y-1">
+            {DEMO_ROWS.map((row, index) => (
+              <DemoResultRow
+                key={row.label}
+                row={row}
+                visible={phase >= index + 1}
+                instant={instant}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 text-center">
+            <button
+              type="button"
+              onClick={start}
+              className="inline-flex items-center gap-2 rounded-full bg-[#2F6FF2] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(47,111,242,0.30)] transition hover:opacity-95"
+            >
+              <Play className="size-4" /> 분석 시작
+            </button>
+            <span className="text-xs text-slate-400">
+              버튼을 누르면 AI가 문서를 분석합니다
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 하단 액션 — 높이를 항상 고정해 완료 시 카드 크기가 변하지 않게 */}
+      <div className="mt-2 flex h-6 items-center justify-end">
+        {done && (
+          <button
+            type="button"
+            onClick={start}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2F6FF2] transition hover:underline"
+          >
+            <RotateCcw className="size-3.5" /> 다시 분석
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
+// 히어로 글자 애니메이션은 한 세션에 한 번만. (로그인↔회원가입 이동 시 재생 방지)
+let heroRevealed = false;
+
 /** 좌측 브랜드/소개 패널 */
 function LandingPanel() {
+  const [revealHero] = useState(() => !heroRevealed);
+  useEffect(() => {
+    heroRevealed = true;
+  }, []);
+
   return (
     <section className="relative overflow-hidden rounded-[36px] bg-white/70 px-6 py-8 sm:px-8 lg:min-h-[820px] lg:px-10 lg:py-10 xl:px-14 xl:py-12">
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[36px]">
@@ -225,14 +296,22 @@ function LandingPanel() {
         <div className="mt-10 max-w-[720px] lg:mt-16">
           <h1 className="text-[2.85rem] font-bold leading-[1.16] text-[#0f172a] sm:text-[3.5rem] lg:text-[4.2rem]">
             <span className="block">
-              <RevealChars text={HERO_LINE_1} startDelay={0} />
+              {revealHero ? (
+                <RevealChars text={HERO_LINE_1} startDelay={0} />
+              ) : (
+                HERO_LINE_1
+              )}
             </span>
             <span className="mt-2 block text-[#2F6FF2]">
-              <RevealChars text={HERO_LINE_2} startDelay={HERO_LINE_2_DELAY} />
+              {revealHero ? (
+                <RevealChars text={HERO_LINE_2} startDelay={HERO_LINE_2_DELAY} />
+              ) : (
+                HERO_LINE_2
+              )}
             </span>
           </h1>
           <p className="mt-8 max-w-[620px] text-[1.18rem] leading-[1.75] text-slate-700 sm:text-[1.28rem]">
-            BidWorks AI는 RFP를 분석하고 요구사항을 체계화하여
+            BidWorks AI는 사업 문서를 분석해 요구사항을 체계화하여
             <br />
             PM과 팀의 업무를 효율화합니다.
             <br />
@@ -242,33 +321,33 @@ function LandingPanel() {
           </p>
         </div>
 
-        <LiveExtractDemo />
+        {/* 데모 카드(왼쪽) + 기능 한 줄 3개(오른쪽) */}
+        <div className="mt-10 flex flex-col gap-5 lg:mt-14 lg:flex-row lg:items-stretch lg:gap-8">
+          <LiveExtractDemo />
 
-        <div className="mt-12 grid gap-8 md:grid-cols-3 lg:mt-auto lg:pt-16">
-          {LANDING_FEATURES.map((feature, index) => (
-            <div
-              key={feature.title}
-              className={cn(
-                "group relative flex max-w-[280px] cursor-default flex-col rounded-3xl p-4 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:bg-white hover:shadow-[0_26px_60px_rgba(15,23,42,0.12)] sm:p-5",
-                index < LANDING_FEATURES.length - 1 &&
-                  "md:pr-8 md:after:absolute md:after:right-0 md:after:top-3 md:after:h-[190px] md:after:w-px md:after:bg-slate-200/90 md:after:transition-opacity md:after:duration-300 md:group-hover:after:opacity-0",
-              )}
-            >
-              {/* hover 시 은은한 파란 그라데이션 sheen */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_top,_rgba(47,111,242,0.10),_transparent_60%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <img
-                src={feature.icon}
-                alt={feature.title}
-                className="relative h-20 w-20 object-contain transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-110"
-              />
-              <h2 className="relative mt-5 text-[1.8rem] font-bold tracking-tight text-[#0f172a] transition-colors duration-300 group-hover:text-[#2F6FF2]">
-                {feature.title}
-              </h2>
-              <p className="relative mt-4 text-[1.05rem] leading-8 text-slate-600 transition-colors duration-300 group-hover:text-slate-700">
-                {feature.description}
-              </p>
-            </div>
-          ))}
+          {/* 반투명 배경으로 뒤 배경 이미지 위에서도 가독성 확보 */}
+          <div className="flex flex-1 flex-col justify-center gap-1 rounded-3xl bg-white/45 p-2.5 backdrop-blur-sm">
+            {LANDING_FEATURES.map((feature) => (
+              <div
+                key={feature.title}
+                className="group flex cursor-default items-center gap-3 rounded-2xl p-3 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)]"
+              >
+                <img
+                  src={feature.icon}
+                  alt=""
+                  className="size-11 shrink-0 object-contain transition-transform duration-300 ease-out group-hover:scale-110"
+                />
+                <div className="min-w-0">
+                  <div className="text-[1.05rem] font-bold text-[#0f172a] transition-colors duration-200 group-hover:text-[#2F6FF2]">
+                    {feature.title}
+                  </div>
+                  <div className="truncate text-[13px] leading-5 text-slate-500">
+                    {feature.short}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

@@ -201,7 +201,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   return (
     <AuthShell
       title="회원가입"
-      subtitle="AI 기반 RFP 프로젝트 관리"
+      subtitle="공공 사업 프로젝트 관리"
       footer={
         <p className="text-center text-sm text-slate-500">
           이미 계정이 있으신가요?{" "}

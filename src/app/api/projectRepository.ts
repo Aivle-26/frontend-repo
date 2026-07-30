@@ -811,10 +811,11 @@ export const projectRepository = {
   getProjectDocumentContent(
     projectId: string | number,
     documentId: string | number,
+    signal?: AbortSignal,
   ) {
     return apiFetchBlob(
       `/projects/${encodeURIComponent(String(projectId))}/documents/${encodeURIComponent(String(documentId))}/content`,
-      { auth: true },
+      { auth: true, signal },
     );
   },
 

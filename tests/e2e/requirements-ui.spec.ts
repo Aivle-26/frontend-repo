@@ -75,6 +75,13 @@ const requirementWithEvidence = {
 const evidencePdfBase64 =
   "JVBERi0xLjMKJeLjz9MKMSAwIG9iago8PAovUHJvZHVjZXIgKHB5cGRmKQo+PgplbmRvYmoKMiAwIG9iago8PAovVHlwZSAvUGFnZXMKL0NvdW50IDIKL0tpZHMgWyA0IDAgUiA3IDAgUiBdCj4+CmVuZG9iagozIDAgb2JqCjw8Ci9UeXBlIC9DYXRhbG9nCi9QYWdlcyAyIDAgUgo+PgplbmRvYmoKNCAwIG9iago8PAovVHlwZSAvUGFnZQovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA1IDAgUgo+Pgo+PgovTWVkaWFCb3ggWyAwLjAgMC4wIDYxMiA3OTIgXQovUGFyZW50IDIgMCBSCi9Db250ZW50cyA2IDAgUgo+PgplbmRvYmoKNSAwIG9iago8PAovVHlwZSAvRm9udAovU3VidHlwZSAvVHlwZTEKL0Jhc2VGb250IC9IZWx2ZXRpY2EKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0xlbmd0aCA0MQo+PgpzdHJlYW0KQlQgL0YxIDE0IFRmIDcyIDcyMCBUZCAoQ292ZXIgcGFnZSkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago3IDAgb2JqCjw8Ci9UeXBlIC9QYWdlCi9SZXNvdXJjZXMgPDwKL0ZvbnQgPDwKL0YxIDggMCBSCj4+Cj4+Ci9NZWRpYUJveCBbIDAuMCAwLjAgNjEyIDc5MiBdCi9QYXJlbnQgMiAwIFIKL0NvbnRlbnRzIDkgMCBSCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKOSAwIG9iago8PAovTGVuZ3RoIDc4Cj4+CnN0cmVhbQpCVCAvRjEgMTQgVGYgNzIgNzIwIFRkIChMb2dpbiBtdXN0IHN1cHBvcnQgbXVsdGkgZmFjdG9yIGF1dGhlbnRpY2F0aW9uLikgVGogRVQKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgMTAKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwNTQgMDAwMDAgbiAKMDAwMDAwMDExOSAwMDAwMCBuIAowMDAwMDAwMTY4IDAwMDAwIG4gCjAwMDAwMDAzMDAgMDAwMDAgbiAKMDAwMDAwMDM3MCAwMDAwMCBuIAowMDAwMDAwNDYxIDAwMDAwIG4gCjAwMDAwMDA1OTMgMDAwMDAgbiAKMDAwMDAwMDY2MyAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDEwCi9Sb290IDMgMCBSCi9JbmZvIDEgMCBSCj4+CnN0YXJ0eHJlZgo3OTEKJSVFT0YK";
 
+const latestEvidencePdfBase64 = createSinglePagePdfBase64(
+  "Latest evidence document.",
+);
+const slowRenderingPdfBase64 = createSinglePagePdfBase64(
+  "Render in progress.",
+  80_000,
+);
 const staleNotice = "AI 요구사항 추출은 아직 연결되지 않았습니다.";
 
 test("shows the upload prompt when requirements and documents are empty", async ({
@@ -206,6 +213,159 @@ test("shows the quote fallback when the PDF text layer has no match", async ({
       { exact: true },
     ),
   ).toBeVisible();
+});
+
+test("clears the render spinner when switching to page-less evidence", async ({
+  page,
+}) => {
+  await page.route(
+    `**/api/projects/${project.projectId}/documents/${document.documentId}/content`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        body: Buffer.from(slowRenderingPdfBase64, "base64"),
+      });
+    },
+  );
+  const pageLessQuote = "Verified excerpt without PDF page metadata.";
+  const requirementWithPageLessEvidence = {
+    ...requirementWithEvidence,
+    evidences: [
+      {
+        ...requirementWithEvidence.evidences[0],
+        pageNumber: 1,
+        quoteText: "Render in progress.",
+      },
+      {
+        ...requirementWithEvidence.evidences[1],
+        evidenceId: 9005,
+        pageNumber: null,
+        chunkId: `${document.documentId}:text:page-less`,
+        quoteText: pageLessQuote,
+      },
+    ],
+  };
+  await openUpload(page, {
+    documents: [document],
+    requirements: [requirementWithPageLessEvidence],
+    real: true,
+  });
+
+  await page
+    .getByText(requirementWithPageLessEvidence.title, { exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("1 / 1", { exact: true })).toBeVisible();
+  await expect(dialog.locator("svg.animate-spin")).toBeVisible();
+
+  await dialog.getByRole("button", { name: "근거 2", exact: true }).click();
+
+  await expect(dialog.locator("svg.animate-spin")).toHaveCount(0);
+  await expect(
+    dialog.getByText("페이지 정보가 없습니다.", { exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByText(pageLessQuote, { exact: true })).toBeVisible();
+});
+
+test("aborts superseded and unmounted PDF requests without showing an error", async ({
+  page,
+}) => {
+  const secondDocument = {
+    ...document,
+    documentId: 502,
+    originalFileName: "replacement-evidence.pdf",
+  };
+  const switchingRequirement = {
+    ...requirementWithEvidence,
+    evidences: [
+      requirementWithEvidence.evidences[0],
+      {
+        ...requirementWithEvidence.evidences[1],
+        evidenceId: 9003,
+        documentId: secondDocument.documentId,
+        sourceDocument: secondDocument.originalFileName,
+      },
+    ],
+  };
+  await installPdfFetchHarness(page, true);
+  await openUpload(page, {
+    documents: [document, secondDocument],
+    requirements: [switchingRequirement],
+    real: true,
+  });
+
+  await page.getByText(switchingRequirement.title, { exact: true }).click();
+  await expect.poll(() => pdfRequestCount(page)).toBe(1);
+
+  await page.getByRole("button", { name: "근거 2 · 1쪽" }).click();
+  await expect.poll(() => pdfRequestCount(page)).toBe(2);
+  await expect.poll(() => pdfRequestWasAborted(page, 0)).toBe(true);
+
+  await resolvePdfRequest(page, 1, evidencePdfBase64);
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByText(`${secondDocument.originalFileName} · 1쪽`),
+  ).toBeVisible();
+  await expect(dialog.getByLabel("PDF 텍스트 레이어")).toBeVisible();
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "근거 1 · 2쪽" }).click();
+  await expect.poll(() => pdfRequestCount(page)).toBe(3);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => pdfRequestWasAborted(page, 2)).toBe(true);
+});
+
+test("ignores a stale PDF response after the evidence selection changes", async ({
+  page,
+}) => {
+  const secondDocument = {
+    ...document,
+    documentId: 503,
+    originalFileName: "latest-evidence.pdf",
+  };
+  const switchingRequirement = {
+    ...requirementWithEvidence,
+    evidences: [
+      requirementWithEvidence.evidences[0],
+      {
+        ...requirementWithEvidence.evidences[1],
+        evidenceId: 9004,
+        documentId: secondDocument.documentId,
+        sourceDocument: secondDocument.originalFileName,
+      },
+    ],
+  };
+  await installPdfFetchHarness(page, false);
+  await openUpload(page, {
+    documents: [document, secondDocument],
+    requirements: [switchingRequirement],
+    real: true,
+  });
+
+  await page.getByText(switchingRequirement.title, { exact: true }).click();
+  await expect.poll(() => pdfRequestCount(page)).toBe(1);
+  await page.getByRole("button", { name: "근거 2 · 1쪽" }).click();
+  await expect.poll(() => pdfRequestCount(page)).toBe(2);
+  await expect.poll(() => pdfRequestWasAborted(page, 0)).toBe(true);
+
+  await resolvePdfRequest(page, 1, latestEvidencePdfBase64);
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByText(`${secondDocument.originalFileName} · 1쪽`),
+  ).toBeVisible();
+  await expect(dialog.getByLabel("PDF 텍스트 레이어")).toBeVisible();
+  await expect(dialog.getByText("1 / 1", { exact: true })).toBeVisible();
+
+  await resolvePdfRequest(page, 0, evidencePdfBase64);
+  await page.waitForTimeout(1_000);
+  await expect(
+    dialog.getByText(`${secondDocument.originalFileName} · 1쪽`),
+  ).toBeVisible();
+  await expect(dialog.getByText("1 / 1", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("1 / 2", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
 });
 
 test("keeps readjustment candidates separate until PM approval and apply", async ({
@@ -540,6 +700,65 @@ test("keeps existing requirements visible when analysis fails", async ({
   await expect(page.getByText(staleNotice, { exact: true })).toHaveCount(0);
 });
 
+test("recovers the analysis controls and preserves results after a timeout", async ({
+  page,
+}) => {
+  let readjustCalls = 0;
+  await page.route(
+    `**/api/projects/${project.projectId}/requirements/readjust`,
+    async (route) => {
+      readjustCalls += 1;
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "upstream timeout" }),
+      });
+    },
+  );
+  await openUpload(page, {
+    documents: [document],
+    requirements: [requirementWithEvidence],
+    real: true,
+  });
+
+  const readjustmentCard = page
+    .getByRole("heading", { name: "요구사항 재조정" })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await readjustmentCard.getByRole("checkbox").check();
+  const readjustButton = readjustmentCard.getByRole("button", {
+    name: "선택 문서로 요구사항 재조정",
+  });
+  await readjustButton.click();
+
+  await expect(
+    page
+      .getByRole("alert")
+      .getByText(
+        "문서 분석 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
+        { exact: true },
+      ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.",
+      { exact: true },
+    ),
+  ).toHaveCount(0);
+  await expect(readjustButton).toBeEnabled();
+  await expect(
+    page.getByText(requirementWithEvidence.title, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "AI 재조정 검토" }),
+  ).toHaveCount(0);
+  const documentRow = page
+    .getByRole("row")
+    .filter({ hasText: document.originalFileName });
+  await expect(documentRow.getByText("대기", { exact: true })).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(readjustCalls).toBe(1);
+});
+
 test("reloads persisted requirements from the server after a page refresh", async ({
   page,
 }) => {
@@ -560,6 +779,146 @@ test("reloads persisted requirements from the server after a page refresh", asyn
   expect(requirementRequests).toBeGreaterThanOrEqual(2);
   await expect(page.getByText(staleNotice, { exact: true })).toHaveCount(0);
 });
+
+function createSinglePagePdfBase64(text: string, drawingOperations = 0) {
+  const escapedText = text.replace(/([\\()])/g, "\\$1");
+  let graphics = "";
+  for (let index = 0; index < drawingOperations; index += 1) {
+    graphics += `${index % 600} ${index % 760} 1 1 re f\n`;
+  }
+  const content = [
+    `BT /F1 14 Tf 72 720 Td (${escapedText}) Tj ET`,
+    graphics ? `q 0.8 g\n${graphics}Q` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
+  ];
+  const offsets = [0];
+  let pdf = "%PDF-1.4\n";
+  objects.forEach((body, index) => {
+    offsets[index + 1] = Buffer.byteLength(pdf, "latin1");
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf, "latin1");
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n`;
+  pdf += `startxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, "latin1").toString("base64");
+}
+
+async function installPdfFetchHarness(page: Page, rejectOnAbort: boolean) {
+  await page.addInitScript(
+    ({ shouldRejectOnAbort }) => {
+      type PdfRequestRecord = {
+        url: string;
+        aborted: boolean;
+        resolve: (response: Response) => void;
+        reject: (reason?: unknown) => void;
+      };
+      type PdfTestWindow = Window & {
+        __pdfFetchRequests: PdfRequestRecord[];
+        __resolvePdfRequest: (index: number, base64: string) => void;
+      };
+
+      const testWindow = window as PdfTestWindow;
+      const originalFetch = window.fetch.bind(window);
+      testWindow.__pdfFetchRequests = [];
+      testWindow.__resolvePdfRequest = (index, base64) => {
+        const request = testWindow.__pdfFetchRequests[index];
+        if (!request) throw new Error(`Unknown PDF request ${index}`);
+        const binary = window.atob(base64);
+        const bytes = Uint8Array.from(binary, (value) => value.charCodeAt(0));
+        request.resolve(
+          new Response(bytes, {
+            status: 200,
+            headers: { "Content-Type": "application/pdf" },
+          }),
+        );
+      };
+
+      window.fetch = ((
+        input: Parameters<typeof window.fetch>[0],
+        init?: Parameters<typeof window.fetch>[1],
+      ) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (!url.includes("/documents/") || !url.endsWith("/content")) {
+          return originalFetch(input, init);
+        }
+
+        const signal =
+          init?.signal ?? (input instanceof Request ? input.signal : null);
+        return new Promise<Response>((resolve, reject) => {
+          const request: PdfRequestRecord = {
+            url,
+            aborted: false,
+            resolve,
+            reject,
+          };
+          const abort = () => {
+            request.aborted = true;
+            if (shouldRejectOnAbort) {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            }
+          };
+          signal?.addEventListener("abort", abort, { once: true });
+          if (signal?.aborted) abort();
+          testWindow.__pdfFetchRequests.push(request);
+        });
+      }) as typeof window.fetch;
+    },
+    { shouldRejectOnAbort: rejectOnAbort },
+  );
+}
+
+async function pdfRequestCount(page: Page) {
+  return page.evaluate(
+    () =>
+      (
+        window as Window & {
+          __pdfFetchRequests?: Array<{ aborted: boolean }>;
+        }
+      ).__pdfFetchRequests?.length ?? 0,
+  );
+}
+
+async function pdfRequestWasAborted(page: Page, index: number) {
+  return page.evaluate(
+    (requestIndex) =>
+      (
+        window as Window & {
+          __pdfFetchRequests?: Array<{ aborted: boolean }>;
+        }
+      ).__pdfFetchRequests?.[requestIndex]?.aborted ?? false,
+    index,
+  );
+}
+
+async function resolvePdfRequest(page: Page, index: number, base64: string) {
+  await page.evaluate(
+    ({ requestIndex, body }) =>
+      (
+        window as Window & {
+          __resolvePdfRequest: (index: number, value: string) => void;
+        }
+      ).__resolvePdfRequest(requestIndex, body),
+    { requestIndex: index, body: base64 },
+  );
+}
 
 async function openUpload(
   page: Page,

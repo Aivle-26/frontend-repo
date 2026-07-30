@@ -83,20 +83,32 @@ export function RequirementEvidenceViewer({
   }, [activeEvidence?.chunkId, activeEvidence?.pageNumber]);
 
   useEffect(() => {
-    if (!open || activeDocumentId === null) {
+    if (
+      !open ||
+      activeDocumentId === null ||
+      activeEvidence?.pageNumber == null
+    ) {
       setPdfDocument(null);
+      setIsLoadingDocument(false);
+      setLoadError("");
+      setQuoteMatched(null);
       return;
     }
 
     let disposed = false;
     let loadedDocument: PDFDocumentProxy | null = null;
+    const abortController = new AbortController();
     setPdfDocument(null);
     setIsLoadingDocument(true);
     setLoadError("");
     setQuoteMatched(null);
 
     projectRepository
-      .getProjectDocumentContent(projectId, activeDocumentId)
+      .getProjectDocumentContent(
+        projectId,
+        activeDocumentId,
+        abortController.signal,
+      )
       .then((blob) => blob.arrayBuffer())
       .then(async (data) => (await loadPdfJs()).getDocument({ data }).promise)
       .then((document) => {
@@ -108,7 +120,7 @@ export function RequirementEvidenceViewer({
         setPdfDocument(document);
       })
       .catch((error) => {
-        if (!disposed) {
+        if (!disposed && !isAbortError(error)) {
           setPdfDocument(null);
           setLoadError(
             error instanceof Error
@@ -125,11 +137,19 @@ export function RequirementEvidenceViewer({
 
     return () => {
       disposed = true;
+      abortController.abort();
       if (loadedDocument) {
         void loadedDocument.destroy();
       }
     };
-  }, [activeDocumentId, open, projectId]);
+  }, [
+    activeDocumentId,
+    activeEvidence?.chunkId,
+    activeEvidence?.evidenceId,
+    activeEvidence?.pageNumber,
+    open,
+    projectId,
+  ]);
 
   useEffect(() => {
     if (
@@ -139,12 +159,14 @@ export function RequirementEvidenceViewer({
       !textLayerRef.current ||
       !pageContainerRef.current
     ) {
+      setIsRenderingPage(false);
       return;
     }
 
     let cancelled = false;
     let renderTask: { cancel: () => void; promise: Promise<void> } | null = null;
     setIsRenderingPage(true);
+    setLoadError("");
     setQuoteMatched(null);
 
     const render = async () => {
@@ -416,4 +438,13 @@ function highlightQuote(spans: TextSpan[], quote: string) {
 
 function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function isAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 }

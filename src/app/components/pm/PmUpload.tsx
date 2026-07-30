@@ -382,6 +382,17 @@ export function PmUpload({
     }
 
     const isInitialAnalysis = requirements.length === 0;
+    const previousFileStates = new Map(
+      files
+        .filter((file) => activeDocumentIds.has(file.id))
+        .map((file) => [
+          file.id,
+          {
+            status: file.status,
+            requirementCount: file.requirementCount,
+          },
+        ] as const),
+    );
     setAnalysisError("");
     setIsReadjusting(true);
     setFiles((current) =>
@@ -430,7 +441,12 @@ export function PmUpload({
       }
       setSelectedDocumentIds(new Set());
     } catch (error) {
-      await loadDocuments();
+      setFiles((current) =>
+        current.map((file) => {
+          const previous = previousFileStates.get(file.id);
+          return previous ? { ...file, ...previous } : file;
+        }),
+      );
       const message = analysisErrorMessage(error);
       setAnalysisError(message);
       toast.error(message);

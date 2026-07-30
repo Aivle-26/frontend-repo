@@ -718,6 +718,16 @@ async function mockProjectList(
   page: Page,
   projects: Array<typeof realProject>,
 ) {
+  await page.route("**/api/projects/*/requirements/readjustments", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        projectId: realProject.projectId,
+        changeCandidates: [],
+      }),
+    });
+  });
   await page.route("**/api/projects", async (route) => {
     await route.fulfill({
       status: 200,

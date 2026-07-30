@@ -1,4 +1,13 @@
-import { Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Check,
+  FileText,
+  ListChecks,
+  Loader2,
+  Network,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import landingBackground from "@assets/landing/landing-background.png";
 import featureRfpAnalysis from "@assets/landing/feature-rfp-analysis.png";
 import featureSchedule from "@assets/landing/feature-schedule.png";
@@ -16,6 +25,33 @@ export const INPUT_CLASS =
 
 /** 자동완성 시 브라우저가 배경색을 노랗게 덮는 것 방지 */
 export const INPUT_STYLE = { WebkitBoxShadow: "0 0 0 1000px #f3f5f8 inset" };
+
+/* 히어로 문구 글자별 등장 타이밍 */
+const REVEAL_STEP = 0.05; // 글자 간 간격(초)
+const LINE_PAUSE = 0.45; // 1줄 → 2줄 사이 한 템포(초)
+const HERO_LINE_1 = "공공 사업 프로젝트 관리,";
+const HERO_LINE_2 = "더 빠르고 똑똑하게.";
+const HERO_LINE_2_DELAY = HERO_LINE_1.length * REVEAL_STEP + LINE_PAUSE;
+
+/** 텍스트를 글자 하나씩 순차 등장시키는 컴포넌트 */
+function RevealChars({ text, startDelay }: { text: string; startDelay: number }) {
+  return (
+    <>
+      {Array.from(text).map((char, index) => (
+        <span
+          key={index}
+          className="bw-reveal-char"
+          style={{
+            animationDelay: `${startDelay + index * REVEAL_STEP}s`,
+            whiteSpace: "pre",
+          }}
+        >
+          {char === " " ? " " : char}
+        </span>
+      ))}
+    </>
+  );
+}
 
 const LANDING_FEATURES = [
   {
@@ -38,6 +74,136 @@ const LANDING_FEATURES = [
   },
 ] as const;
 
+/* ================================================================== */
+/* 라이브 데모 카드: "AI가 제안요청서를 분석해 결과를 채우는" 루프 연출  */
+/* ================================================================== */
+
+const DEMO_ROWS = [
+  { icon: ListChecks, label: "요구사항 추출", target: 24, unit: "건", tone: "text-[#2F6FF2]", chip: "bg-[#eaf1ff]" },
+  { icon: Network, label: "WBS · 일정 생성", target: 36, unit: "개", tone: "text-emerald-600", chip: "bg-emerald-50" },
+  { icon: Users, label: "업무 배정", target: 8, unit: "명", tone: "text-violet-600", chip: "bg-violet-50" },
+] as const;
+
+// 각 단계 지속시간(ms). 마지막 단계는 '분석 완료' 정지 → 이후 루프 리셋.
+const DEMO_PHASE_MS = [1200, 900, 900, 900, 2000];
+
+/** 0 → target 까지 부드럽게 카운트업. run=false면 0으로 리셋. */
+function useCountUp(target: number, run: boolean, duration = 650) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!run) {
+      setValue(0);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(target * eased));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, run, duration]);
+  return value;
+}
+
+function DemoResultRow({
+  row,
+  visible,
+}: {
+  row: (typeof DEMO_ROWS)[number];
+  visible: boolean;
+}) {
+  const value = useCountUp(row.target, visible);
+  const Icon = row.icon;
+  const done = visible && value >= row.target;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl px-2.5 py-2 transition-all duration-500 ease-out",
+        visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+      )}
+    >
+      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", row.chip)}>
+        <Icon className={cn("size-4", row.tone)} />
+      </span>
+      <span className="flex-1 text-[13px] text-slate-600">{row.label}</span>
+      <span className={cn("text-lg font-bold tabular-nums", row.tone)}>
+        {value}
+        <span className="ml-0.5 text-xs font-semibold">{row.unit}</span>
+      </span>
+      <Check
+        className={cn(
+          "size-4 text-emerald-500 transition-opacity duration-300",
+          done ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </div>
+  );
+}
+
+function LiveExtractDemo() {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setPhase((current) => (current + 1) % DEMO_PHASE_MS.length),
+      DEMO_PHASE_MS[phase],
+    );
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+
+  const done = phase === DEMO_PHASE_MS.length - 1;
+  const progress = (phase / (DEMO_PHASE_MS.length - 1)) * 100;
+
+  return (
+    <div className="mt-10 w-full max-w-[380px] rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-sm">
+      {/* 헤더 */}
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf1ff]">
+          <FileText className="size-5 text-[#2F6FF2]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-slate-900">
+            제안요청서.pdf
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+            {done ? (
+              <>
+                <Check className="size-3.5 text-emerald-500" /> 분석 완료
+              </>
+            ) : (
+              <>
+                <Loader2 className="size-3.5 animate-spin text-[#2F6FF2]" /> 제안요청서
+                분석 중…
+              </>
+            )}
+          </div>
+        </div>
+        <span className="rounded-full bg-[#2F6FF2]/10 px-2.5 py-1 text-[11px] font-bold text-[#2F6FF2]">
+          AI
+        </span>
+      </div>
+
+      {/* 진행 바 */}
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#2F6FF2] to-[#5b8cff] transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.min(100, progress)}%` }}
+        />
+      </div>
+
+      {/* 결과 (하나씩 카운트업하며 등장) */}
+      <div className="mt-3 space-y-1">
+        {DEMO_ROWS.map((row, index) => (
+          <DemoResultRow key={row.label} row={row} visible={phase >= index + 1} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** 좌측 브랜드/소개 패널 */
 function LandingPanel() {
   return (
@@ -58,8 +224,12 @@ function LandingPanel() {
 
         <div className="mt-10 max-w-[720px] lg:mt-16">
           <h1 className="text-[2.85rem] font-bold leading-[1.16] text-[#0f172a] sm:text-[3.5rem] lg:text-[4.2rem]">
-            <span className="block">공공 RFP 프로젝트 관리,</span>
-            <span className="mt-2 block text-[#2F6FF2]">더 빠르고 똑똑하게.</span>
+            <span className="block">
+              <RevealChars text={HERO_LINE_1} startDelay={0} />
+            </span>
+            <span className="mt-2 block text-[#2F6FF2]">
+              <RevealChars text={HERO_LINE_2} startDelay={HERO_LINE_2_DELAY} />
+            </span>
           </h1>
           <p className="mt-8 max-w-[620px] text-[1.18rem] leading-[1.75] text-slate-700 sm:text-[1.28rem]">
             BidWorks AI는 RFP를 분석하고 요구사항을 체계화하여
@@ -72,25 +242,29 @@ function LandingPanel() {
           </p>
         </div>
 
+        <LiveExtractDemo />
+
         <div className="mt-12 grid gap-8 md:grid-cols-3 lg:mt-auto lg:pt-16">
           {LANDING_FEATURES.map((feature, index) => (
             <div
               key={feature.title}
               className={cn(
-                "relative flex max-w-[280px] flex-col",
+                "group relative flex max-w-[280px] cursor-default flex-col rounded-3xl p-4 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:bg-white hover:shadow-[0_26px_60px_rgba(15,23,42,0.12)] sm:p-5",
                 index < LANDING_FEATURES.length - 1 &&
-                  "md:pr-8 md:after:absolute md:after:right-0 md:after:top-3 md:after:h-[190px] md:after:w-px md:after:bg-slate-200/90",
+                  "md:pr-8 md:after:absolute md:after:right-0 md:after:top-3 md:after:h-[190px] md:after:w-px md:after:bg-slate-200/90 md:after:transition-opacity md:after:duration-300 md:group-hover:after:opacity-0",
               )}
             >
+              {/* hover 시 은은한 파란 그라데이션 sheen */}
+              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_top,_rgba(47,111,242,0.10),_transparent_60%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               <img
                 src={feature.icon}
                 alt={feature.title}
-                className="h-20 w-20 object-contain"
+                className="relative h-20 w-20 object-contain transition-transform duration-300 ease-out group-hover:-rotate-3 group-hover:scale-110"
               />
-              <h2 className="mt-5 text-[1.8rem] font-bold tracking-tight text-[#0f172a]">
+              <h2 className="relative mt-5 text-[1.8rem] font-bold tracking-tight text-[#0f172a] transition-colors duration-300 group-hover:text-[#2F6FF2]">
                 {feature.title}
               </h2>
-              <p className="mt-4 text-[1.05rem] leading-8 text-slate-600">
+              <p className="relative mt-4 text-[1.05rem] leading-8 text-slate-600 transition-colors duration-300 group-hover:text-slate-700">
                 {feature.description}
               </p>
             </div>

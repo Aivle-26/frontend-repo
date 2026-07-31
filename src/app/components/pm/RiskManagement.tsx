@@ -27,9 +27,6 @@ import {
   type RiskLevel,
 } from "@/app/data/demoData";
 
-/** Slack 커뮤니케이션 리스크 카드를 화면에 보여줄지 여부. 연동 코드는 그대로 두고 노출만 끈다. */
-const SHOW_COMMUNICATION_RISK = false;
-
 function severityClass(s: ManagedRiskSeverity) {
   const map: Record<ManagedRiskSeverity, string> = {
     심각: "bg-red-50 text-red-700 border-red-200",
@@ -70,27 +67,21 @@ function levelClass(l: RiskLevel) {
 export function RiskManagement({
   project,
   hideImpactAnalysis = false,
+  showCommunicationRisk = false,
+  hideManagedRisks = false,
 }: {
   project: ProjectSummary;
   /** true면 "프로젝트 조정 여부 평가" 카드를 숨긴다. 기본값 false로 PM 화면은 기존과 동일하게 동작한다. */
   hideImpactAnalysis?: boolean;
+  /** true면 "Slack 커뮤니케이션 리스크" 카드를 보여준다. 기본값 false로 숨김. */
+  showCommunicationRisk?: boolean;
+  /** true면 관리 리스크 목록 섹션(KPI + 목록 + 상세 패널)을 숨긴다. 기본값 false. */
+  hideManagedRisks?: boolean;
 }) {
   const [risks, setRisks] = useState<ManagedRisk[]>(MANAGED_RISKS);
   const [selectedId, setSelectedId] = useState<string>(MANAGED_RISKS[0]?.id ?? "");
 
   const selected = risks.find((r) => r.id === selectedId) ?? null;
-
-  const [reporting, setReporting] = useState(false);
-  const [lastReportAt, setLastReportAt] = useState<string | null>(null);
-
-  const generateWeeklyReport = async () => {
-    setReporting(true);
-    // UI 확인용 임시 동작. 백엔드 연동 시 리스크 보고서 생성 API로 교체합니다.
-    await new Promise((resolve) => window.setTimeout(resolve, 700));
-    setReporting(false);
-    setLastReportAt("방금 전");
-    toast.success("이번 주 리스크 보고서를 생성해 문서함에 저장했어요.");
-  };
 
   const stats = useMemo(
     () => ({
@@ -111,7 +102,7 @@ export function RiskManagement({
 
   return (
     <div className="space-y-4">
-      {/* 헤더 + 주간 리스크 보고서 생성 */}
+      {/* 헤더 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="leading-tight">
           <h2 className="text-foreground text-lg">리스크 관리</h2>
@@ -119,26 +110,10 @@ export function RiskManagement({
             AI가 탐지한 리스크를 검토하고 주간 보고서로 정리합니다.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {lastReportAt && (
-            <span className="text-muted-foreground text-xs">
-              최근 생성 {lastReportAt}
-            </span>
-          )}
-          <Button onClick={generateWeeklyReport} disabled={reporting}>
-            {reporting ? (
-              <>
-                <Clock className="size-4 animate-spin" /> 생성 중…
-              </>
-            ) : (
-              <>
-                <FileText className="size-4" /> 주간 리스크 보고서 생성
-              </>
-            )}
-          </Button>
-        </div>
       </div>
 
+      {!hideManagedRisks && (
+        <>
       {/* KPI */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
@@ -312,9 +287,11 @@ export function RiskManagement({
           )}
         </div>
       </div>
+        </>
+      )}
 
-      {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) — 요청으로 화면에서만 숨김. 연동 코드는 그대로 둠 */}
-      {SHOW_COMMUNICATION_RISK && <CommunicationRiskCard projectId={project.id} />}
+      {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) — 페이지별로 showCommunicationRisk prop으로 노출 제어 */}
+      {showCommunicationRisk && <CommunicationRiskCard projectId={project.id} />}
 
       {/* 프로젝트 조정 여부 평가 (요구사항 변경 영향도, AI 서버 연동) */}
       {!hideImpactAnalysis && <ImpactAnalysisCard projectId={project.id} />}

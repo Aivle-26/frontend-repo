@@ -436,6 +436,8 @@ function DemoApplication() {
         <RiskManagement
           key={selectedProject?.id}
           project={selectedProject!}
+          showCommunicationRisk
+          hideManagedRisks
         />
       );
     } else if (pmMenu === "notice") {
@@ -531,7 +533,7 @@ function DemoApplication() {
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
       body = selectedProject ? (
-        <RiskManagement key={selectedProject.id} project={selectedProject} />
+        <RiskManagement key={selectedProject.id} project={selectedProject} hideImpactAnalysis />
       ) : (
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );

@@ -34,6 +34,7 @@ import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
 import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
+import { StaffNoticeBoard } from "@/app/components/staff/StaffNoticeBoard";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
 import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
 import { StaffContext } from "@/app/components/staff/StaffContext";
@@ -525,14 +526,14 @@ function DemoApplication() {
       body = <SlackIntegration />;
     } else if (staffMenu === "notice") {
       subtitle = "공지사항";
-      body = <StaffNotice currentUserName={authSession?.name ?? "나"} />;
+      body = <StaffNoticeBoard currentUserName={authSession?.name ?? "나"} />;
     } else if (staffMenu === "documents") {
       subtitle = "문서 통합 관리";
       body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
       body = selectedProject ? (
-        <RiskManagement key={selectedProject.id} project={selectedProject} />
+        <RiskManagement key={selectedProject.id} project={selectedProject} hideImpactAnalysis />
       ) : (
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );

@@ -425,13 +425,23 @@ export function PmRequirements({
       setAiSuggestions(result.aiSuggestions);
       setFinalItems(result.finalItems);
       setLastSavedItems(result.finalItems);
-      toast.success("최종 요구사항을 저장했습니다.");
 
       if (moveNext) {
+        await projectRepository.confirmAllRequirements(project.id);
+        toast.success("최종 요구사항을 저장하고 확정했습니다.");
         onBackToGeneration?.();
+      } else {
+        toast.success("최종 요구사항을 저장했습니다.");
       }
     } catch (error) {
-      toast.error(errorMessage(error, "최종 요구사항 저장에 실패했습니다."));
+      toast.error(
+        errorMessage(
+          error,
+          moveNext
+            ? "요구사항 저장 또는 확정에 실패했습니다."
+            : "최종 요구사항 저장에 실패했습니다.",
+        ),
+      );
     } finally {
       setSaving(false);
     }

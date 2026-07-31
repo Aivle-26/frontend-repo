@@ -664,6 +664,16 @@ export const projectRepository = {
     );
   },
 
+  confirmAllRequirements(projectId: string | number) {
+    return apiFetch<RequirementResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/confirm`,
+      {
+        method: "PATCH",
+        auth: true,
+      },
+    );
+  },
+
   generateWbs(projectId: string | number) {
     return apiFetch<WbsResult | void>(
       `/projects/${encodeURIComponent(String(projectId))}/wbs/generate`,

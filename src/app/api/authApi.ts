@@ -19,7 +19,9 @@ type AuthSessionPayload = {
   refreshToken: string | null;
   accessTokenExpiresAt: number;
   absoluteExpiresAt: number;
+  lastActivityAt: number;
   serverTime: number;
+  inactivityTimeoutMinutes: number;
 };
 
 export class AuthApiError extends Error {
@@ -62,7 +64,9 @@ export interface LoginVerifyResponsePayload {
   refreshToken: string;
   accessTokenExpiresAt: number;
   absoluteExpiresAt: number;
+  lastActivityAt: number;
   serverTime: number;
+  inactivityTimeoutMinutes: number;
 }
 
 export interface LoginResendRequestPayload {
@@ -127,7 +131,9 @@ export function mapSessionPayload(payload: AuthSessionPayload): StoredAuthSessio
     refreshToken: payload.refreshToken ?? "",
     accessTokenExpiresAt: payload.accessTokenExpiresAt,
     absoluteExpiresAt: payload.absoluteExpiresAt,
+    lastActivityAt: payload.lastActivityAt,
     serverTime: payload.serverTime,
+    inactivityTimeoutMinutes: payload.inactivityTimeoutMinutes,
   };
 }
 
@@ -141,6 +147,8 @@ export const authApi = {
   getSession: (accessToken: string) => get<AuthSessionPayload>("/api/users/session", accessToken),
   refresh: (refreshToken: string) =>
     post<AuthSessionPayload>("/api/users/refresh", { refreshToken }),
+  reportActivity: (accessToken: string) =>
+    post<{ message: string }>("/api/users/activity", {}, accessToken),
   logout: (accessToken: string | null, refreshToken: string | null) =>
     post<{ message: string }>(
       "/api/users/logout",

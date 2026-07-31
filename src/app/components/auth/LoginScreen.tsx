@@ -75,7 +75,7 @@ export function LoginScreen({
   return (
     <AuthShell
       title="로그인"
-      subtitle="공공 사업 프로젝트 관리"
+      subtitle="AI 기반 RFP 프로젝트 관리"
       footer={
         <p className="text-center text-sm text-slate-500">
           아직 계정이 없으신가요?{" "}

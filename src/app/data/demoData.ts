@@ -589,7 +589,7 @@ export const TASKS: Task[] = [
   {
     id: "t5",
     title: "UI 리팩토링: 업무 보드",
-    column: "review",
+    column: "doing",
     priority: "중간",
     due: "2026-07-03",
     assignee: "나",

@@ -524,7 +524,7 @@ function DemoApplication() {
       body = <SlackIntegration />;
     } else if (staffMenu === "notice") {
       subtitle = "공지사항";
-      body = <StaffNotice />;
+      body = <StaffNotice currentUserName={authSession?.name ?? "나"} />;
     } else if (staffMenu === "documents") {
       subtitle = "문서 통합 관리";
       body = <StaffDocuments />;

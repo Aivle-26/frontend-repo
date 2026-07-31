@@ -67,7 +67,14 @@ function levelClass(l: RiskLevel) {
   return map[l];
 }
 
-export function RiskManagement({ project }: { project: ProjectSummary }) {
+export function RiskManagement({
+  project,
+  hideImpactAnalysis = false,
+}: {
+  project: ProjectSummary;
+  /** true면 "프로젝트 조정 여부 평가" 카드를 숨긴다. 기본값 false로 PM 화면은 기존과 동일하게 동작한다. */
+  hideImpactAnalysis?: boolean;
+}) {
   const [risks, setRisks] = useState<ManagedRisk[]>(MANAGED_RISKS);
   const [selectedId, setSelectedId] = useState<string>(MANAGED_RISKS[0]?.id ?? "");
 
@@ -310,7 +317,7 @@ export function RiskManagement({ project }: { project: ProjectSummary }) {
       {SHOW_COMMUNICATION_RISK && <CommunicationRiskCard projectId={project.id} />}
 
       {/* 프로젝트 조정 여부 평가 (요구사항 변경 영향도, AI 서버 연동) */}
-      <ImpactAnalysisCard projectId={project.id} />
+      {!hideImpactAnalysis && <ImpactAnalysisCard projectId={project.id} />}
 
       <p className="text-muted-foreground text-xs">
         {project.name} 기준 · AI가 탐지한 리스크를 검토합니다.

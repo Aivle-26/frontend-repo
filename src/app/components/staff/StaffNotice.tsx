@@ -41,17 +41,16 @@ import {
 } from "@/app/components/ui/dialog";
 import type { Notice, NoticeCategory } from "@/app/data/demoData";
 import { addNotice, useNotices } from "@/app/state/noticeStore";
+import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
 import { cn } from "@/app/components/ui/utils";
 
 const FILTERS: (NoticeCategory | "전체")[] = [
   "전체",
-  "PM 피드백",
   "마감 안내",
   "시스템 공지",
   "업데이트",
-  "위클리 스크럼",
 ];
 
 function priorityVariant(p: string) {
@@ -92,6 +91,8 @@ interface StaffNoticeProps {
   variant?: "full" | "compact";
   /** compact 변형에서 노출할 공지 개수. */
   limit?: number;
+  /** PM 피드백 채팅에서 "나"로 표시할 로그인 사용자 이름. */
+  currentUserName?: string;
 }
 
 export function StaffNotice({
@@ -100,6 +101,7 @@ export function StaffNotice({
   authorName = "PM",
   variant = "full",
   limit = 4,
+  currentUserName = "나",
 }: StaffNoticeProps) {
   const isCompact = variant === "compact";
   const allNotices = useNotices();
@@ -380,8 +382,17 @@ export function StaffNotice({
                   </p>
                 ))}
               </div>
+
+              {selected.category === "PM 피드백" && (
+                <div className="mt-2 border-t border-border pt-3">
+                  <PmFeedbackChat currentUserName={currentUserName} compact />
+                </div>
+              )}
+
               <DialogFooter>
-                <Button onClick={() => setSelected(null)}>확인</Button>
+                <Button onClick={() => setSelected(null)}>
+                  {selected.category === "PM 피드백" ? "닫기" : "확인"}
+                </Button>
               </DialogFooter>
             </>
           )}

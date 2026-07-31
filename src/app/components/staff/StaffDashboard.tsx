@@ -23,7 +23,6 @@ import { CountUp } from "@/app/components/common/CountUp";
 const COLUMNS: { key: TaskColumn; label: string }[] = [
   { key: "todo", label: "할 일" },
   { key: "doing", label: "진행 중" },
-  { key: "review", label: "검토 요청" },
   { key: "done", label: "완료" },
 ];
 
@@ -96,7 +95,7 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
           <CardDescription>업무 카드를 클릭하면 상세 화면으로 이동합니다.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {COLUMNS.map((col) => {
               const items = tasks.filter((t) => t.column === col.key);
               return (

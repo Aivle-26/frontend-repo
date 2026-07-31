@@ -478,9 +478,9 @@ export function StaffTaskDetail({
                 size="lg"
                 variant="outline"
                 onClick={() => {
-                  updateTaskColumn(task.id, "doing");
+                  updateTaskColumn(task.id, "todo");
                   toast.success(
-                    "완료 처리를 취소하고 진행 중으로 되돌렸습니다.",
+                    "완료 처리를 취소하고 할 일로 되돌렸습니다.",
                   );
                 }}
               >

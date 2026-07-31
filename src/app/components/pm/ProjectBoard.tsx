@@ -586,15 +586,15 @@ export function ProjectBoard({
           }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl overflow-hidden sm:max-w-2xl">
+          <DialogHeader className="min-w-0">
             <DialogTitle>새 프로젝트</DialogTitle>
             <DialogDescription>
               프로젝트를 등록한 뒤 선택한 초기 문서를 안전하게 업로드합니다.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-1">
+          <div className="min-w-0 space-y-4 overflow-hidden py-1">
             <div className="space-y-2">
               <label className="text-sm text-foreground">프로젝트 이름</label>
               <Input
@@ -606,8 +606,8 @@ export function ProjectBoard({
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 space-y-2">
                 <label
                   htmlFor="new-project-start-date"
                   className="text-sm text-foreground"
@@ -622,7 +622,7 @@ export function ProjectBoard({
                   disabled={isCreatingProject || !!createdDraft}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <label
                   htmlFor="new-project-end-date"
                   className="text-sm text-foreground"
@@ -639,7 +639,7 @@ export function ProjectBoard({
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2 overflow-hidden">
               <label className="text-sm text-foreground">초기 문서 업로드</label>
               <DocPicker
                 documents={pendingDocs}

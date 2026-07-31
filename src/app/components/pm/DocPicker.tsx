@@ -58,7 +58,7 @@ export function DocPicker({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2 overflow-hidden">
       <input
         ref={inputRef}
         type="file"
@@ -80,7 +80,7 @@ export function DocPicker({
           event.preventDefault();
           addFiles(event.dataTransfer.files);
         }}
-        className="flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-border bg-muted/40 py-6 text-center transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-60"
+        className="flex min-w-0 w-full cursor-pointer flex-col items-center gap-1.5 overflow-hidden rounded-lg border border-dashed border-border bg-muted/40 px-4 py-6 text-center transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-60"
       >
         <UploadCloud className="size-6 text-muted-foreground" />
         <span className="text-foreground text-sm">
@@ -91,16 +91,21 @@ export function DocPicker({
         </span>
       </button>
       {documents.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5 overflow-hidden">
           {documents.map((document) => (
             <div
               key={document.id}
-              className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
+              className="grid min-w-0 w-full grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
             >
-              <FileText className="size-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate text-sm text-foreground">
-                {document.file.name}
-              </span>
+              <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <span
+                  className="block min-w-0 flex-1 truncate text-sm text-foreground"
+                  title={document.file.name}
+                >
+                  {document.file.name}
+                </span>
+              </div>
               <Select
                 value={document.type}
                 disabled={disabled}
@@ -114,7 +119,7 @@ export function DocPicker({
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectTrigger className="h-7 min-w-0 w-full text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -133,7 +138,7 @@ export function DocPicker({
                     documents.filter((current) => current.id !== document.id),
                   )
                 }
-                className="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
+                className="shrink-0 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
                 aria-label={`${document.file.name} 제거`}
               >
                 <X className="size-4" />

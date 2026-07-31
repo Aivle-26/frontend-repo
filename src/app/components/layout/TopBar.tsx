@@ -16,7 +16,6 @@ import {
 } from "@/app/components/ui/popover";
 import { Separator } from "@/app/components/ui/separator";
 import { ThemeToggle } from "@/app/components/common/ThemeToggle";
-import { NotificationCenter } from "@/app/components/notifications/NotificationCenter";
 import { cn } from "@/app/components/ui/utils";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 
@@ -46,7 +45,6 @@ export function TopBar({
   projects = [],
   selectedProjectId,
   isPm = false,
-  showNotifications = true,
   compactOnMobile = false,
 }: TopBarProps) {
   const initial = userName.trim().slice(0, 1) || "U";
@@ -80,14 +78,6 @@ export function TopBar({
           {roleLabel}
         </Badge>
         <ThemeToggle />
-
-        {showNotifications ? (
-          <NotificationCenter
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            isPm={isPm}
-          />
-        ) : null}
 
         <div className={cn(compactOnMobile && "hidden sm:block")}>
           <Popover>

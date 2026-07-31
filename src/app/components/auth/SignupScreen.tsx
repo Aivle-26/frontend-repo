@@ -92,6 +92,8 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   const update =
     (field: keyof SignupForm) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +111,8 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
       await handleVerifySignup();
       return;
     }
+
+    if (!termsAgreed || !privacyAcknowledged) return;
 
     const normalizedForm: SignupForm = {
       ...form,
@@ -177,6 +181,8 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
       });
       setForm(EMPTY_FORM);
       setStep("details");
+      setTermsAgreed(false);
+      setPrivacyAcknowledged(false);
       onBackToLogin({
         email: form.email.trim(),
         message: "회원가입이 완료되었습니다. 로그인해주세요.",
@@ -201,7 +207,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   return (
     <AuthShell
       title="회원가입"
-      subtitle="AI 기반 RFP 프로젝트 관리"
+      subtitle="공공 사업 프로젝트 관리"
       footer={
         <p className="text-center text-sm text-slate-500">
           이미 계정이 있으신가요?{" "}
@@ -320,6 +326,39 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           </div>
         </FormField>
 
+        {!isVerificationStep ? (
+          <div className="space-y-2.5" aria-label="필수 동의 항목">
+            <label
+              htmlFor="termsAgreed"
+              className="flex cursor-pointer items-start gap-2.5 text-sm leading-5 text-slate-700"
+            >
+              <input
+                id="termsAgreed"
+                type="checkbox"
+                checked={termsAgreed}
+                onChange={(event) => setTermsAgreed(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[#2F6FF2]"
+                disabled={isSubmitting}
+              />
+              <span>[필수] PM Agent 서비스 이용약관 동의</span>
+            </label>
+            <label
+              htmlFor="privacyAcknowledged"
+              className="flex cursor-pointer items-start gap-2.5 text-sm leading-5 text-slate-700"
+            >
+              <input
+                id="privacyAcknowledged"
+                type="checkbox"
+                checked={privacyAcknowledged}
+                onChange={(event) => setPrivacyAcknowledged(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[#2F6FF2]"
+                disabled={isSubmitting}
+              />
+              <span>[필수] 개인정보 수집·이용 안내 확인</span>
+            </label>
+          </div>
+        ) : null}
+
         {isVerificationStep ? (
           <FormField label="이메일 인증번호" error={errors.verificationCode}>
             <Input
@@ -365,7 +404,12 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
         ) : null}
 
         <div className="pt-1">
-          <PrimaryButton disabled={isSubmitting}>
+          <PrimaryButton
+            disabled={
+              isSubmitting ||
+              (!isVerificationStep && (!termsAgreed || !privacyAcknowledged))
+            }
+          >
             {isSubmitting
               ? isVerificationStep
                 ? "인증 확인 중..."

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
   ArrowUp,
   Copy,
@@ -444,20 +443,6 @@ export function PmRequirements({
 
   return (
     <div className="space-y-4">
-      {onBackToGeneration && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="-ml-2 gap-2"
-          disabled={saving}
-          onClick={onBackToGeneration}
-        >
-          <ArrowLeft className="size-4" />
-          AI 생성으로 돌아가기
-        </Button>
-      )}
-
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">

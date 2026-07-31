@@ -92,6 +92,10 @@ export function DocPicker({
       </button>
       {documents.length > 0 && (
         <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            문서 유형은 화면 분류용이며, AI는 선택값과 관계없이 실제 문서
+            내용을 기준으로 분석합니다.
+          </p>
           {documents.map((document) => (
             <div
               key={document.id}

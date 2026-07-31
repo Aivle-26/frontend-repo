@@ -93,6 +93,8 @@ interface StaffNoticeProps {
   limit?: number;
   /** PM 피드백 채팅에서 "나"로 표시할 로그인 사용자 이름. */
   currentUserName?: string;
+  /** full 화면 상단 KPI 카드 표시 여부. */
+  showKpis?: boolean;
 }
 
 export function StaffNotice({
@@ -102,6 +104,7 @@ export function StaffNotice({
   variant = "full",
   limit = 4,
   currentUserName = "나",
+  showKpis = true,
 }: StaffNoticeProps) {
   const isCompact = variant === "compact";
   const allNotices = useNotices();
@@ -204,7 +207,7 @@ export function StaffNotice({
   return (
     <div className={isCompact ? "" : "space-y-6"}>
       {/* KPI (full 전용) */}
-      {!isCompact && (
+      {!isCompact && showKpis && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard icon={<Megaphone className="size-4" />} label="전체 공지" value={notices.length} tone="blue" />
           <KpiCard icon={<Eye className="size-4" />} label="읽지 않음" value={unreadCount} tone="red" />

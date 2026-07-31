@@ -436,8 +436,6 @@ function DemoApplication() {
         <RiskManagement
           key={selectedProject?.id}
           project={selectedProject!}
-          showCommunicationRisk
-          hideManagedRisks
         />
       );
     } else if (pmMenu === "notice") {
@@ -447,6 +445,7 @@ function DemoApplication() {
           canCreate
           authorName={authSession.name || "PM"}
           excludeCategories={["PM 피드백"]}
+          showKpis={false}
         />
       );
     } else if (pmWizard) {
@@ -533,7 +532,7 @@ function DemoApplication() {
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
       body = selectedProject ? (
-        <RiskManagement key={selectedProject.id} project={selectedProject} hideImpactAnalysis />
+        <RiskManagement key={selectedProject.id} project={selectedProject} />
       ) : (
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );

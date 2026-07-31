@@ -1,25 +1,21 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  TrendingUp,
   CalendarClock,
-  AlertTriangle,
+  FileSpreadsheet,
   FileText,
-  Sparkles,
-  ListTodo,
-  Pencil,
-  Users,
+  FileType2,
   Loader2,
+  Presentation,
+  Sparkles,
+  TrendingUp,
   UploadCloud,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Progress } from "@/app/components/ui/progress";
@@ -34,21 +30,14 @@ import {
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import { DocPicker } from "@/app/components/pm/DocPicker";
-import { WeeklyScrumSubmissionsCard } from "@/app/components/common/WeeklyScrumSubmissionsCard";
 import {
   ApiError,
   projectRepository,
+  type ProjectDocumentUploadItem,
+  type RequirementsResult,
 } from "@/app/api/projectRepository";
-import { demoRepository } from "@/app/data/demoRepository";
-import {
-  mapUploadedProjectDocuments,
-  type PendingProjectDocument,
-} from "@/app/components/pm/projectDocumentUpload";
-import type {
-  ProjectDoc,
-  ProjectStatus,
-  ProjectSummary,
-} from "@/app/data/demoData";
+import type { PendingProjectDocument } from "@/app/components/pm/projectDocumentUpload";
+import type { ProjectDoc, ProjectStatus, ProjectSummary } from "@/app/projects/projectTypes";
 
 function statusClass(s: ProjectStatus) {
   const map: Record<ProjectStatus, string> = {
@@ -70,57 +59,110 @@ interface ProjectDetailProps {
   onNavigate: (menu: ProjectDetailMenu) => void;
 }
 
-interface SummaryAction {
-  menu: ProjectDetailMenu;
-  label: string;
-  icon: typeof FileText;
+function getRequirementCount(result: RequirementsResult | null) {
+  if (!result) return null;
+  const finalCount = Array.isArray(result.finalRequirements)
+    ? result.finalRequirements.length
+    : 0;
+  const suggestionCount = Array.isArray(result.aiSuggestions)
+    ? result.aiSuggestions.length
+    : 0;
+  return finalCount > 0 ? finalCount : suggestionCount;
 }
 
-function getSummaryAction(line: string): SummaryAction | null {
-  if (line.includes("요구사항") || line.includes("추출")) {
-    return {
-      menu: "requirements",
-      label: "요구사항 바로가기",
-      icon: FileText,
-    };
-  }
-
-  if (line.includes("고위험") || line.includes("리스크") || line.includes("위험")) {
-    return {
-      menu: "risk",
-      label: "리스크 관리 바로가기",
-      icon: AlertTriangle,
-    };
-  }
-
-  if (line.includes("업무") || line.includes("분해") || line.includes("배정")) {
-    return {
-      menu: "assign",
-      label: "업무 배정 바로가기",
-      icon: Users,
-    };
-  }
-
-  return null;
+function getDaysRemaining(dueDate: string) {
+  if (!dueDate || dueDate === "-") return null;
+  const due = new Date(`${dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((due.getTime() - today.getTime()) / 86_400_000);
 }
 
-export function ProjectDetail({
-  project: p,
-  onBack,
-  onUpdateDocs,
-  onNavigate,
-}: ProjectDetailProps) {
-  const { aiSummary, risks } = demoRepository.getPmDashboard();
+function formatRemainingDays(days: number | null) {
+  if (days === null) return "마감일 정보 없음";
+  if (days > 0) return `D-${days}`;
+  if (days === 0) return "D-Day";
+  return `마감 ${Math.abs(days)}일 경과`;
+}
+
+function fileExtension(fileName: string) {
+  const extension = fileName.split(".").pop()?.trim().toUpperCase();
+  return extension && extension !== fileName.toUpperCase() ? extension : "FILE";
+}
+
+function documentIcon(fileName: string) {
+  const extension = fileExtension(fileName);
+  if (extension === "XLSX" || extension === "XLS" || extension === "CSV") {
+    return <FileSpreadsheet className="size-4" />;
+  }
+  if (extension === "PPTX" || extension === "PPT") {
+    return <Presentation className="size-4" />;
+  }
+  if (extension === "DOCX" || extension === "DOC") {
+    return <FileType2 className="size-4" />;
+  }
+  return <FileText className="size-4" />;
+}
+
+function documentIconClass(fileName: string) {
+  const extension = fileExtension(fileName);
+  if (extension === "PDF") return "bg-red-50 text-red-600";
+  if (["XLSX", "XLS", "CSV"].includes(extension)) return "bg-emerald-50 text-emerald-700";
+  if (["PPTX", "PPT"].includes(extension)) return "bg-orange-50 text-orange-700";
+  if (["DOCX", "DOC"].includes(extension)) return "bg-blue-50 text-blue-700";
+  return "bg-slate-100 text-slate-600";
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size < 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function ProjectDetail({ project: p, onBack, onNavigate }: ProjectDetailProps) {
   const [docOpen, setDocOpen] = useState(false);
   const [docDraft, setDocDraft] = useState<PendingProjectDocument[]>([]);
   const [docError, setDocError] = useState("");
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [documents, setDocuments] = useState<ProjectDocumentUploadItem[]>([]);
+  const [requirements, setRequirements] = useState<RequirementsResult | null>(null);
+  const [isLoadingProjectData, setIsLoadingProjectData] = useState(true);
+  const [projectDataError, setProjectDataError] = useState("");
 
-  const openDocumentUpload = () => {
-    setDocDraft([]);
-    setDocError("");
-    setDocOpen(true);
-  };
+  const loadProjectData = useCallback(async () => {
+    setIsLoadingProjectData(true);
+    setProjectDataError("");
+    const [documentResult, requirementResult] = await Promise.allSettled([
+      projectRepository.listProjectDocuments(p.id),
+      projectRepository.getRequirements(p.id),
+    ]);
+
+    if (documentResult.status === "fulfilled") {
+      setDocuments(Array.isArray(documentResult.value.documents) ? documentResult.value.documents : []);
+    } else {
+      setDocuments([]);
+    }
+
+    if (requirementResult.status === "fulfilled") {
+      setRequirements(requirementResult.value);
+    } else {
+      setRequirements(null);
+    }
+
+    if (documentResult.status === "rejected" || requirementResult.status === "rejected") {
+      setProjectDataError("일부 프로젝트 정보를 불러오지 못했습니다.");
+    }
+    setIsLoadingProjectData(false);
+  }, [p.id]);
+
+  useEffect(() => {
+    void loadProjectData();
+  }, [loadProjectData]);
+
+  const requirementCount = getRequirementCount(requirements);
+  const remainingDays = useMemo(() => getDaysRemaining(p.dueDate), [p.dueDate]);
 
   const uploadDocuments = async () => {
     if (isUploadingDocuments) return;
@@ -131,25 +173,19 @@ export function ProjectDetail({
 
     setIsUploadingDocuments(true);
     setDocError("");
-
     try {
-      const response = await projectRepository.uploadProjectDocuments(
+      await projectRepository.uploadProjectDocuments(
         p.id,
         docDraft.map((document) => document.file),
       );
-      const uploadedDocuments = mapUploadedProjectDocuments(
-        response.documents,
-        docDraft,
-      );
-      onUpdateDocs([...p.docs, ...uploadedDocuments]);
+      await loadProjectData();
       setDocDraft([]);
       setDocOpen(false);
       toast.success("문서를 업로드했습니다.");
     } catch (caught) {
-      const message =
-        caught instanceof ApiError && caught.message.trim()
-          ? caught.message
-          : "문서 업로드에 실패했습니다. 다시 시도해 주세요.";
+      const message = caught instanceof ApiError && caught.message.trim()
+        ? caught.message
+        : "문서 업로드에 실패했습니다. 다시 시도해 주세요.";
       setDocError(message);
       toast.error(message);
     } finally {
@@ -163,7 +199,6 @@ export function ProjectDetail({
         <ArrowLeft className="size-4" /> 프로젝트 목록
       </Button>
 
-      {/* 프로젝트 헤더 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="leading-tight">
           <div className="flex items-center gap-2">
@@ -178,7 +213,12 @@ export function ProjectDetail({
         </div>
       </div>
 
-      {/* KPI (프로젝트 실제 데이터) */}
+      {projectDataError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {projectDataError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-5">
@@ -186,136 +226,95 @@ export function ProjectDetail({
               <span className="text-muted-foreground text-sm">전체 진행률</span>
               <TrendingUp className="size-4 text-muted-foreground" />
             </div>
-            <div className="mt-2 text-foreground text-2xl">
-              <CountUp value={`${p.progress}%`} />
-            </div>
-            <Progress value={p.progress} className="mt-3" />
+            {p.status === "완료" ? (
+              <>
+                <div className="mt-2 text-foreground text-2xl"><CountUp value="100%" /></div>
+                <Progress value={100} className="mt-3" />
+              </>
+            ) : (
+              <div className="mt-2 text-sm text-muted-foreground">진행률 데이터가 제공되지 않았습니다.</div>
+            )}
           </CardContent>
         </Card>
-        <KpiCard
-          icon={<CalendarClock className="size-4 text-muted-foreground" />}
-          label="마감일"
-          value={p.dueDate}
-          raw
-        />
-        <KpiCard
-          icon={<AlertTriangle className="size-4 text-destructive" />}
-          label="고위험 항목"
-          value={`${p.riskCount}건`}
-        />
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">마감일</span>
+              <CalendarClock className="size-4 text-muted-foreground" />
+            </div>
+            <div className="mt-2 text-foreground text-2xl">{p.dueDate}</div>
+            <div className={cn("mt-1 text-sm", remainingDays !== null && remainingDays < 0 ? "text-destructive" : "text-muted-foreground")}>{formatRemainingDays(remainingDays)}</div>
+          </CardContent>
+        </Card>
+        <KpiCard icon={<AlertTriangle className="size-4 text-destructive" />} label="고위험 항목" value="연동 데이터 없음" raw />
         <KpiCard
           icon={<FileText className="size-4 text-muted-foreground" />}
           label="요구사항"
-          value={`${p.reqCount}건`}
+          value={isLoadingProjectData ? "조회 중" : requirementCount === null ? "조회 실패" : `${requirementCount}건`}
+          raw
         />
       </div>
 
-      <WeeklyScrumSubmissionsCard projectId={p.id} />
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* AI 분석 요약 */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="size-4" /> AI 분석 요약
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {aiSummary.map((line) => {
-                const action = getSummaryAction(line);
-                const ActionIcon = action?.icon;
-
-                return (
-                  <li
-                    key={line}
-                    className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 items-start gap-2">
-                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                      <span className="text-foreground text-sm leading-6">
-                        {line}
-                      </span>
-                    </div>
-
-                    {action && ActionIcon && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between gap-2 self-start sm:w-[170px] sm:min-w-[170px] sm:self-auto"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onNavigate(action.menu);
-                        }}
-                      >
-                        <ActionIcon className="size-3.5" />
-                        {action.label}
-                        <ArrowRight className="size-3.5" />
-                      </Button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="size-4" /> AI 분석 요약</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <SummaryRow
+              text={isLoadingProjectData
+                ? "요구사항 정보를 조회하고 있습니다."
+                : requirementCount === null
+                  ? "요구사항 정보를 불러오지 못했습니다."
+                  : requirementCount === 0
+                    ? "아직 요구사항이 추출되지 않았습니다."
+                    : `실제 추출된 요구사항은 ${requirementCount}건입니다.`}
+              buttonLabel="요구사항 바로가기"
+              icon={<FileText className="size-3.5" />}
+              onClick={() => onNavigate("requirements")}
+            />
+            <SummaryRow
+              text="업무 배정 정보는 업무 배정 화면에서 확인할 수 있습니다."
+              buttonLabel="업무 배정 바로가기"
+              icon={<Users className="size-3.5" />}
+              onClick={() => onNavigate("assign")}
+            />
           </CardContent>
         </Card>
 
-        {/* 상위 리스크 */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-4 text-destructive" /> 상위 리스크
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {risks.map((risk) => (
-              <div key={risk.id} className="rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground text-sm">{risk.title}</span>
-                  <Badge variant={risk.level === "높음" ? "destructive" : "secondary"}>
-                    {risk.level}
-                  </Badge>
-                </div>
-                <p className="text-muted-foreground text-sm mt-1">{risk.description}</p>
-              </div>
-            ))}
+          <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="size-4 text-destructive" /> 상위 리스크</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">이 프로젝트에 연결된 리스크 정보가 있을 때 표시됩니다.</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => onNavigate("risk")}>
+              리스크 관리 바로가기 <ArrowRight className="size-3.5" />
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* 초기 문서 */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <ListTodo className="size-4" /> 초기 문서 {p.docs.length}건
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openDocumentUpload}
-            >
-              <Pencil className="size-3.5" /> 문서 관리
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2"><FileText className="size-4" /> 문서 {documents.length}건</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => { setDocDraft([]); setDocError(""); setDocOpen(true); }}>
+              <UploadCloud className="size-3.5" /> 문서 업로드
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {p.docs.length > 0 ? (
+          {isLoadingProjectData ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> 문서를 불러오는 중입니다.</div>
+          ) : documents.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {p.docs.map((d, i) => (
-                <div
-                  key={`${d.name}-${i}`}
-                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
-                >
-                  <span className="flex size-8 items-center justify-center rounded-md bg-red-50 text-red-600">
-                    <FileText className="size-4" />
+              {documents.map((document) => (
+                <div key={document.documentId} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+                  <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md", documentIconClass(document.originalFileName))}>
+                    {documentIcon(document.originalFileName)}
                   </span>
-                  <span className="flex-1 truncate text-foreground text-sm">{d.name}</span>
-                  <Badge variant="secondary" className="font-normal">
-                    {d.type}
-                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">{document.originalFileName}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{formatFileSize(document.fileSize)}</div>
+                  </div>
+                  <Badge variant="secondary" className="font-normal">{fileExtension(document.originalFileName)}</Badge>
                 </div>
               ))}
             </div>
@@ -325,86 +324,20 @@ export function ProjectDetail({
         </CardContent>
       </Card>
 
-      {/* 문서 관리 다이얼로그 */}
-      <Dialog
-        open={docOpen}
-        onOpenChange={(open) => {
-          if (isUploadingDocuments) return;
-          setDocOpen(open);
-          if (!open) {
-            setDocDraft([]);
-            setDocError("");
-          }
-        }}
-      >
+      <Dialog open={docOpen} onOpenChange={(open) => { if (!isUploadingDocuments) setDocOpen(open); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>문서 관리</DialogTitle>
-            <DialogDescription>
-              {p.name} · 기존 문서는 유지하고 새 문서를 추가합니다.
-            </DialogDescription>
+            <DialogTitle>문서 업로드</DialogTitle>
+            <DialogDescription>{p.name} 프로젝트에 실제 문서를 업로드합니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-1">
-            {p.docs.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-sm font-medium text-foreground">
-                  등록된 문서
-                </div>
-                {p.docs.map((document, index) => (
-                  <div
-                    key={`${document.name}-${index}`}
-                    className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5"
-                  >
-                    <FileText className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate text-sm text-foreground">
-                      {document.name}
-                    </span>
-                    <Badge variant="secondary" className="font-normal">
-                      {document.type}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <DocPicker
-              documents={docDraft}
-              onChange={setDocDraft}
-              onError={setDocError}
-              disabled={isUploadingDocuments}
-            />
-
-            {docError && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-              >
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>{docError}</span>
-              </div>
-            )}
+            <DocPicker documents={docDraft} onChange={setDocDraft} onError={setDocError} disabled={isUploadingDocuments} />
+            {docError && <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>{docError}</span></div>}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              disabled={isUploadingDocuments}
-              onClick={() => {
-                setDocOpen(false);
-                setDocDraft([]);
-                setDocError("");
-              }}
-            >
-              취소
-            </Button>
-            <Button
-              disabled={isUploadingDocuments}
-              onClick={() => void uploadDocuments()}
-            >
-              {isUploadingDocuments ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <UploadCloud className="size-4" />
-              )}
+            <Button variant="outline" disabled={isUploadingDocuments} onClick={() => setDocOpen(false)}>취소</Button>
+            <Button disabled={isUploadingDocuments} onClick={() => void uploadDocuments()}>
+              {isUploadingDocuments ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}
               {isUploadingDocuments ? "업로드 중" : "문서 업로드"}
             </Button>
           </DialogFooter>
@@ -414,29 +347,19 @@ export function ProjectDetail({
   );
 }
 
-function KpiCard({
-  icon,
-  label,
-  value,
-  raw,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  /** true면 CountUp 애니메이션 없이 값을 그대로 표시한다. 날짜처럼 숫자를 세는 게 어색한 값에 사용. */
-  raw?: boolean;
-}) {
+function SummaryRow({ text, buttonLabel, icon, onClick }: { text: string; buttonLabel: string; icon: React.ReactNode; onClick: () => void }) {
   return (
-    <Card>
-      <CardContent className="pt-5">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-sm">{label}</span>
-          <span>{icon}</span>
-        </div>
-        <div className="mt-2 text-foreground text-2xl">
-          {raw ? value : <CountUp value={value} />}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" /><span className="text-foreground text-sm leading-6">{text}</span></div>
+      <Button type="button" variant="outline" size="sm" className="w-full justify-between gap-2 self-start sm:w-[180px] sm:min-w-[180px] sm:self-auto" onClick={onClick}>
+        {icon}{buttonLabel}<ArrowRight className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function KpiCard({ icon, label, value, raw }: { icon: React.ReactNode; label: string; value: string; raw?: boolean }) {
+  return (
+    <Card><CardContent className="pt-5"><div className="flex items-center justify-between"><span className="text-muted-foreground text-sm">{label}</span><span>{icon}</span></div><div className="mt-2 text-foreground text-2xl">{raw ? value : <CountUp value={value} />}</div></CardContent></Card>
   );
 }

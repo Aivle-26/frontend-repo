@@ -42,6 +42,7 @@ export function ProjectOverview({
       <div className="space-y-4">
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
         <ProjectBoard
+          mode="real"
           projects={projects}
           setProjects={setProjects}
           pmEmployeeNumber={pmEmployeeNumber}

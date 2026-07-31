@@ -60,8 +60,6 @@ import {
 } from "@/app/components/pm/projectDocumentUpload";
 import { formatServerProjectStatus } from "@/app/projects/projectMapping";
 
-type Filter = "전체" | ProjectStatus;
-
 const STATUS_META: Record<
   ProjectStatus,
   { label: string; badge: string; icon: React.ComponentType<{ className?: string }> }
@@ -72,8 +70,6 @@ const STATUS_META: Record<
   진행중: { label: "진행중", badge: "bg-blue-50 text-blue-700 border-blue-200", icon: Activity },
   완료: { label: "완료", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
 };
-
-const FILTERS: Filter[] = ["전체", "진행중", "준비", "승인대기", "완료"];
 
 interface ProjectBoardProps {
   mode?: "demo" | "real";
@@ -98,7 +94,6 @@ export function ProjectBoard({
   onOpenWizard,
   onExtract,
 }: ProjectBoardProps) {
-  const [filter, setFilter] = useState<Filter>("전체");
   const [query, setQuery] = useState("");
   const [detail, setDetail] = useState<ProjectSummary | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -121,36 +116,18 @@ export function ProjectBoard({
   );
   const deleteInFlightRef = useRef<string | null>(null);
 
-  const counts = useMemo(() => {
-    const c: Record<Filter, number> = {
-      전체: projects.length,
-      진행중: 0,
-      준비: 0,
-      승인대기: 0,
-      완료: 0,
-    };
-    projects.forEach((p) => {
-      if (p.status in c) c[p.status as Filter] += 1;
-    });
-    return c;
-  }, [projects]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const visibleProjects = projects.filter((p) => {
-      const byTab =
-        mode === "real" || filter === "전체" || p.status === filter;
-      const byQ =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.client.toLowerCase().includes(q);
-      return byTab && byQ;
-    });
+    const visibleProjects = projects.filter((p) =>
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.client.toLowerCase().includes(q),
+    );
 
     return mode === "real"
-      ? visibleProjects.sort(compareByNearestPlannedEndDate)
+      ? [...visibleProjects].sort(compareByNearestPlannedEndDate)
       : visibleProjects;
-  }, [mode, projects, filter, query]);
+  }, [mode, projects, query]);
 
   const startProject = (id: string) => {
     setProjects((prev) =>
@@ -363,30 +340,6 @@ export function ProjectBoard({
     <div className="space-y-5">
       {/* 상단: 데모 필터 + 검색 + 새 프로젝트 */}
       <div className="flex flex-wrap items-center gap-2">
-        {mode === "demo"
-          ? FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors",
-                  filter === f
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/70",
-                )}
-              >
-                {f}
-                <span
-                  className={cn(
-                    "rounded-full px-1.5 text-xs",
-                    filter === f ? "bg-white/20" : "bg-background",
-                  )}
-                >
-                  {counts[f]}
-                </span>
-              </button>
-            ))
-          : null}
         <div className="relative ml-auto">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -419,7 +372,7 @@ export function ProjectBoard({
         ))}
         {filtered.length === 0 && (
           <div className="col-span-full rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
-            해당 상태의 프로젝트가 없습니다.
+            등록된 프로젝트가 없습니다.
           </div>
         )}
       </div>

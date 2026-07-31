@@ -29,7 +29,7 @@ import {
   buildTaggedFileName,
   parseTaggedFileName,
   weekOfDate,
-} from "@/app/components/common/weeklyScrumSubmission";
+} from "@/app/components/common/WeeklyScrumSubmission";
 
 /**
  * 개인 위클리 스크럼 제출 화면.

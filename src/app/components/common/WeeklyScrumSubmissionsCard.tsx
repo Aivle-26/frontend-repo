@@ -8,7 +8,7 @@ import {
   ApiError,
   type ProjectDocumentUploadItem,
 } from "@/app/api/projectRepository";
-import { parseTaggedFileName } from "@/app/components/common/weeklyScrumSubmission";
+import { parseTaggedFileName } from "@/app/components/common/WeeklyScrumSubmission";
 
 interface WeeklyScrumSubmissionsCardProps {
   projectId: string;

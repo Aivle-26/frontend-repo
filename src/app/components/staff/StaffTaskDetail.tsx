@@ -9,6 +9,7 @@ import {
   Sparkles,
   MessageSquare,
   CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,6 +33,7 @@ import {
 import { demoRepository } from "@/app/data/demoRepository";
 import {
   completeTask,
+  updateTaskColumn,
   useTasks,
 } from "@/app/state/taskStore";
 
@@ -449,25 +451,44 @@ export function StaffTaskDetail({
             </p>
           </div>
 
-          <Button
-            type="button"
-            size="lg"
-            disabled={isCompleted}
-            onClick={() => {
-              completeTask(task.id);
-              toast.success(
-                "업무를 완료 처리했습니다.",
-              );
-              onBack();
-            }}
-            className="sm:min-w-40"
-          >
-            <CheckCircle2 className="size-4" />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="lg"
+              disabled={isCompleted}
+              onClick={() => {
+                completeTask(task.id);
+                toast.success(
+                  "업무를 완료 처리했습니다.",
+                );
+                onBack();
+              }}
+              className="sm:min-w-40"
+            >
+              <CheckCircle2 className="size-4" />
 
-            {isCompleted
-              ? "완료된 업무"
-              : "업무 완료"}
-          </Button>
+              {isCompleted
+                ? "완료된 업무"
+                : "업무 완료"}
+            </Button>
+
+            {isCompleted && (
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={() => {
+                  updateTaskColumn(task.id, "doing");
+                  toast.success(
+                    "완료 처리를 취소하고 진행 중으로 되돌렸습니다.",
+                  );
+                }}
+              >
+                <RotateCcw className="size-4" />
+                완료 취소
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

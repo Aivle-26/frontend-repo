@@ -285,46 +285,13 @@ export interface SaveFinalWbsRequest {
   tasks: SaveFinalWbsTask[];
 }
 
-export interface ScheduleDateRange {
-  startDate: string;
-  endDate: string;
+export type AgentExecutionStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | string;
+
+export interface AgentRequestResult {
+  agentExecutionId: string;
+  status: AgentExecutionStatus;
+  agentVersion: string;
 }
-
-export interface WbsScheduleRecommendation {
-  wbsId: number;
-  expected: ScheduleDateRange;
-  recommended: ScheduleDateRange;
-  conservative: ScheduleDateRange;
-}
-
-export interface ScheduleRecommendationResponse {
-  projectId: number;
-  wbsSchedules: WbsScheduleRecommendation[];
-  warnings: string[];
-}
-
-type RawScheduleDateRange = {
-  startDate?: unknown;
-  endDate?: unknown;
-  start_date?: unknown;
-  end_date?: unknown;
-};
-
-type RawWbsScheduleRecommendation = {
-  wbsId?: unknown;
-  wbs_id?: unknown;
-  expected?: RawScheduleDateRange;
-  recommended?: RawScheduleDateRange;
-  conservative?: RawScheduleDateRange;
-};
-
-type RawScheduleRecommendationResponse = {
-  projectId?: unknown;
-  project_id?: unknown;
-  wbsSchedules?: RawWbsScheduleRecommendation[];
-  wbs_schedules?: RawWbsScheduleRecommendation[];
-  warnings?: unknown;
-};
 
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
@@ -572,48 +539,6 @@ export function toFrontendRole(role?: string): Role {
   return role?.trim().toLowerCase() === "pm" ? "pm" : "staff";
 }
 
-function normalizeScheduleDateRange(value: RawScheduleDateRange | undefined): ScheduleDateRange {
-  const startDate = value?.startDate ?? value?.start_date;
-  const endDate = value?.endDate ?? value?.end_date;
-
-  if (typeof startDate !== "string" || typeof endDate !== "string") {
-    throw new ApiError(502, "AI 일정 추천 응답의 날짜 형식이 올바르지 않습니다.", value);
-  }
-
-  return { startDate, endDate };
-}
-
-function normalizeScheduleRecommendation(
-  raw: RawScheduleRecommendationResponse,
-): ScheduleRecommendationResponse {
-  const projectId = Number(raw.projectId ?? raw.project_id);
-  const schedules = raw.wbsSchedules ?? raw.wbs_schedules;
-
-  if (!Number.isInteger(projectId) || !Array.isArray(schedules)) {
-    throw new ApiError(502, "AI 일정 추천 응답 형식이 올바르지 않습니다.", raw);
-  }
-
-  return {
-    projectId,
-    wbsSchedules: schedules.map((item) => {
-      const wbsId = Number(item.wbsId ?? item.wbs_id);
-      if (!Number.isInteger(wbsId)) {
-        throw new ApiError(502, "AI 일정 추천 응답의 WBS 식별자가 올바르지 않습니다.", item);
-      }
-
-      return {
-        wbsId,
-        expected: normalizeScheduleDateRange(item.expected),
-        recommended: normalizeScheduleDateRange(item.recommended),
-        conservative: normalizeScheduleDateRange(item.conservative),
-      };
-    }),
-    warnings: Array.isArray(raw.warnings)
-      ? raw.warnings.filter((item): item is string => typeof item === "string")
-      : [],
-  };
-}
-
 export const projectRepository = {
   signup(input: SignupRequest) {
     return apiFetch<SignupStartResponse>("/users/signup", {
@@ -767,14 +692,15 @@ export const projectRepository = {
     );
   },
 
-  recommendSchedule(projectId: string | number) {
-    return apiFetch<RawScheduleRecommendationResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/schedules/recommend`,
+  generateSchedule(projectId: string | number) {
+    return apiFetch<AgentRequestResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/schedules/generate`,
       {
         method: "POST",
         auth: true,
+        expectedStatuses: [202],
       },
-    ).then(normalizeScheduleRecommendation);
+    );
   },
 
   uploadProjectDocuments(projectId: string | number, files: File[]) {

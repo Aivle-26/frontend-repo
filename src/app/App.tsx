@@ -526,7 +526,12 @@ function DemoApplication() {
       body = <SlackIntegration />;
     } else if (staffMenu === "notice") {
       subtitle = "공지사항";
-      body = <StaffNoticeBoard currentUserName={authSession?.name ?? "나"} />;
+      body = (
+        <StaffNoticeBoard
+          currentUserName={authSession?.name ?? "나"}
+          onSubmitRequested={() => setStaffMenu("submit")}
+        />
+      );
     } else if (staffMenu === "documents") {
       subtitle = "문서 통합 관리";
       body = <StaffDocuments />;

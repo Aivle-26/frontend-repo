@@ -1,6 +1,5 @@
 import {
   ListTodo,
-  AlarmClock,
   Eye,
   CheckCircle2,
   Sparkles,
@@ -26,7 +25,6 @@ const COLUMNS: { key: TaskColumn; label: string }[] = [
   { key: "done", label: "완료" },
 ];
 
-const DUE_SOON_DAYS = 3;
 
 function priorityVariant(p: string) {
   if (p === "높음") return "destructive" as const;
@@ -44,24 +42,16 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
   // 업무 상세 화면에서 "완료 처리"를 누르면 즉시 여기에도 반영된다.
   const tasks = useTasks();
 
-  const today = new Date().toISOString().slice(0, 10);
-  const dueSoonLimit = new Date();
-  dueSoonLimit.setDate(dueSoonLimit.getDate() + DUE_SOON_DAYS);
-  const dueSoonLimitStr = dueSoonLimit.toISOString().slice(0, 10);
-
   const kpis = {
     myTasks: tasks.length,
-    dueSoon: tasks.filter(
-      (t) => t.column !== "done" && t.due >= today && t.due <= dueSoonLimitStr,
-    ).length,
-    inReview: tasks.filter((t) => t.column === "review").length,
+    inProgress: tasks.filter((t) => t.column === "doing").length,
     completed: tasks.filter((t) => t.column === "done").length,
   };
 
   return (
     <div className="space-y-6">
       {/* KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
           icon={<ListTodo className="size-4" />}
           label="내 업무"
@@ -69,15 +59,9 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
           tone="blue"
         />
         <KpiCard
-          icon={<AlarmClock className="size-4" />}
-          label="마감 임박"
-          value={`${kpis.dueSoon}건`}
-          tone="red"
-        />
-        <KpiCard
           icon={<Eye className="size-4" />}
-          label="검토 중"
-          value={`${kpis.inReview}건`}
+          label="진행 중"
+          value={`${kpis.inProgress}건`}
           tone="amber"
         />
         <KpiCard
@@ -126,7 +110,7 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4" /> 관련 요구사항
+              <FileText className="size-4" /> 관련 요구사항·WBS
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -87,6 +87,8 @@ interface StaffNoticeBoardProps {
   limit?: number;
   /** PM 피드백 채팅에서 "나"로 표시할 로그인 사용자 이름. */
   currentUserName?: string;
+  /** 위클리 스크럼 공지에서 "제출하기"를 눌렀을 때 호출됩니다. [산출물 제출] 화면으로 이동시키는 용도. */
+  onSubmitRequested?: () => void;
 }
 
 export function StaffNoticeBoard({
@@ -95,6 +97,7 @@ export function StaffNoticeBoard({
   variant = "full",
   limit = 4,
   currentUserName = "나",
+  onSubmitRequested,
 }: StaffNoticeBoardProps) {
   const isCompact = variant === "compact";
   const notices = useNotices();
@@ -374,9 +377,25 @@ export function StaffNoticeBoard({
               )}
 
               <DialogFooter>
-                <Button onClick={() => setSelected(null)}>
-                  {selected.category === "PM 피드백" ? "닫기" : "확인"}
-                </Button>
+                {selected.category === "위클리 스크럼" ? (
+                  <>
+                    <Button variant="outline" onClick={() => setSelected(null)}>
+                      닫기
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelected(null);
+                        onSubmitRequested?.();
+                      }}
+                    >
+                      제출하기
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => setSelected(null)}>
+                    {selected.category === "PM 피드백" ? "닫기" : "확인"}
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}

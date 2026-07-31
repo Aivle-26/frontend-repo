@@ -223,19 +223,20 @@ export function StaffSubmit({ project, currentUserName }: StaffSubmitProps) {
               </span>
             </button>
           )}
-          {file && (
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="text-primary text-xs hover:underline"
-            >
-              다른 파일로 바꾸기
-            </button>
-          )}
-
-          <Button onClick={() => void submit()} disabled={uploading}>
-            {uploading ? "제출 중…" : "위클리 스크럼 제출"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {file && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => inputRef.current?.click()}
+              >
+                다른 파일로 바꾸기
+              </Button>
+            )}
+            <Button onClick={() => void submit()} disabled={uploading}>
+              {uploading ? "제출 중…" : "위클리 스크럼 제출"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -253,9 +254,13 @@ export function StaffSubmit({ project, currentUserName }: StaffSubmitProps) {
               <Skeleton className="h-10 w-full" />
             </div>
           )}
-          {!loading && error && <p className="text-red-600 text-sm">{error}</p>}
+          {!loading && error && (
+            <p className="mb-3 text-muted-foreground text-xs">
+              실제 제출 현황을 불러오지 못해 예시 데이터를 보여드려요. ({error})
+            </p>
+          )}
 
-          {!loading && !error && (
+          {!loading && (
             <Table>
               <TableHeader>
                 <TableRow>

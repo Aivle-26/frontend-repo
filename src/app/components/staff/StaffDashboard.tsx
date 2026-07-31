@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import {
   ListTodo,
   Eye,
   CheckCircle2,
-  Sparkles,
   FileText,
+  ListTree,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -13,18 +15,23 @@ import {
   CardDescription,
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
+import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/app/components/ui/utils";
-import { demoRepository } from "@/app/data/demoRepository";
 import type { Task, TaskColumn } from "@/app/data/demoData";
 import { useTasks } from "@/app/state/taskStore";
 import { CountUp } from "@/app/components/common/CountUp";
+import {
+  projectRepository,
+  ApiError,
+  type RequirementResponse,
+  type WbsTask,
+} from "@/app/api/projectRepository";
 
 const COLUMNS: { key: TaskColumn; label: string }[] = [
   { key: "todo", label: "할 일" },
   { key: "doing", label: "진행 중" },
   { key: "done", label: "완료" },
 ];
-
 
 function priorityVariant(p: string) {
   if (p === "높음") return "destructive" as const;
@@ -33,14 +40,50 @@ function priorityVariant(p: string) {
 }
 
 interface StaffDashboardProps {
+  projectId: string;
   onOpenTask: (taskId: string) => void;
 }
 
-export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
-  const { aiHelper, requirements } = demoRepository.getStaffDashboard();
-  // 업무 보드는 taskStore(localStorage 기반 실시간 데이터)를 그대로 쓴다.
+export function StaffDashboard({ projectId, onOpenTask }: StaffDashboardProps) {
+  // 업무 보드는 taskStore(메모리 기반 실시간 데이터)를 그대로 쓴다.
   // 업무 상세 화면에서 "완료 처리"를 누르면 즉시 여기에도 반영된다.
   const tasks = useTasks();
+
+  const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
+  const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
+  const [reqWbsLoading, setReqWbsLoading] = useState(true);
+  const [reqWbsError, setReqWbsError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+    setReqWbsLoading(true);
+    setReqWbsError("");
+
+    Promise.allSettled([
+      projectRepository.getRequirements(projectId),
+      projectRepository.getWbs(projectId),
+    ]).then(([reqResult, wbsResult]) => {
+      if (ignore) return;
+
+      if (reqResult.status === "fulfilled") {
+        setRequirements(reqResult.value.finalRequirements ?? []);
+      } else if (
+        !(reqResult.reason instanceof ApiError && reqResult.reason.status === 404)
+      ) {
+        setReqWbsError("요구사항·WBS를 불러오지 못했습니다.");
+      }
+
+      if (wbsResult.status === "fulfilled" && wbsResult.value) {
+        setWbsTasks(wbsResult.value.finalTasks ?? []);
+      }
+
+      setReqWbsLoading(false);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [projectId]);
 
   const kpis = {
     myTasks: tasks.length,
@@ -105,43 +148,62 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Related requirements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4" /> 관련 요구사항·WBS
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {requirements.slice(0, 3).map((r) => (
-              <div key={r.id} className="rounded-md border border-border p-3">
-                <Badge variant="outline" className="mb-1">{r.category}</Badge>
-                <p className="text-foreground text-sm">{r.text}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {/* 관련 요구사항·WBS */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="size-4" /> 관련 요구사항·WBS
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {reqWbsLoading && (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          )}
 
-        {/* AI helper */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="size-4" /> AI 업무 도우미
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {aiHelper.map((line) => (
-                <li key={line} className="flex items-start gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                  <span className="text-foreground text-sm">{line}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
+          {!reqWbsLoading && reqWbsError && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <AlertCircle className="size-4" /> {reqWbsError}
+            </div>
+          )}
+
+          {!reqWbsLoading && !reqWbsError && (
+            <>
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                  <FileText className="size-3.5" /> 요구사항
+                </p>
+                {requirements.slice(0, 3).map((r) => (
+                  <div key={r.requirementId} className="rounded-md border border-border p-3">
+                    <Badge variant="outline" className="mb-1">{r.type}</Badge>
+                    <p className="text-foreground text-sm">{r.title}</p>
+                  </div>
+                ))}
+                {requirements.length === 0 && (
+                  <p className="text-muted-foreground text-sm">등록된 요구사항이 없습니다.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                  <ListTree className="size-3.5" /> WBS
+                </p>
+                {wbsTasks.slice(0, 3).map((t) => (
+                  <div key={t.externalTaskId} className="rounded-md border border-border p-3">
+                    <Badge variant="outline" className="mb-1">{t.phase}</Badge>
+                    <p className="text-foreground text-sm">{t.taskName}</p>
+                  </div>
+                ))}
+                {wbsTasks.length === 0 && (
+                  <p className="text-muted-foreground text-sm">등록된 WBS가 없습니다.</p>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

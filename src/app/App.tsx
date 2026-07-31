@@ -36,7 +36,6 @@ import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
 import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
-import { StaffRisk, StaffRiskActions } from "@/app/components/staff/StaffRisk";
 import { StaffContext } from "@/app/components/staff/StaffContext";
 import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
 import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
@@ -88,10 +87,6 @@ const STAFF_MENU: SidebarItem[] = [
   { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
-  { key: "context", label: "RFP 맥락", icon: BookOpen, group: "자료" },
-  { key: "documents", label: "문서 통합 관리", icon: FolderKanban, group: "자료" },
-  { key: "feedback", label: "피드백", icon: MessageSquareReply, group: "소통" },
-  { key: "comments", label: "댓글", icon: MessagesSquare, group: "소통" },
 ];
 
 // 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
@@ -169,12 +164,10 @@ function DemoApplication() {
   }, []);
 
   useEffect(() => {
-    if (role !== "pm") {
+    if (!role) {
       setProjectLoadStatus("idle");
       return;
     }
-
-
 
     let ignore = false;
     setProjectLoadStatus("loading");
@@ -290,8 +283,27 @@ function DemoApplication() {
   let body: React.ReactNode = null;
   let actions: React.ReactNode = null;
 
+  // 직원 계정은 /projects 목록 조회가 막혀있거나 비어있을 수 있어서,
+  // 그런 경우에도 화면이 비지 않도록 더미 프로젝트로 대체한다.
+  const FALLBACK_PROJECT: FrontendProjectSummary = {
+    id: "1",
+    name: "진행 중 프로젝트",
+    client: "-",
+    status: "진행중",
+    progress: 0,
+    dueDate: "-",
+    riskCount: 0,
+    reqCount: 0,
+    wizardStep: 6,
+    estimate: "-",
+    updatedAt: "-",
+    docs: [],
+  };
+
   const selectedProject =
-    projects.find((p) => p.id === selectedProjectId) ?? projects[0];
+    projects.find((p) => p.id === selectedProjectId) ??
+    projects[0] ??
+    (!isPm ? FALLBACK_PROJECT : undefined);
 
   if (isPm) {
     if (SCOPED_PM.has(pmMenu) && !selectedProject) {
@@ -489,14 +501,22 @@ function DemoApplication() {
       body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
-      body = <StaffRisk projectId={selectedProjectId} />;
-      actions = <StaffRiskActions />;
+      body = selectedProject ? (
+        <RiskManagement key={selectedProject.id} project={selectedProject} />
+      ) : (
+        <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
+      );
     } else if (staffMenu === "context") {
       subtitle = "RFP 맥락";
       body = <StaffContext />;
     } else if (staffMenu === "submit") {
       subtitle = "산출물 제출";
-      body = <StaffSubmit />;
+      body = (
+        <StaffSubmit
+          project={selectedProject ?? null}
+          currentUserName={authSession?.name ?? ""}
+        />
+      );
     } else if (staffMenu === "feedback") {
       subtitle = "피드백";
       body = <StaffFeedback />;

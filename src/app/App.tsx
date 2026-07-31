@@ -29,6 +29,7 @@ import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmAssign } from "@/app/components/pm/PmAssign";
 import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
+import { WeeklyScrum } from "@/app/components/pm/WeeklyScrum";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
 import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
@@ -377,13 +378,7 @@ function DemoApplication() {
       );
     } else if (pmMenu === "weekly") {
       subtitle = "위클리 스크럼";
-      body = (
-        <PmGeneration
-          key={selectedProject?.id}
-          project={selectedProject!}
-          view="operational"
-        />
-      );
+      body = <WeeklyScrum key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "search") {
       subtitle = "통합 질의응답";
       body = (

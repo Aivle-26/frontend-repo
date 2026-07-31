@@ -1,4 +1,4 @@
-export type LogoutReason = "manual" | "expired" | "inactive";
+export type LogoutReason = "manual" | "expired";
 
 export interface StoredAuthSession {
   employeeNumber: string;
@@ -8,13 +8,11 @@ export interface StoredAuthSession {
   refreshToken: string;
   accessTokenExpiresAt: number;
   absoluteExpiresAt: number;
-  lastActivityAt: number;
   serverTime: number;
-  inactivityTimeoutMinutes: number;
 }
 
 export interface AuthSyncEvent {
-  type: "login" | "logout" | "activity" | "session";
+  type: "login" | "logout" | "session";
   reason?: LogoutReason;
   session?: StoredAuthSession | null;
   at: number;
@@ -104,15 +102,4 @@ export function subscribeAuthEvents(listener: (event: AuthSyncEvent) => void): (
 
 export function isAbsoluteExpired(session: StoredAuthSession, now: number = Date.now()): boolean {
   return now >= session.absoluteExpiresAt;
-}
-
-export function isInactiveExpired(session: StoredAuthSession, now: number = Date.now()): boolean {
-  return now >= session.lastActivityAt + session.inactivityTimeoutMinutes * 60_000;
-}
-
-export function withActivity(session: StoredAuthSession, lastActivityAt: number): StoredAuthSession {
-  return {
-    ...session,
-    lastActivityAt,
-  };
 }

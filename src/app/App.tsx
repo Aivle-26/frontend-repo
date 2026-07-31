@@ -135,6 +135,8 @@ function DemoApplication() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     "",
   );
+  // 요구사항 페이지 상단 문서 업로드/분석 후 아래 요구사항 목록을 재조회하기 위한 키
+  const [requirementsRefreshKey, setRequirementsRefreshKey] = useState(0);
 
 
   const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
@@ -320,15 +322,42 @@ function DemoApplication() {
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
       body = (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <PmRequirements
+        <div className="space-y-4">
+          {/* 상단: 백엔드 연동 문서 업로드(파일 선택·업로드·요구사항 분석) */}
+          <PmUpload
             key={selectedProject?.id}
+            project={selectedProject!}
+            onDocumentsUploaded={(documents) => {
+              setProjects((currentProjects) =>
+                currentProjects.map((currentProject) =>
+                  currentProject.id === selectedProject!.id
+                    ? {
+                        ...currentProject,
+                        docs: [
+                          ...currentProject.docs,
+                          ...documents.map((document) => ({
+                            name: document.originalFileName,
+                            type: "RFP" as const,
+                          })),
+                        ],
+                        updatedAt: "방금",
+                      }
+                    : currentProject,
+                ),
+              );
+            }}
+            onAnalysisComplete={() =>
+              // 업로드 문서 분석 완료 → 아래 요구사항 목록 재조회
+              setRequirementsRefreshKey((key) => key + 1)
+            }
+          />
+
+          {/* 하단: 업로드/분석된 결과 기반 요구사항 목록 */}
+          <PmRequirements
+            key={`${selectedProject?.id}:${requirementsRefreshKey}`}
             project={selectedProject!}
             onBackToGeneration={() => handleSelect("wbs")}
           />
-          <div className="xl:sticky xl:top-0 xl:self-start">
-            <PmAnalysis variant="panel" project={selectedProject!} />
-          </div>
         </div>
       );
     } else if (pmMenu === "similar") {

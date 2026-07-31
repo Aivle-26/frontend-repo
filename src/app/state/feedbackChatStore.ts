@@ -2,9 +2,15 @@ import { useEffect, useState } from "react";
 
 /**
  * PM ↔ 직원 피드백 채팅 스토어.
- * 아직 실시간 채팅 백엔드가 없어서, taskStore/noticeStore와 동일한
- * localStorage + 커스텀 이벤트 패턴으로 우선 구현한다.
- * (백엔드 채팅 API가 생기면 이 스토어를 그 API 호출로 교체하면 된다.)
+ *
+ * ⚠️ 의도적으로 localStorage에 저장하지 않습니다. — 직원 화면은 아직
+ * "UI만 구현" 단계라 시연용으로 쓰지 않기 때문에, 코드를 새로 받거나
+ * 새로고침하거나 로그아웃 후 재로그인하면 항상 초기 대화 내용(SEED_MESSAGES)으로
+ * 깨끗하게 리셋되는 게 더 낫습니다.
+ *
+ * 메모리(모듈 변수)에만 상태를 두고, 같은 세션(탭을 새로고침하지 않은 동안)
+ * 안에서는 커스텀 이벤트로 화면들끼리 동기화됩니다. 실제 채팅 백엔드 API가
+ * 생기면 이 스토어를 그 API 호출로 교체하면 됩니다.
  */
 
 export interface FeedbackChatMessage {
@@ -16,7 +22,6 @@ export interface FeedbackChatMessage {
   sentAt: string;
 }
 
-const STORAGE_KEY = "aipm.feedbackChat";
 const CHANGED_EVENT = "aipm:feedback-chat-changed";
 
 const SEED_MESSAGES: FeedbackChatMessage[] = [
@@ -36,36 +41,18 @@ const SEED_MESSAGES: FeedbackChatMessage[] = [
   },
 ];
 
-function canUseStorage(): boolean {
-  return typeof window !== "undefined";
-}
+let currentMessages: FeedbackChatMessage[] = SEED_MESSAGES;
 
 export function getFeedbackMessages(): FeedbackChatMessage[] {
-  if (!canUseStorage()) {
-    return SEED_MESSAGES;
-  }
-
-  const saved = window.localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_MESSAGES));
-    return SEED_MESSAGES;
-  }
-
-  try {
-    return JSON.parse(saved) as FeedbackChatMessage[];
-  } catch (error) {
-    console.error("피드백 채팅 데이터를 읽지 못했습니다.", error);
-    return SEED_MESSAGES;
-  }
+  return currentMessages;
 }
 
-function saveFeedbackMessages(messages: FeedbackChatMessage[]): void {
-  if (!canUseStorage()) {
-    return;
-  }
+function setFeedbackMessages(messages: FeedbackChatMessage[]): void {
+  currentMessages = messages;
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  window.dispatchEvent(new CustomEvent(CHANGED_EVENT));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CHANGED_EVENT));
+  }
 }
 
 /** 메시지를 맨 뒤에 추가합니다. */
@@ -77,7 +64,6 @@ export function sendFeedbackMessage(
   const trimmed = text.trim();
   if (!trimmed) return;
 
-  const current = getFeedbackMessages();
   const message: FeedbackChatMessage = {
     id: `fc${Date.now()}`,
     sender,
@@ -85,7 +71,7 @@ export function sendFeedbackMessage(
     text: trimmed,
     sentAt: new Date().toISOString(),
   };
-  saveFeedbackMessages([...current, message]);
+  setFeedbackMessages([...currentMessages, message]);
 }
 
 /** React 컴포넌트에서 채팅 내역을 구독하는 Hook입니다. */
@@ -98,11 +84,9 @@ export function useFeedbackChat(): FeedbackChatMessage[] {
     const sync = () => setMessages(getFeedbackMessages());
 
     window.addEventListener(CHANGED_EVENT, sync);
-    window.addEventListener("storage", sync);
 
     return () => {
       window.removeEventListener(CHANGED_EVENT, sync);
-      window.removeEventListener("storage", sync);
     };
   }, []);
 

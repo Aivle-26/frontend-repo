@@ -98,6 +98,11 @@ export function StaffNoticeBoard({
 }: StaffNoticeBoardProps) {
   const isCompact = variant === "compact";
   const notices = useNotices();
+  // PM 피드백 / 위클리 스크럼은 아래 전용 블록에만 노출하고, 일반 "공지 목록"에는 안 섞는다.
+  const generalNotices = useMemo(
+    () => notices.filter((n) => n.category !== "PM 피드백" && n.category !== "위클리 스크럼"),
+    [notices],
+  );
   const filters = FILTERS;
   const [filter, setFilter] = useState<NoticeCategory | "전체">("전체");
   const [selected, setSelected] = useState<Notice | null>(null);
@@ -160,23 +165,23 @@ export function StaffNoticeBoard({
 
   const list = useMemo(() => {
     if (filter === "전체") {
-      const sorted = [...notices].sort((a, b) => {
+      const sorted = [...generalNotices].sort((a, b) => {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
       });
       return sorted.slice(0, 3);
     }
-    return notices.filter((n) => n.category === filter);
-  }, [notices, filter]);
+    return generalNotices.filter((n) => n.category === filter);
+  }, [generalNotices, filter]);
 
   // compact: 고정 공지 우선 → 최신순 → limit 개
   const compactList = useMemo(() => {
-    const sorted = [...notices].sort((a, b) => {
+    const sorted = [...generalNotices].sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
     });
     return sorted.slice(0, limit);
-  }, [notices, limit]);
+  }, [generalNotices, limit]);
 
   const displayList = isCompact ? compactList : list;
 
@@ -287,7 +292,12 @@ export function StaffNoticeBoard({
                     className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
                   >
                     <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
-                      <span className="text-foreground text-sm">{n.title}</span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Badge variant={priorityVariant(n.priority)} className="shrink-0">
+                          {n.priority}
+                        </Badge>
+                        <span className="truncate text-foreground text-sm">{n.title}</span>
+                      </span>
                       <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
                     </div>
                     <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>

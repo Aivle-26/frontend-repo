@@ -30,13 +30,14 @@ function formatTime(iso: string) {
   });
 }
 
-export function PmFeedbackChat({ currentUserName, compact = false }: PmFeedbackChatProps) {
+export function PmFeedbackChat({ compact = false }: PmFeedbackChatProps) {
   const messages = useFeedbackChat();
   const [draft, setDraft] = useState("");
 
   const submit = () => {
     if (!draft.trim()) return;
-    sendFeedbackMessage("staff", currentUserName || "나", draft);
+    // 로그인 계정명(currentUserName)이 뭐든 상관없이 내 메시지는 항상 "나"로 표시한다.
+    sendFeedbackMessage("staff", "나", draft);
     setDraft("");
   };
 

@@ -31,7 +31,6 @@ import { ProjectWizard } from "@/app/components/pm/ProjectWizard";
 import { StaffDashboard } from "@/app/components/staff/StaffDashboard";
 import { StaffNotice } from "@/app/components/staff/StaffNotice";
 import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
-import { StaffRisk, StaffRiskActions } from "@/app/components/staff/StaffRisk";
 import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
 import {
@@ -154,7 +153,7 @@ function DemoApplication() {
   }, []);
 
   useEffect(() => {
-    if (role !== "pm") {
+    if (!role) {
       setProjectLoadStatus("idle");
       return;
     }
@@ -275,8 +274,27 @@ function DemoApplication() {
   let body: React.ReactNode = null;
   let actions: React.ReactNode = null;
 
+  // 직원 계정은 /projects 목록 조회가 막혀있거나 비어있을 수 있어서,
+  // 그런 경우에도 화면이 비지 않도록 더미 프로젝트로 대체한다.
+  const FALLBACK_PROJECT: FrontendProjectSummary = {
+    id: "1",
+    name: "진행 중 프로젝트",
+    client: "-",
+    status: "진행중",
+    progress: 0,
+    dueDate: "-",
+    riskCount: 0,
+    reqCount: 0,
+    wizardStep: 6,
+    estimate: "-",
+    updatedAt: "-",
+    docs: [],
+  };
+
   const selectedProject =
-    projects.find((p) => p.id === selectedProjectId) ?? projects[0];
+    projects.find((p) => p.id === selectedProjectId) ??
+    projects[0] ??
+    (!isPm ? FALLBACK_PROJECT : undefined);
 
   if (isPm) {
     if (SCOPED_PM.has(pmMenu) && !selectedProject) {
@@ -498,11 +516,19 @@ function DemoApplication() {
       body = <StaffNotice />;
     } else if (staffMenu === "risk") {
       subtitle = "리스크";
-      body = <StaffRisk projectId={selectedProjectId} />;
-      actions = <StaffRiskActions />;
+      body = selectedProject ? (
+        <RiskManagement key={selectedProject.id} project={selectedProject} />
+      ) : (
+        <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
+      );
     } else if (staffMenu === "submit") {
       subtitle = "산출물 제출";
-      body = <StaffSubmit />;
+      body = (
+        <StaffSubmit
+          project={selectedProject ?? null}
+          currentUserName={authSession?.name ?? ""}
+        />
+      );
     } else if (selectedTaskId) {
       subtitle = "업무 상세";
       body = (

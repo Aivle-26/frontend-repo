@@ -34,6 +34,7 @@ import {
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import { DocPicker } from "@/app/components/pm/DocPicker";
+import { WeeklyScrumSubmissionsCard } from "@/app/components/common/WeeklyScrumSubmissionsCard";
 import {
   ApiError,
   projectRepository,
@@ -208,6 +209,8 @@ export function ProjectDetail({
           value={`${p.reqCount}건`}
         />
       </div>
+
+      <WeeklyScrumSubmissionsCard projectId={p.id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* AI 분석 요약 */}

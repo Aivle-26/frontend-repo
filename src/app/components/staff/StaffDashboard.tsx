@@ -14,8 +14,10 @@ import {
   CardDescription,
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
+import { cn } from "@/app/components/ui/utils";
 import { demoRepository } from "@/app/data/demoRepository";
 import type { Task, TaskColumn } from "@/app/data/demoData";
+import { useTasks } from "@/app/state/taskStore";
 import { CountUp } from "@/app/components/common/CountUp";
 
 const COLUMNS: { key: TaskColumn; label: string }[] = [
@@ -24,6 +26,8 @@ const COLUMNS: { key: TaskColumn; label: string }[] = [
   { key: "review", label: "검토 요청" },
   { key: "done", label: "완료" },
 ];
+
+const DUE_SOON_DAYS = 3;
 
 function priorityVariant(p: string) {
   if (p === "높음") return "destructive" as const;
@@ -36,17 +40,53 @@ interface StaffDashboardProps {
 }
 
 export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
-  const { kpis, tasks, aiHelper, feedback, requirements } =
-    demoRepository.getStaffDashboard();
+  const { aiHelper, requirements } = demoRepository.getStaffDashboard();
+  // 업무 보드는 taskStore(localStorage 기반 실시간 데이터)를 그대로 쓴다.
+  // 업무 상세 화면에서 "완료 처리"를 누르면 즉시 여기에도 반영된다.
+  const tasks = useTasks();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const dueSoonLimit = new Date();
+  dueSoonLimit.setDate(dueSoonLimit.getDate() + DUE_SOON_DAYS);
+  const dueSoonLimitStr = dueSoonLimit.toISOString().slice(0, 10);
+
+  const kpis = {
+    myTasks: tasks.length,
+    dueSoon: tasks.filter(
+      (t) => t.column !== "done" && t.due >= today && t.due <= dueSoonLimitStr,
+    ).length,
+    inReview: tasks.filter((t) => t.column === "review").length,
+    completed: tasks.filter((t) => t.column === "done").length,
+  };
 
   return (
     <div className="space-y-6">
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard icon={<ListTodo className="size-4" />} label="내 업무" value={`${kpis.myTasks}건`} />
-        <KpiCard icon={<AlarmClock className="size-4 text-destructive" />} label="마감 임박" value={`${kpis.dueSoon}건`} />
-        <KpiCard icon={<Eye className="size-4" />} label="검토 중" value={`${kpis.inReview}건`} />
-        <KpiCard icon={<CheckCircle2 className="size-4" />} label="완료" value={`${kpis.completed}건`} />
+        <KpiCard
+          icon={<ListTodo className="size-4" />}
+          label="내 업무"
+          value={`${kpis.myTasks}건`}
+          tone="blue"
+        />
+        <KpiCard
+          icon={<AlarmClock className="size-4" />}
+          label="마감 임박"
+          value={`${kpis.dueSoon}건`}
+          tone="red"
+        />
+        <KpiCard
+          icon={<Eye className="size-4" />}
+          label="검토 중"
+          value={`${kpis.inReview}건`}
+          tone="amber"
+        />
+        <KpiCard
+          icon={<CheckCircle2 className="size-4" />}
+          label="완료"
+          value={`${kpis.completed}건`}
+          tone="emerald"
+        />
       </div>
 
       {/* Kanban */}
@@ -82,12 +122,12 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Related RFP */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Related requirements */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4" /> 관련 RFP 요구사항
+              <FileText className="size-4" /> 관련 요구사항
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -118,24 +158,6 @@ export function StaffDashboard({ onOpenTask }: StaffDashboardProps) {
             </ul>
           </CardContent>
         </Card>
-
-        {/* Recent feedback */}
-        <Card>
-          <CardHeader>
-            <CardTitle>최근 PM 피드백</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {feedback.map((f) => (
-              <div key={f.id} className="rounded-md border border-border p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-foreground text-sm">{f.author}</span>
-                  <span className="text-muted-foreground text-xs">{f.date}</span>
-                </div>
-                <p className="text-muted-foreground text-sm">{f.text}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
@@ -152,7 +174,7 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
         <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
       </div>
       <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
-        <span>{task.relatedReq}</span>
+        <span>{task.projectName}</span>
         <span>~{task.due}</span>
       </div>
     </button>
@@ -163,15 +185,27 @@ interface KpiCardProps {
   icon: React.ReactNode;
   label: string;
   value: string;
+  tone?: "blue" | "red" | "amber" | "emerald";
 }
 
-function KpiCard({ icon, label, value }: KpiCardProps) {
+const KPI_TONE_STYLES: Record<
+  NonNullable<KpiCardProps["tone"]>,
+  { card: string; icon: string }
+> = {
+  blue: { card: "bg-blue-50/70 border-blue-100", icon: "text-blue-600" },
+  red: { card: "bg-red-50/70 border-red-100", icon: "text-red-600" },
+  amber: { card: "bg-amber-50/70 border-amber-100", icon: "text-amber-600" },
+  emerald: { card: "bg-emerald-50/70 border-emerald-100", icon: "text-emerald-600" },
+};
+
+function KpiCard({ icon, label, value, tone }: KpiCardProps) {
+  const toneStyle = tone ? KPI_TONE_STYLES[tone] : null;
   return (
-    <Card>
+    <Card className={toneStyle?.card}>
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm">{label}</span>
-          <span className="text-muted-foreground">{icon}</span>
+          <span className={cn("text-muted-foreground", toneStyle?.icon)}>{icon}</span>
         </div>
         <div className="mt-2 text-foreground text-2xl">
           <CountUp value={value} />

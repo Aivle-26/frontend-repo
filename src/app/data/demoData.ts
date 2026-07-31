@@ -50,6 +50,8 @@ export interface Task {
   due: string;
   assignee: string;
   relatedReq: string;
+  /** 업무 보드 카드에 표시할 소속 프로젝트명 */
+  projectName: string;
 }
 
 export interface Feedback {
@@ -59,7 +61,12 @@ export interface Feedback {
   text: string;
 }
 
-export type NoticeCategory = "PM 피드백" | "마감 안내" | "시스템 공지" | "업데이트";
+export type NoticeCategory =
+  | "PM 피드백"
+  | "마감 안내"
+  | "시스템 공지"
+  | "업데이트"
+  | "위클리 스크럼";
 
 export interface Notice {
   id: string;
@@ -547,6 +554,7 @@ export const TASKS: Task[] = [
     due: "2026-07-08",
     assignee: "나",
     relatedReq: "RFP 4.1 기술 요건",
+  projectName: "신제품 출시 프로젝트",
   },
   {
     id: "t2",
@@ -556,6 +564,7 @@ export const TASKS: Task[] = [
     due: "2026-07-12",
     assignee: "나",
     relatedReq: "RFP 5.3 운영 요건",
+  projectName: "내부 관리도구 고도화",
   },
   {
     id: "t3",
@@ -565,6 +574,7 @@ export const TASKS: Task[] = [
     due: "2026-07-05",
     assignee: "나",
     relatedReq: "RFP 5.1 유지보수",
+  projectName: "구 사이트 마이그레이션",
   },
   {
     id: "t4",
@@ -574,6 +584,7 @@ export const TASKS: Task[] = [
     due: "2026-07-06",
     assignee: "나",
     relatedReq: "RFP 2.4 데이터 요건",
+  projectName: "교통관제 시스템 구축",
   },
   {
     id: "t5",
@@ -583,6 +594,7 @@ export const TASKS: Task[] = [
     due: "2026-07-03",
     assignee: "나",
     relatedReq: "RFP 6.2 사용성",
+  projectName: "내부 관리도구 고도화",
   },
   {
     id: "t6",
@@ -592,6 +604,7 @@ export const TASKS: Task[] = [
     due: "2026-06-28",
     assignee: "나",
     relatedReq: "RFP 3.2 환경 규정",
+  projectName: "브랜드 리뉴얼 프로젝트",
   },
   {
     id: "t7",
@@ -601,6 +614,7 @@ export const TASKS: Task[] = [
     due: "2026-07-04",
     assignee: "나",
     relatedReq: "RFP 3.2 환경 규정 준수",
+  projectName: "브랜드 리뉴얼 프로젝트",
   },
 ];
 
@@ -708,6 +722,50 @@ export const STAFF_NOTICES: Notice[] = [
       "RFP V3 데이터셋 검토를 마쳤습니다. 전반적인 데이터 정합성은 양호합니다.",
       "데이터 요건 중 개인정보 비식별화 처리 방식에 대한 근거 자료가 누락되어 있어, 관련 문서를 첨부해 주시기 바랍니다.",
       "다음 검토는 7월 24일 오전 중 진행 예정입니다.",
+    ],
+  },
+  {
+    id: "n7",
+    category: "위클리 스크럼",
+    priority: "중간",
+    pinned: true,
+    title: "이번 주 위클리 스크럼 제출 요청",
+    author: "PM 정하늘",
+    date: "2026-07-27",
+    summary: "이번 주 진행 상황을 정리해 금요일까지 제출해 주세요.",
+    content: [
+      "이번 주 위클리 스크럼을 [산출물 제출] 화면에서 파일로 제출해 주세요.",
+      "이번 주 완료한 작업, 다음 주 계획, 막힌 부분을 간단히 정리해 주시면 됩니다.",
+      "제출 마감은 금요일 오후 6시입니다.",
+    ],
+  },
+  {
+    id: "n8",
+    category: "위클리 스크럼",
+    priority: "낮음",
+    pinned: false,
+    title: "지난주 위클리 스크럼 확인했어요",
+    author: "PM 정하늘",
+    date: "2026-07-20",
+    summary: "제출 잘 받았습니다. 다음 주도 같은 형식으로 부탁드려요.",
+    content: [
+      "지난주 위클리 스크럼 잘 확인했습니다.",
+      "진행 상황 정리가 깔끔해서 보기 좋았어요. 다음 주도 같은 형식으로 부탁드립니다.",
+    ],
+  },
+  {
+    id: "n9",
+    category: "위클리 스크럼",
+    priority: "중간",
+    pinned: false,
+    title: "위클리 스크럼 제출 형식 안내",
+    author: "PM 정하늘",
+    date: "2026-07-13",
+    summary: "이번 주 완료 / 다음 주 계획 / 이슈 3항목으로 정리해 주세요.",
+    content: [
+      "위클리 스크럼 작성 시 아래 3항목을 포함해 주세요.",
+      "1) 이번 주 완료한 작업 2) 다음 주 계획 3) 막힌 부분·이슈",
+      "형식이 통일되면 검토가 훨씬 빨라져요. 협조 부탁드립니다.",
     ],
   },
 ];

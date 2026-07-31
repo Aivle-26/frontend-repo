@@ -7,6 +7,8 @@ import {
   Pin,
   ChevronRight,
   Plus,
+  MessageSquareText,
+  CalendarCheck2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,6 +43,7 @@ import type { Notice, NoticeCategory } from "@/app/data/demoData";
 import { addNotice, useNotices } from "@/app/state/noticeStore";
 import { type Priority } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
+import { cn } from "@/app/components/ui/utils";
 
 const FILTERS: (NoticeCategory | "전체")[] = [
   "전체",
@@ -48,6 +51,7 @@ const FILTERS: (NoticeCategory | "전체")[] = [
   "마감 안내",
   "시스템 공지",
   "업데이트",
+  "위클리 스크럼",
 ];
 
 function priorityVariant(p: string) {
@@ -63,6 +67,7 @@ const CREATE_CATEGORIES: NoticeCategory[] = [
   "마감 안내",
   "업데이트",
   "PM 피드백",
+  "위클리 스크럼",
 ];
 const PRIORITIES: Priority[] = ["높음", "중간", "낮음"];
 
@@ -157,7 +162,9 @@ export function StaffNotice({
     toast.success(
       form.category === "PM 피드백"
         ? "PM 피드백을 등록해 직원에게 전달했어요."
-        : "공지를 등록했어요.",
+        : form.category === "위클리 스크럼"
+          ? "위클리 스크럼 제출 요청을 등록했어요."
+          : "공지를 등록했어요.",
     );
   };
 
@@ -165,13 +172,16 @@ export function StaffNotice({
   const importantCount = notices.filter((n) => n.priority === "높음").length;
   const thisWeekCount = notices.filter((n) => n.date >= THIS_WEEK_FROM).length;
 
-  const list = useMemo(
-    () =>
-      filter === "전체"
-        ? notices
-        : notices.filter((n) => n.category === filter),
-    [notices, filter],
-  );
+  const list = useMemo(() => {
+    if (filter === "전체") {
+      const sorted = [...notices].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+      });
+      return sorted.slice(0, 3);
+    }
+    return notices.filter((n) => n.category === filter);
+  }, [notices, filter]);
 
   // compact: 고정 공지 우선 → 최신순 → limit 개
   const compactList = useMemo(() => {
@@ -194,10 +204,10 @@ export function StaffNotice({
       {/* KPI (full 전용) */}
       {!isCompact && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <KpiCard icon={<Megaphone className="size-4" />} label="전체 공지" value={notices.length} />
-          <KpiCard icon={<Eye className="size-4 text-destructive" />} label="읽지 않음" value={unreadCount} />
-          <KpiCard icon={<AlertTriangle className="size-4" />} label="중요 공지" value={importantCount} />
-          <KpiCard icon={<Clock className="size-4" />} label="이번 주 신규" value={thisWeekCount} />
+          <KpiCard icon={<Megaphone className="size-4" />} label="전체 공지" value={notices.length} tone="blue" />
+          <KpiCard icon={<Eye className="size-4" />} label="읽지 않음" value={unreadCount} tone="red" />
+          <KpiCard icon={<AlertTriangle className="size-4" />} label="중요 공지" value={importantCount} tone="amber" />
+          <KpiCard icon={<Clock className="size-4" />} label="이번 주 신규" value={thisWeekCount} tone="violet" />
         </div>
       )}
 
@@ -280,6 +290,73 @@ export function StaffNotice({
           </div>
         </CardContent>
       </Card>
+
+      {/* PM 피드백 | 위클리 스크럼 관련 PM 요청 */}
+      {!isCompact && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquareText className="size-4" /> PM 피드백
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {notices
+                .filter((n) => n.category === "PM 피드백")
+                .slice(0, 3)
+                .map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => openNotice(n)}
+                    className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
+                  >
+                    <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
+                      <span className="text-foreground text-sm">{n.title}</span>
+                      <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
+                    </div>
+                    <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>
+                  </button>
+                ))}
+              {notices.filter((n) => n.category === "PM 피드백").length === 0 && (
+                <p className="py-4 text-center text-muted-foreground text-sm">
+                  아직 PM 피드백이 없습니다.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarCheck2 className="size-4" /> 위클리 스크럼 요청
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {notices
+                .filter((n) => n.category === "위클리 스크럼")
+                .slice(0, 3)
+                .map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => openNotice(n)}
+                    className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
+                  >
+                    <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
+                      <span className="text-foreground text-sm">{n.title}</span>
+                      <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
+                    </div>
+                    <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>
+                  </button>
+                ))}
+              {notices.filter((n) => n.category === "위클리 스크럼").length === 0 && (
+                <p className="py-4 text-center text-muted-foreground text-sm">
+                  아직 요청이 없습니다.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* 상세 다이얼로그 */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
@@ -427,15 +504,27 @@ interface KpiCardProps {
   icon: React.ReactNode;
   label: string;
   value: number;
+  tone?: "blue" | "red" | "amber" | "violet";
 }
 
-function KpiCard({ icon, label, value }: KpiCardProps) {
+const KPI_TONE_STYLES: Record<
+  NonNullable<KpiCardProps["tone"]>,
+  { card: string; icon: string }
+> = {
+  blue: { card: "bg-blue-50/70 border-blue-100", icon: "text-blue-600" },
+  red: { card: "bg-red-50/70 border-red-100", icon: "text-red-600" },
+  amber: { card: "bg-amber-50/70 border-amber-100", icon: "text-amber-600" },
+  violet: { card: "bg-violet-50/70 border-violet-100", icon: "text-violet-600" },
+};
+
+function KpiCard({ icon, label, value, tone }: KpiCardProps) {
+  const toneStyle = tone ? KPI_TONE_STYLES[tone] : null;
   return (
-    <Card>
+    <Card className={toneStyle?.card}>
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm">{label}</span>
-          <span className="text-muted-foreground">{icon}</span>
+          <span className={cn("text-muted-foreground", toneStyle?.icon)}>{icon}</span>
         </div>
         <div className="mt-2 text-foreground text-2xl">
           <CountUp value={`${value}건`} />

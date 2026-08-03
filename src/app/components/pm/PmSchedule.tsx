@@ -364,9 +364,9 @@ function ScheduleGantt({
   const shortLabel = (ms: number) =>
     new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(ms));
 
-  const starts = rows.map((r) => toTime(r.recommended.startDate));
   const ends = rows.map((r) => toTime(r.recommended.endDate));
-  const rangeStart = Math.min(toTime(schedule.projectStartDate), ...starts);
+  // 타임라인 시작 = 프로젝트 시작일에 고정. 막대가 프로젝트 시작일에 정렬된다.
+  const rangeStart = toTime(schedule.projectStartDate);
   const rangeEnd = Math.max(toTime(schedule.targetEndDate), ...ends);
   const total = Math.max(1, rangeEnd - rangeStart);
   const pct = (ms: number) => ((ms - rangeStart) / total) * 100;
@@ -388,6 +388,20 @@ function ScheduleGantt({
 
   return (
     <div className="space-y-1.5">
+      {/* today 라벨 (날짜보다 한 줄 위) */}
+      <div className="flex">
+        <div className={NAME_COL} />
+        <div className="relative h-4 flex-1">
+          {todayPct != null && (
+            <span
+              className="absolute -translate-x-1/2 font-medium text-amber-600 text-xs"
+              style={{ left: `${todayPct}%` }}
+            >
+              today
+            </span>
+          )}
+        </div>
+      </div>
       {/* 날짜 축 */}
       <div className="flex items-end">
         <div className={NAME_COL} />
@@ -401,22 +415,15 @@ function ScheduleGantt({
               {t.label}
             </span>
           ))}
-          {todayPct != null && (
-            <span
-              className="absolute -translate-x-1/2 font-medium text-red-500 text-xs"
-              style={{ left: `${todayPct}%` }}
-            >
-              today
-            </span>
-          )}
         </div>
       </div>
 
       {/* 각 일정 막대 */}
       {rows.map((row) => {
-        const left = pct(toTime(row.recommended.startDate));
-        const rawWidth = pct(toTime(row.recommended.endDate)) - left;
-        const width = Math.max(rawWidth, 1.2);
+        const startPct = pct(toTime(row.recommended.startDate));
+        const endPct = pct(toTime(row.recommended.endDate));
+        const left = Math.max(0, startPct);
+        const width = Math.max(Math.min(endPct, 100) - left, 1.2);
         const title = `${shortLabel(toTime(row.recommended.startDate))} ~ ${shortLabel(
           toTime(row.recommended.endDate),
         )} (${row.recommended.estimatedDays}일)`;
@@ -431,7 +438,7 @@ function ScheduleGantt({
             <div className="relative h-7 flex-1 rounded bg-muted/40">
               {todayPct != null && (
                 <div
-                  className="absolute inset-y-0 z-10 w-px bg-red-400"
+                  className="absolute inset-y-0 z-10 w-[3px] -translate-x-1/2 rounded bg-amber-500"
                   style={{ left: `${todayPct}%` }}
                 />
               )}

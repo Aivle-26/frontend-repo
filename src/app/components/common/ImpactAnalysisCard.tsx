@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   Calculator,
@@ -17,6 +17,7 @@ import { Label } from "@/app/components/ui/label";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/app/components/ui/utils";
 import { getAccessToken } from "@/app/api/authToken";
+import { projectRepository } from "@/app/api/projectRepository";
 import {
   impactAnalysisApi,
   impactLevelLabel,
@@ -46,6 +47,45 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
   const [form, setForm] = useState<ImpactAnalysisInput>(EMPTY_FORM);
   const [result, setResult] = useState<ImpactAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // WBS·일정에서 영향 업무 수·남은 일정을 자동으로 채운다(사용자가 아직 안 건드린 0 값만).
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const wbs = await projectRepository.getWbs(projectId);
+        const taskCount = (wbs.finalTasks ?? []).filter(
+          (t) => t.confirmed && Number(t.taskId) > 0,
+        ).length;
+        if (!cancelled && taskCount > 0) {
+          setForm((p) => (p.affectedTaskCount === 0 ? { ...p, affectedTaskCount: taskCount } : p));
+          setAutoFilled(true);
+        }
+      } catch {
+        /* WBS 없거나 조회 실패 시 자동 채우기 생략 */
+      }
+
+      try {
+        const schedule = await projectRepository.getSchedules(projectId);
+        const end = new Date(`${schedule.targetEndDate}T00:00:00`).getTime();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const days = Math.max(0, Math.round((end - today.getTime()) / 86_400_000));
+        if (!cancelled && days > 0) {
+          setForm((p) => (p.remainingDays === 0 ? { ...p, remainingDays: days } : p));
+          setAutoFilled(true);
+        }
+      } catch {
+        /* 일정 없으면 남은 일정은 수동 입력 */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   const setNumber = (key: keyof ImpactAnalysisInput) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,7 +124,12 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
         <div className="grid gap-4 md:grid-cols-2">
           {/* 입력 폼 */}
           <div className="rounded-lg border border-border p-4">
-            <p className="mb-3 text-muted-foreground text-xs">변경 정보 입력</p>
+            <p className="mb-3 text-muted-foreground text-xs">
+              변경 정보 입력
+              {autoFilled && (
+                <span className="ml-1 text-blue-600">· 업무 수·남은 일정은 WBS·일정에서 자동 반영(수정 가능)</span>
+              )}
+            </p>
 
             <div className="space-y-3">
               <div>

@@ -217,7 +217,7 @@ export function PmBudget({ project }: PmBudgetProps) {
       <Card>
         <CardHeader>
           <CardTitle>견적 조건</CardTitle>
-          <CardDescription>값을 바꾼 뒤 아래 "AI 예상 견적 다시 계산"을 눌러주세요.</CardDescription>
+          <CardDescription>값을 바꾼 뒤 아래 "AI 견적 분석하기"를 눌러주세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -485,11 +485,6 @@ export function PmBudget({ project }: PmBudgetProps) {
             </>
           )}
 
-          {!estimating && !estimateError && !result && (
-            <p className="py-6 text-center text-muted-foreground text-sm">
-              아직 계산된 견적이 없습니다. 위 "AI 예상 견적 다시 계산"을 눌러주세요.
-            </p>
-          )}
         </CardContent>
       </Card>
     </div>

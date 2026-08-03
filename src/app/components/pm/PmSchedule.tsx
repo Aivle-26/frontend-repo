@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarClock,
-  CheckCircle2,
+  Flag,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -12,14 +12,25 @@ import { toast } from "sonner";
 import {
   ApiError,
   projectRepository,
-  type AgentRequestResult,
+  type ProjectScheduleResult,
   type WbsResult,
 } from "@/app/api/projectRepository";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/app/components/ui/table";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_MAX_ATTEMPTS = 20; // 약 60초
 
 function messageOf(error: unknown, fallback: string) {
   return error instanceof ApiError && error.message ? error.message : fallback;
@@ -36,31 +47,66 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export function PmSchedule({ project }: { project: ProjectSummary }) {
   const [wbs, setWbs] = useState<WbsResult | null>(null);
-  const [requestResult, setRequestResult] = useState<AgentRequestResult | null>(null);
+  const [schedule, setSchedule] = useState<ProjectScheduleResult | null>(null);
   const [loadingWbs, setLoadingWbs] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+  const [generating, setGenerating] = useState(false); // 요청 접수 + 결과 폴링 동안 true
   const [error, setError] = useState("");
+  const cancelledRef = useRef(false);
 
-  const loadWbs = async () => {
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
+
+  const loadWbs = useCallback(async () => {
     setLoadingWbs(true);
     setError("");
     try {
-      setWbs(await projectRepository.getWbs(project.id));
+      const result = await projectRepository.getWbs(project.id);
+      if (!cancelledRef.current) setWbs(result);
     } catch (caught) {
-      setWbs(null);
+      if (!cancelledRef.current) setWbs(null);
       if (!(caught instanceof ApiError && caught.status === 404)) {
         setError(messageOf(caught, "WBS를 불러오지 못했습니다."));
       }
     } finally {
-      setLoadingWbs(false);
+      if (!cancelledRef.current) setLoadingWbs(false);
     }
-  };
+  }, [project.id]);
+
+  // 저장된 일정 결과를 조회한다. 아직 없으면(404) null.
+  const loadSchedule = useCallback(async (): Promise<ProjectScheduleResult | null> => {
+    const res = await projectRepository.getSchedules(project.id);
+    return res;
+  }, [project.id]);
+
+  const refreshSchedule = useCallback(async () => {
+    setLoadingSchedule(true);
+    try {
+      const res = await loadSchedule();
+      if (!cancelledRef.current) setSchedule(res);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 404) {
+        if (!cancelledRef.current) setSchedule(null);
+      } else if (!cancelledRef.current) {
+        setError(messageOf(caught, "일정을 불러오지 못했습니다."));
+      }
+    } finally {
+      if (!cancelledRef.current) setLoadingSchedule(false);
+    }
+  }, [loadSchedule]);
 
   useEffect(() => {
-    setRequestResult(null);
+    setSchedule(null);
     void loadWbs();
+    void refreshSchedule();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
@@ -70,6 +116,11 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
         (task) => task.confirmed && Number.isInteger(task.taskId) && Number(task.taskId) > 0,
       ).length,
     [wbs],
+  );
+
+  const scheduleRows = useMemo(
+    () => [...(schedule?.schedules ?? [])].sort((a, b) => a.orderIndex - b.orderIndex),
+    [schedule],
   );
 
   const generateSchedule = async () => {
@@ -84,16 +135,47 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
 
     setGenerating(true);
     setError("");
+    const previousExecId = schedule?.agentExecutionId ?? null;
     try {
-      const result = await projectRepository.generateSchedule(project.id);
-      setRequestResult(result);
-      toast.success("AI 일정 생성 요청이 접수되었습니다.");
+      const request = await projectRepository.generateSchedule(project.id);
+      const targetExecId = request.agentExecutionId ?? null;
+      toast.success("AI 일정 생성 요청이 접수되었습니다. 결과를 기다리는 중…");
+
+      // 새 실행 결과(agentExecutionId 일치, 또는 이전과 달라짐)가 나올 때까지 폴링한다.
+      for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
+        if (cancelledRef.current) return;
+        await sleep(POLL_INTERVAL_MS);
+        if (cancelledRef.current) return;
+
+        let res: ProjectScheduleResult | null = null;
+        try {
+          res = await loadSchedule();
+        } catch (caught) {
+          if (!(caught instanceof ApiError && caught.status === 404)) throw caught;
+        }
+
+        const isFresh =
+          res != null &&
+          (targetExecId != null
+            ? res.agentExecutionId === targetExecId
+            : res.agentExecutionId !== previousExecId);
+
+        if (isFresh) {
+          if (!cancelledRef.current) {
+            setSchedule(res);
+            toast.success("AI 일정이 생성되었습니다.");
+          }
+          return;
+        }
+      }
+
+      toast.message("아직 생성 중이에요. 잠시 후 '결과 새로고침'을 눌러 확인해 주세요.");
     } catch (caught) {
-      const message = messageOf(caught, "AI 일정 생성 요청에 실패했습니다.");
+      const message = messageOf(caught, "AI 일정 생성에 실패했습니다.");
       setError(message);
       toast.error(message);
     } finally {
-      setGenerating(false);
+      if (!cancelledRef.current) setGenerating(false);
     }
   };
 
@@ -109,24 +191,44 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">AI 일정 생성</h2>
                 <Badge variant="secondary">{project.name}</Badge>
+                {schedule?.llmStatus && (
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+                  >
+                    {schedule.llmStatus}
+                  </Badge>
+                )}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                확정된 WBS를 백엔드 일정 생성 API로 전달합니다.
+                확정된 WBS를 기준으로 AI가 추천·보수 일정을 생성합니다.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void loadWbs()} disabled={loadingWbs || generating}>
-              {loadingWbs ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-              WBS 새로고침
+            <Button
+              variant="outline"
+              onClick={() => void refreshSchedule()}
+              disabled={loadingSchedule || generating}
+            >
+              {loadingSchedule ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              결과 새로고침
             </Button>
             <Button
               onClick={() => void generateSchedule()}
               disabled={loadingWbs || generating || !wbs?.finalConfirmed}
             >
-              {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              AI 일정 생성 요청
+              {generating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              {schedule ? "AI 일정 다시 생성" : "AI 일정 생성"}
             </Button>
           </div>
         </CardContent>
@@ -151,7 +253,9 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
       {!loadingWbs && (!wbs || !wbs.finalConfirmed) ? (
         <Alert>
           <AlertCircle className="size-4" />
-          <AlertDescription>WBS 탭에서 최종 WBS를 먼저 확정해야 일정 생성을 요청할 수 있습니다.</AlertDescription>
+          <AlertDescription>
+            WBS 탭에서 최종 WBS를 먼저 확정해야 일정 생성을 요청할 수 있습니다.
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -159,32 +263,71 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
         <Card>
           <CardContent className="flex min-h-72 flex-col items-center justify-center gap-3 text-center">
             <Loader2 className="size-8 animate-spin text-blue-600" />
-            <div className="font-medium text-foreground">백엔드에 AI 일정 생성을 요청하고 있습니다.</div>
+            <div className="font-medium text-foreground">AI가 일정을 생성하고 있습니다…</div>
+            <div className="text-sm text-muted-foreground">
+              결과가 준비되면 자동으로 표시됩니다. (최대 약 1분)
+            </div>
           </CardContent>
         </Card>
-      ) : requestResult ? (
+      ) : schedule && scheduleRows.length > 0 ? (
         <Card>
-          <CardContent className="flex min-h-72 flex-col items-center justify-center gap-4 text-center">
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50">
-              <CheckCircle2 className="size-7 text-emerald-600" />
-            </div>
-            <div>
-              <div className="font-medium text-foreground">일정 생성 요청이 접수되었습니다.</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                백엔드 상태: {requestResult.status}
+          <CardContent className="space-y-4 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm text-muted-foreground">
+                프로젝트 기간 {formatDate(schedule.projectStartDate)} ~{" "}
+                {formatDate(schedule.targetEndDate)} · 총 {scheduleRows.length}개 항목
               </div>
+              <span className="text-muted-foreground text-xs">
+                실행 {schedule.agentExecutionId} · {schedule.agentVersion}
+              </span>
             </div>
-            <div className="w-full max-w-xl rounded-xl border bg-muted/30 p-4 text-left text-sm">
-              <div><span className="font-medium">실행 ID:</span> {requestResult.agentExecutionId}</div>
-              <div className="mt-2"><span className="font-medium">에이전트 버전:</span> {requestResult.agentVersion}</div>
+
+            {schedule.warnings.length > 0 && (
+              <Alert>
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  {schedule.warnings.map((w, i) => (
+                    <div key={i}>{w}</div>
+                  ))}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>WBS</TableHead>
+                    <TableHead>추천 시작</TableHead>
+                    <TableHead>추천 종료</TableHead>
+                    <TableHead className="text-right">예상일수</TableHead>
+                    <TableHead className="text-right">버퍼</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scheduleRows.map((row) => (
+                    <TableRow key={row.scheduleId}>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.milestone && <Flag className="size-3.5 text-blue-600" />}
+                          <span className="text-foreground">{row.wbsName}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(row.recommended.startDate)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(row.recommended.endDate)}
+                      </TableCell>
+                      <TableCell className="text-right">{row.recommended.estimatedDays}일</TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {row.bufferDays}일
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <Alert className="max-w-xl text-left">
-              <AlertCircle className="size-4" />
-              <AlertDescription>
-                현재 백엔드는 일정 생성 요청과 AI 결과 저장 API만 제공하며, 저장된 일정 조회 API는 제공하지 않습니다.
-                따라서 프론트만 수정한 이번 버전에서는 요청 접수 상태까지만 정확히 표시합니다.
-              </AlertDescription>
-            </Alert>
           </CardContent>
         </Card>
       ) : (
@@ -194,9 +337,9 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
               <CalendarClock className="size-7 text-muted-foreground" />
             </div>
             <div>
-              <div className="font-medium text-foreground">아직 일정 생성 요청을 하지 않았습니다.</div>
+              <div className="font-medium text-foreground">아직 생성된 일정이 없습니다.</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                최종 WBS를 확정한 뒤 AI 일정 생성을 요청하세요.
+                최종 WBS를 확정한 뒤 "AI 일정 생성"을 눌러주세요.
               </div>
             </div>
           </CardContent>

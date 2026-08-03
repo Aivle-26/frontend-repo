@@ -15,6 +15,7 @@ import {
   Network,
   CalendarClock,
   ClipboardList,
+  Wallet,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
@@ -28,6 +29,7 @@ import { RiskManagement } from "@/app/components/pm/RiskManagement";
 import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmAssign } from "@/app/components/pm/PmAssign";
+import { PmBudget } from "@/app/components/pm/PmBudget";
 import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
 import { WeeklyScrum } from "@/app/components/pm/WeeklyScrum";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
@@ -71,6 +73,7 @@ const PM_MENU: SidebarItem[] = [
   { key: "wbs", label: "WBS", icon: Network, group: "계획" },
   { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
   { key: "assign", label: "업무 (배정)", icon: Users, group: "계획" },
+  { key: "budget", label: "예산", icon: Wallet, group: "계획" },
   // [실행]
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
   { key: "weekly", label: "위클리 스크럼", icon: ClipboardList, group: "실행" },
@@ -98,6 +101,7 @@ const SCOPED_PM = new Set([
   "wbs",
   "schedule",
   "assign",
+  "budget",
   "risk",
   "weekly",
   "search",
@@ -418,6 +422,9 @@ function DemoApplication() {
           project={selectedProject!}
         />
       );
+    } else if (pmMenu === "budget") {
+      subtitle = "예산";
+      body = <PmBudget key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "weekly") {
       subtitle = "위클리 스크럼";
       body = <WeeklyScrum key={selectedProject?.id} project={selectedProject!} />;

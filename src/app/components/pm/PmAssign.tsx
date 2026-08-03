@@ -6,6 +6,7 @@ import {
   Gauge,
   Sparkles,
   CalendarClock,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -44,7 +45,6 @@ import {
 } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
 import { ReassignmentCard } from "@/app/components/common/ReassignmentCard";
-import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
 
 type AssignFilter = "미배정" | "배정됨" | "전체";
 
@@ -142,6 +142,22 @@ const progressByMember = useMemo(() => {
     };
   });
 }, [rows, team]);
+
+const { rows: delayRows } = demoRepository.getTeamProgressDelay(project.id);
+
+const mergedProgress = useMemo(() => {
+  return progressByMember.map((member) => {
+    const delay = delayRows.find((d) => d.id === member.id);
+    return {
+      ...member,
+      currentTask: delay?.currentTask ?? "배정된 업무 없음",
+      dueDate: delay?.dueDate ?? "-",
+      actualProgress: delay?.progress ?? member.progress,
+      expectedProgress: delay?.expectedProgress ?? member.progress,
+      delayDays: delay?.delayDays ?? 0,
+    };
+  });
+}, [progressByMember, delayRows]);
 
   const maxLoad = Math.max(1, ...Array.from(loadByMember.values()));
   const topMember = useMemo(() => {
@@ -388,95 +404,170 @@ const progressByMember = useMemo(() => {
         </CardContent>
       </Card>
 
-      {/* 개인 진행률 | 팀원 진행도 지연 */}
+      {/* 팀원 진행 현황 (완료율 + 일정 대비 지연) | 팀 워크로드 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" /> 개인 진행률
+              <CheckCircle2 className="size-4" /> 팀원 진행 현황
             </CardTitle>
             <CardDescription>
-              팀원별 전체 업무와 완료 업무를 기준으로 계산됩니다.
+              완료 업무 비율과 일정 대비 진행 상태를 함께 보여드려요.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {progressByMember.map((member) => (
-              <div key={`progress-${member.id}`} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Avatar className="size-7">
-                    <AvatarFallback className="text-[10px]">
-                      {member.name.slice(0, 1)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-foreground">
-                      {member.name}
+          <CardContent className="space-y-3">
+            {mergedProgress.map((member) => {
+              const status =
+                member.delayDays > 0
+                  ? "지연"
+                  : member.actualProgress < member.expectedProgress
+                    ? "주의"
+                    : "정상";
+              const statusStyle =
+                status === "지연"
+                  ? "bg-red-50 text-red-700 border-red-200"
+                  : status === "주의"
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200";
+              const barColor =
+                status === "지연"
+                  ? "bg-red-500"
+                  : status === "주의"
+                    ? "bg-amber-500"
+                    : "bg-emerald-500";
+              return (
+                <div key={member.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Avatar className="size-7 shrink-0">
+                        <AvatarFallback className="text-[10px]">
+                          {member.name.slice(0, 1)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-foreground text-sm">{member.name}</span>
+                          <span className="text-muted-foreground text-xs">{member.role}</span>
+                        </div>
+                        <p className="truncate text-muted-foreground text-xs">
+                          {member.currentTask} · 마감 {member.dueDate} · 완료{" "}
+                          {member.completed}건/{member.total}건
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      완료 {member.completed}건 / 전체 {member.total}건
-                    </div>
+                    <Badge variant="outline" className={cn("shrink-0 font-normal", statusStyle)}>
+                      {status === "지연" ? `${member.delayDays}일 지연` : status}
+                    </Badge>
                   </div>
-
-                  <span className="text-sm font-medium text-foreground">
-                    {member.progress}%
-                  </span>
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full", barColor)}
+                        style={{ width: `${member.actualProgress}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-muted-foreground text-xs">
+                      실제 {member.actualProgress}% / 목표 {member.expectedProgress}%
+                    </span>
+                  </div>
                 </div>
-
-                <Progress value={member.progress} />
-              </div>
-            ))}
+              );
+            })}
+            {mergedProgress.length === 0 && (
+              <p className="py-6 text-center text-muted-foreground text-sm">
+                이 프로젝트에 배정된 팀원이 없습니다.
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        <TeamProgressDelayCard projectId={project.id} />
-      </div>
-
-      {/* 팀 워크로드 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-4" /> 팀 워크로드
-          </CardTitle>
-          <CardDescription>배정 시 실시간으로 반영됩니다.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {team.map((m) => {
-            const load = loadByMember.get(m.name) ?? 0;
-            const pct = Math.round((load / maxLoad) * 100);
-            const isTop = m.name === topMember.name && topMember.count > 0;
-            return (
-              <div key={m.id} className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Avatar className="size-7">
-                    <AvatarFallback className="text-[10px]">
-                      {m.name.slice(0, 1)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="leading-tight">
-                    <div className="text-foreground text-sm">{m.name}</div>
-                    <div className="text-muted-foreground text-xs">{m.role}</div>
+        {/* 팀 워크로드 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-4" /> 팀 워크로드
+            </CardTitle>
+            <CardDescription>배정 시 실시간으로 반영됩니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {team.map((m) => {
+              const load = loadByMember.get(m.name) ?? 0;
+              const pct = Math.round((load / maxLoad) * 100);
+              const isTop = m.name === topMember.name && topMember.count > 0;
+              return (
+                <div key={m.id} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="size-7">
+                      <AvatarFallback className="text-[10px]">
+                        {m.name.slice(0, 1)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="leading-tight">
+                      <div className="text-foreground text-sm">{m.name}</div>
+                      <div className="text-muted-foreground text-xs">{m.role}</div>
+                    </div>
+                    <span
+                      className={cn(
+                        "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
+                        isTop
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {load}건
+                    </span>
                   </div>
-                  <span
-                    className={cn(
-                      "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
-                      isTop
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {load}건
-                  </span>
+                  <Progress value={pct} />
                 </div>
-                <Progress value={pct} />
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 담당자 재배정 추천 (AI 서버 연동, 팀원 데이터 기반) */}
       <ReassignmentCard projectId={project.id} />
+
+      {/* 예산 (예산 관리 기능이 아직 없어 예시 데이터로 보여드립니다) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="size-4" /> 예산
+          </CardTitle>
+          <CardDescription>
+            예산 집행 현황이에요. 아직 실제 예산 데이터가 연동되어 있지 않아 예시로 보여드려요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-muted-foreground text-xs">총 예산(견적)</p>
+              <p className="mt-1 text-foreground text-sm">{project.estimate || "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">집행 금액</p>
+              <p className="mt-1 text-foreground text-sm">2,150만원</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">잔여 예산</p>
+              <p className="mt-1 text-foreground text-sm">1,250만원</p>
+            </div>
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-muted-foreground text-xs">
+              <span>집행률</span>
+              <span>63%</span>
+            </div>
+            <Progress value={63} />
+          </div>
+          <Badge
+            variant="outline"
+            className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+          >
+            정상 범위
+          </Badge>
+        </CardContent>
+      </Card>
     </div>
   );
 }

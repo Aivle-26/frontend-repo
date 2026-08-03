@@ -207,7 +207,7 @@ export function StaffSubmit({ project, currentUserName }: StaffSubmitProps) {
                 className="shrink-0 rounded-md p-1.5 text-emerald-700 hover:bg-emerald-100"
                 title="선택 취소"
               >
-                <X className="size-4" aria-label="메시지 보내기" />
+                <X className="size-4" aria-label="선택 취소" />
               </button>
             </div>
           ) : (

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   ApiError,
   projectRepository,
+  type ProjectScheduleDetail,
   type ProjectScheduleResult,
   type WbsResult,
 } from "@/app/api/projectRepository";
@@ -293,6 +294,8 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
               </Alert>
             )}
 
+            <ScheduleGantt schedule={schedule} rows={scheduleRows} />
+
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -345,6 +348,114 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** 추천 일정을 간트 차트(막대 타임라인)로 표시한다. */
+function ScheduleGantt({
+  schedule,
+  rows,
+}: {
+  schedule: ProjectScheduleResult;
+  rows: ProjectScheduleDetail[];
+}) {
+  const toTime = (value: string) => new Date(`${value}T00:00:00`).getTime();
+  const shortLabel = (ms: number) =>
+    new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(ms));
+
+  const starts = rows.map((r) => toTime(r.recommended.startDate));
+  const ends = rows.map((r) => toTime(r.recommended.endDate));
+  const rangeStart = Math.min(toTime(schedule.projectStartDate), ...starts);
+  const rangeEnd = Math.max(toTime(schedule.targetEndDate), ...ends);
+  const total = Math.max(1, rangeEnd - rangeStart);
+  const pct = (ms: number) => ((ms - rangeStart) / total) * 100;
+
+  const todayMs = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  const todayPct = todayMs >= rangeStart && todayMs <= rangeEnd ? pct(todayMs) : null;
+
+  // 축 눈금 5개(시작~끝 균등 분할)
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+    const ms = rangeStart + f * total;
+    return { pct: f * 100, label: shortLabel(ms) };
+  });
+
+  const NAME_COL = "w-40 shrink-0 pr-3";
+
+  return (
+    <div className="space-y-1.5">
+      {/* 날짜 축 */}
+      <div className="flex items-end">
+        <div className={NAME_COL} />
+        <div className="relative h-5 flex-1">
+          {ticks.map((t, i) => (
+            <span
+              key={i}
+              className="absolute -translate-x-1/2 text-muted-foreground text-xs"
+              style={{ left: `${t.pct}%` }}
+            >
+              {t.label}
+            </span>
+          ))}
+          {todayPct != null && (
+            <span
+              className="absolute -translate-x-1/2 font-medium text-red-500 text-xs"
+              style={{ left: `${todayPct}%` }}
+            >
+              today
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 각 일정 막대 */}
+      {rows.map((row) => {
+        const left = pct(toTime(row.recommended.startDate));
+        const rawWidth = pct(toTime(row.recommended.endDate)) - left;
+        const width = Math.max(rawWidth, 1.2);
+        const title = `${shortLabel(toTime(row.recommended.startDate))} ~ ${shortLabel(
+          toTime(row.recommended.endDate),
+        )} (${row.recommended.estimatedDays}일)`;
+        return (
+          <div key={row.scheduleId} className="flex items-center">
+            <div className={`${NAME_COL} flex items-center gap-1.5`}>
+              {row.milestone && <Flag className="size-3.5 shrink-0 text-blue-600" />}
+              <span className="truncate text-foreground text-sm" title={row.wbsName}>
+                {row.wbsName}
+              </span>
+            </div>
+            <div className="relative h-7 flex-1 rounded bg-muted/40">
+              {todayPct != null && (
+                <div
+                  className="absolute inset-y-0 z-10 w-px bg-red-400"
+                  style={{ left: `${todayPct}%` }}
+                />
+              )}
+              {row.milestone ? (
+                <div
+                  className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] bg-blue-600"
+                  style={{ left: `${left}%` }}
+                  title={title}
+                />
+              ) : (
+                <div
+                  className="absolute inset-y-1 flex items-center justify-end overflow-hidden rounded bg-blue-500/90 pr-1.5"
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                  title={title}
+                >
+                  <span className="whitespace-nowrap text-[10px] text-white">
+                    {row.recommended.estimatedDays}일
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -90,7 +90,7 @@ export function PmFeedbackChat({ compact = false }: PmFeedbackChatProps) {
           placeholder="PM에게 답장하기"
           className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm outline-none"
         />
-        <Button type="button" size="icon" onClick={submit} disabled={!draft.trim()}>
+        <Button type="button" size="icon" onClick={submit} disabled={!draft.trim()} aria-label="메시지 보내기">
           <Send className="size-4" />
         </Button>
       </div>

@@ -26,7 +26,7 @@ const STAGE_META: Record<PlanningStage, ProjectPlanningProgress> = {
   },
   schedule: {
     stage: "schedule",
-    buttonLabel: "일정 만들러 가기",
+    buttonLabel: "일정 생성 바로가기",
   },
   assign: {
     stage: "assign",
@@ -43,59 +43,70 @@ function isNotFound(error: unknown): boolean {
 }
 
 /**
- * 서버에 실제 저장된 계획 데이터를 순서대로 조회해 다음 진행 단계를 결정합니다.
+ * 서버에 실제 저장된 데이터 중 가장 뒤까지 완료된 단계를 기준으로
+ * 프로젝트 카드의 다음 이동 단계를 결정합니다.
  *
- * 현재 백엔드에는 배정 결과/최종 예산 조회 API가 없으므로,
- * 확정 일정 이후에는 업무 배정 단계까지만 판별합니다.
+ * 하위 단계 API 응답 형식이나 상태가 오래된 경우에도 이미 생성된 WBS/일정을
+ * 놓치지 않도록 일정 -> WBS -> 요구사항 순서로 역방향 확인합니다.
  */
 export async function getProjectPlanningProgress(
   projectId: string | number,
 ): Promise<ProjectPlanningProgress> {
-  const requirements = await projectRepository.getRequirements(projectId);
-  const finalRequirements = Array.isArray(requirements.finalRequirements)
-    ? requirements.finalRequirements
-    : [];
-  const hasConfirmedRequirements = finalRequirements.some(
-    (requirement) =>
-      requirement.confirmed === true || requirement.status === "CONFIRMED",
-  );
-
-  if (!hasConfirmedRequirements) {
-    return STAGE_META.requirements;
-  }
-
-  try {
-    const wbs = await projectRepository.getWbs(projectId);
-    const finalTasks = Array.isArray(wbs.finalTasks) ? wbs.finalTasks : [];
-
-    if (wbs.finalConfirmed !== true || finalTasks.length === 0) {
-      return STAGE_META.wbs;
-    }
-  } catch (error) {
-    if (isNotFound(error)) {
-      return STAGE_META.wbs;
-    }
-    throw error;
-  }
-
+  // 1. 일정 결과가 하나라도 저장되어 있으면 다음 단계는 업무 배정입니다.
   try {
     const schedule = await projectRepository.getSchedules(projectId);
     const schedules = Array.isArray(schedule.schedules)
       ? schedule.schedules
       : [];
-    const allSchedulesConfirmed =
-      schedules.length > 0 &&
-      schedules.every((item) => item.confirmed === true);
 
-    if (!allSchedulesConfirmed) {
+    if (schedules.length > 0) {
+      return STAGE_META.assign;
+    }
+  } catch (error) {
+    if (!isNotFound(error)) {
+      // 일정 조회 API가 아직 배포되지 않았거나 일시 실패해도
+      // WBS/요구사항 단계 판별은 계속 진행합니다.
+      console.warn(`프로젝트 ${projectId} 일정 진행도 조회 실패`, error);
+    }
+  }
+
+  // 2. AI 제안 또는 최종 WBS 작업이 하나라도 생성되어 있으면
+  //    다음 단계는 일정 생성입니다. finalConfirmed 여부로 막지 않습니다.
+  try {
+    const wbs = await projectRepository.getWbs(projectId);
+    const aiSuggestionTasks = Array.isArray(wbs.aiSuggestionTasks)
+      ? wbs.aiSuggestionTasks
+      : [];
+    const finalTasks = Array.isArray(wbs.finalTasks) ? wbs.finalTasks : [];
+
+    if (aiSuggestionTasks.length > 0 || finalTasks.length > 0) {
       return STAGE_META.schedule;
     }
   } catch (error) {
-    if (isNotFound(error)) {
-      return STAGE_META.schedule;
+    if (!isNotFound(error)) {
+      console.warn(`프로젝트 ${projectId} WBS 진행도 조회 실패`, error);
     }
-    throw error;
   }
 
-  return STAGE_META.assign;
+  // 3. 확정 요구사항이 있으면 다음 단계는 WBS 생성입니다.
+  try {
+    const requirements = await projectRepository.getRequirements(projectId);
+    const finalRequirements = Array.isArray(requirements.finalRequirements)
+      ? requirements.finalRequirements
+      : [];
+    const hasConfirmedRequirements = finalRequirements.some(
+      (requirement) =>
+        requirement.confirmed === true || requirement.status === "CONFIRMED",
+    );
+
+    if (hasConfirmedRequirements) {
+      return STAGE_META.wbs;
+    }
+  } catch (error) {
+    if (!isNotFound(error)) {
+      console.warn(`프로젝트 ${projectId} 요구사항 진행도 조회 실패`, error);
+    }
+  }
+
+  return STAGE_META.requirements;
 }

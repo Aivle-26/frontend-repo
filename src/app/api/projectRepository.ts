@@ -351,6 +351,43 @@ export interface AgentRequestResult {
   agentVersion: string;
 }
 
+
+export interface ProjectScheduleDateRange {
+  startDate: string;
+  endDate: string;
+  estimatedDays: number;
+}
+
+export interface ProjectScheduleDetail {
+  scheduleId: number;
+  wbsId: number;
+  wbsCode: string;
+  wbsName: string;
+  wbsDescription: string;
+  parentWbsId: number | null;
+  itemType: string;
+  orderIndex: number;
+  expected: ProjectScheduleDateRange;
+  recommended: ProjectScheduleDateRange;
+  conservative: ProjectScheduleDateRange;
+  predecessorWbsIds: number[];
+  milestone: boolean;
+  bufferDays: number;
+  confirmed: boolean;
+}
+
+export interface ProjectScheduleResult {
+  scheduleResultId: number;
+  projectId: number;
+  agentExecutionId: string;
+  agentVersion: string;
+  llmStatus: string;
+  projectStartDate: string;
+  targetEndDate: string;
+  schedules: ProjectScheduleDetail[];
+  warnings: string[];
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -790,6 +827,13 @@ export const projectRepository = {
         auth: true,
         expectedStatuses: [202],
       },
+    );
+  },
+
+  getSchedules(projectId: string | number) {
+    return apiFetch<ProjectScheduleResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/schedules`,
+      { auth: true },
     );
   },
 

@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -59,6 +60,11 @@ import {
   type PendingProjectDocument,
 } from "@/app/components/pm/projectDocumentUpload";
 import { formatServerProjectStatus } from "@/app/projects/projectMapping";
+import {
+  getProjectPlanningProgress,
+  type PlanningStage,
+  type ProjectPlanningProgress,
+} from "@/app/projects/projectProgress";
 
 const STATUS_META: Record<
   ProjectStatus,
@@ -80,7 +86,7 @@ interface ProjectBoardProps {
   onProjectDeleted: (projectId: string) => Promise<void>;
   onOpenOperational: (project: ProjectSummary) => void;
   onOpenWizard: (project: ProjectSummary) => void;
-  onExtract: (project: ProjectSummary) => void;
+  onExtract: (project: ProjectSummary, stage?: PlanningStage) => void;
 }
 
 export function ProjectBoard({
@@ -115,6 +121,12 @@ export function ProjectBoard({
     null,
   );
   const deleteInFlightRef = useRef<string | null>(null);
+  const [planningProgress, setPlanningProgress] = useState<
+    Record<string, ProjectPlanningProgress>
+  >({});
+  const [progressLoading, setProgressLoading] = useState<
+    Record<string, boolean>
+  >({});
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -128,6 +140,54 @@ export function ProjectBoard({
       ? [...visibleProjects].sort(compareByNearestPlannedEndDate)
       : visibleProjects;
   }, [mode, projects, query]);
+
+  useEffect(() => {
+    if (mode !== "real" || projects.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    const projectIds = projects.map((project) => project.id);
+
+    setProgressLoading((current) => {
+      const next = { ...current };
+      projectIds.forEach((projectId) => {
+        next[projectId] = true;
+      });
+      return next;
+    });
+
+    void Promise.allSettled(
+      projects.map(async (project) => ({
+        projectId: project.id,
+        progress: await getProjectPlanningProgress(project.id),
+      })),
+    ).then((results) => {
+      if (cancelled) return;
+
+      setPlanningProgress((current) => {
+        const next = { ...current };
+        results.forEach((result) => {
+          if (result.status === "fulfilled") {
+            next[result.value.projectId] = result.value.progress;
+          }
+        });
+        return next;
+      });
+
+      setProgressLoading((current) => {
+        const next = { ...current };
+        projectIds.forEach((projectId) => {
+          next[projectId] = false;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, projects]);
 
   const startProject = (id: string) => {
     setProjects((prev) =>
@@ -367,7 +427,9 @@ export function ProjectBoard({
             onDelete={() => requestProjectDeletion(p)}
             isDeleting={deletingProjectId === p.id}
             onStart={() => startProject(p.id)}
-            onOpenReal={() => onExtract(p)}
+            planningProgress={planningProgress[p.id]}
+            isProgressLoading={progressLoading[p.id] === true}
+            onOpenReal={(stage) => onExtract(p, stage)}
           />
         ))}
         {filtered.length === 0 && (
@@ -479,13 +541,27 @@ export function ProjectBoard({
                       삭제
                     </Button>
                     <Button
+                      disabled={progressLoading[detail.id] === true}
                       onClick={() => {
                         const project = detail;
+                        const stage =
+                          planningProgress[project.id]?.stage ?? "requirements";
                         setDetail(null);
-                        onExtract(project);
+                        onExtract(project, stage);
                       }}
                     >
-                      요구사항 만들러 가기 <ArrowRight className="size-4" />
+                      {progressLoading[detail.id] === true ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          진행도 확인 중
+                        </>
+                      ) : (
+                        <>
+                          {planningProgress[detail.id]?.buttonLabel ??
+                            "요구사항 만들러 가기"}
+                          <ArrowRight className="size-4" />
+                        </>
+                      )}
                     </Button>
                   </>
                 ) : detail.status === "진행중" || detail.status === "완료" ? (
@@ -875,7 +951,9 @@ interface ProjectCardProps {
   onDelete: () => void;
   isDeleting: boolean;
   onStart: () => void;
-  onOpenReal: () => void;
+  planningProgress?: ProjectPlanningProgress;
+  isProgressLoading?: boolean;
+  onOpenReal: (stage: PlanningStage) => void;
 }
 
 function ProjectCard({
@@ -887,6 +965,8 @@ function ProjectCard({
   onDelete,
   isDeleting,
   onStart,
+  planningProgress,
+  isProgressLoading = false,
   onOpenReal,
 }: ProjectCardProps) {
   const isActive = p.status === "진행중" || p.status === "완료";
@@ -999,8 +1079,25 @@ function ProjectCard({
                 )}
                 삭제
               </Button>
-              <Button variant="outline" size="sm" onClick={onOpenReal}>
-                요구사항 만들러 가기 <ArrowRight className="size-3.5" />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isProgressLoading}
+                onClick={() =>
+                  onOpenReal(planningProgress?.stage ?? "requirements")
+                }
+              >
+                {isProgressLoading ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    진행도 확인 중
+                  </>
+                ) : (
+                  <>
+                    {planningProgress?.buttonLabel ?? "요구사항 만들러 가기"}
+                    <ArrowRight className="size-3.5" />
+                  </>
+                )}
               </Button>
             </>
           ) : isActive ? (

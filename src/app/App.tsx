@@ -519,12 +519,11 @@ function DemoApplication() {
             setPmDetail(null);
             setPmWizard(p);
           }}
-          onExtract={(p) => {
-            // '요구사항 만들러 가기' → 바로 [계획 > 요구사항] 화면으로 이동
+          onExtract={(p, stage = "requirements") => {
             setPmDetail(null);
             setPmWizard(null);
             setSelectedProjectId(p.id);
-            setPmMenu("requirements");
+            setPmMenu(stage);
           }}
         />
       );

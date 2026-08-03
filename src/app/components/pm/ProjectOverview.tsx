@@ -6,6 +6,7 @@ import {
   type ProjectLoadStatus,
 } from "@/app/components/pm/ProjectListNotice";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
+import type { PlanningStage } from "@/app/projects/projectProgress";
 
 interface ProjectOverviewProps {
   projects: ProjectSummary[];
@@ -17,8 +18,8 @@ interface ProjectOverviewProps {
   onProjectDeleted: (projectId: string) => Promise<void>;
   onOpenOperational: (project: ProjectSummary) => void;
   onOpenWizard: (project: ProjectSummary) => void;
-  /** '요구사항 만들러 가기' 동선. [계획 > 요구사항] 화면으로 이동합니다. */
-  onExtract: (project: ProjectSummary) => void;
+  /** 프로젝트의 실제 진행 단계 화면으로 이동합니다. */
+  onExtract: (project: ProjectSummary, stage?: PlanningStage) => void;
 }
 
 /**

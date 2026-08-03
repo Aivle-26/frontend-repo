@@ -125,8 +125,16 @@ export function PmBudget({ project }: PmBudgetProps) {
   const unsavedCount = wbsRows.filter((r) => r.taskId == null).length;
 
   const buildRequestBody = useCallback((): CostEstimateRequestBody | null => {
+    // 백엔드는 리프(자식 없는) WBS 태스크만 billable로 받는다.
+    // 다른 태스크의 parentExternalTaskId로 참조되는 부모/단계 노드는 제외한다.
+    const parentExternalIds = new Set(
+      wbsTasks
+        .map((t) => t.parentExternalTaskId)
+        .filter((p): p is string => p != null),
+    );
     const wbsEfforts = wbsRows
       .filter((r): r is typeof r & { taskId: number } => r.taskId != null)
+      .filter((r) => !parentExternalIds.has(r.id))
       .map((r) => ({ wbsId: r.taskId, estimatedMm: r.mm }));
 
     if (wbsEfforts.length === 0) return null;
@@ -140,7 +148,7 @@ export function PmBudget({ project }: PmBudgetProps) {
       paidLicenseUserCount: licenseUsers,
       includeVat,
     };
-  }, [wbsRows, unitCost, durationMonths, scale, includeAiApi, licenseUsers, includeVat]);
+  }, [wbsRows, wbsTasks, unitCost, durationMonths, scale, includeAiApi, licenseUsers, includeVat]);
 
   const runEstimate = useCallback(async () => {
     const body = buildRequestBody();

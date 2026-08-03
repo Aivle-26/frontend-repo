@@ -95,8 +95,10 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .catch((caught) => {
         if (caught instanceof ApiError && caught.status === 404) {
           setAssignRecs([]);
+        } else if (caught instanceof ApiError) {
+          setAssignError(`담당자 추천을 불러오지 못했습니다. (${caught.status}) ${caught.message}`);
         } else {
-          setAssignError("담당자 추천을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+          setAssignError("담당자 추천을 불러오지 못했습니다. 네트워크 상태를 확인해 주세요.");
         }
       })
       .finally(() => setAssignLoading(false));

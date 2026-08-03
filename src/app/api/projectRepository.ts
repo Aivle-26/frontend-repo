@@ -261,6 +261,64 @@ export interface WbsResult {
   finalTasks: WbsTask[];
 }
 
+export type ServiceScale = "SMALL" | "MEDIUM" | "LARGE";
+
+export interface CostEstimateWbsEffort {
+  wbsId: number;
+  estimatedMm: number;
+}
+
+export interface CostEstimateRequestBody {
+  wbsEfforts: CostEstimateWbsEffort[];
+  averageMonthlyUnitPrice: number;
+  operationMonths: number;
+  serviceScale: ServiceScale;
+  usesAiApi?: boolean;
+  paidLicenseUserCount?: number;
+  includeVat?: boolean;
+}
+
+export interface CostSummary {
+  laborCost: number;
+  serverCost: number;
+  licenseCost: number;
+  aiApiCost: number;
+  baseCost: number;
+}
+
+export interface CostEstimate {
+  contingencyRate: number;
+  contingencyAmount: number;
+  supplyAmount: number;
+  vat: number;
+  totalAmount: number;
+}
+
+export interface CostEstimateResponse {
+  projectId: number;
+  currency: string;
+  totalEstimatedMm: number;
+  costSummary: CostSummary;
+  estimate: CostEstimate;
+  unpricedItems: string[];
+  warning: string | null;
+  llmStatus: string | null;
+}
+
+export interface FinalCostEstimateResponse extends CostEstimateResponse {
+  costEstimateId: number;
+  confirmed: boolean;
+  wbsEfforts: CostEstimateWbsEffort[];
+  averageMonthlyUnitPrice: number;
+  operationMonths: number;
+  serviceScale: ServiceScale;
+  usesAiApi: boolean;
+  paidLicenseUserCount: number;
+  includeVat: boolean;
+  updatedAt: string;
+}
+
+
 export interface SaveFinalWbsTask {
   externalTaskId: string;
   parentExternalTaskId: string | null;
@@ -694,6 +752,28 @@ export const projectRepository = {
   saveFinalWbs(projectId: string | number, input: SaveFinalWbsRequest) {
     return apiFetch<WbsResult>(
       `/projects/${encodeURIComponent(String(projectId))}/wbs/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  estimateProjectCost(projectId: string | number, input: CostEstimateRequestBody) {
+    return apiFetch<CostEstimateResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/estimate`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  saveFinalCostEstimate(projectId: string | number, input: CostEstimateRequestBody) {
+    return apiFetch<FinalCostEstimateResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       {
         method: "PUT",
         body: JSON.stringify(input),

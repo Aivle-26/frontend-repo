@@ -40,8 +40,6 @@ import type { Notice, NoticeCategory } from "@/app/data/demoData";
 import { addNotice, useNotices } from "@/app/state/staffNoticeStore";
 import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
-import { CountUp } from "@/app/components/common/CountUp";
-import { cn } from "@/app/components/ui/utils";
 
 const FILTERS: (NoticeCategory | "전체")[] = [
   "전체",

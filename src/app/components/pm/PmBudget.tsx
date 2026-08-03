@@ -170,13 +170,8 @@ export function PmBudget({ project }: PmBudgetProps) {
     }
   }, [buildRequestBody, project.id]);
 
-  // WBS 로드가 끝나면 자동으로 한 번 계산
-  useEffect(() => {
-    if (!wbsLoading && !wbsError && wbsRows.length > 0) {
-      void runEstimate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wbsLoading, wbsError]);
+  // 자동 실행하지 않는다. 페이지 로드마다 API가 낭비되므로, 사용자가 "분석하기" 버튼을
+  // 눌렀을 때만 runEstimate()가 호출된다.
 
   const handleSaveFinal = async () => {
     const body = buildRequestBody();
@@ -338,9 +333,17 @@ export function PmBudget({ project }: PmBudgetProps) {
                   )}
                 </TableBody>
               </Table>
-              <Button className="w-full" onClick={() => void runEstimate()} disabled={estimating}>
+              <Button
+                className="w-full"
+                onClick={() => void runEstimate()}
+                disabled={estimating || wbsRows.length === 0}
+              >
                 <Sparkles className="size-4" />
-                {estimating ? "계산 중…" : "AI 예상 견적 다시 계산"}
+                {estimating
+                  ? "분석 중…"
+                  : result
+                    ? "AI 견적 다시 분석"
+                    : "AI 견적 분석하기"}
               </Button>
             </>
           )}
@@ -373,6 +376,13 @@ export function PmBudget({ project }: PmBudgetProps) {
           {!estimating && estimateError && (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <AlertCircle className="size-4" /> {estimateError}
+            </div>
+          )}
+
+          {!estimating && !estimateError && !result && (
+            <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground text-sm">
+              <Sparkles className="size-5" />
+              위의 “AI 견적 분석하기” 버튼을 눌러 AI 예상 견적을 계산하세요.
             </div>
           )}
 

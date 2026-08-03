@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Search,
   ArrowRight,
@@ -6,175 +6,124 @@ import {
   Sparkles,
   FileText,
   Loader2,
-  RotateCcw,
-  ChevronRight,
+  AlertCircle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { cn } from "@/app/components/ui/utils";
+import { AI_SEARCH_EXAMPLES, type ProjectSummary } from "@/app/data/demoData";
+import { getAccessToken } from "@/app/api/authToken";
 import {
-  AI_SEARCH_EXAMPLES,
-  PROJECT_DOCS,
-  type DocItem,
-  type ProjectSummary,
-} from "@/app/data/demoData";
+  assistantApi,
+  assistantLlmStatusLabel,
+  type AssistantAnswer,
+  type AssistantSource,
+} from "@/app/api/assistantApi";
 
-type QaTopic = "요구사항" | "리스크" | "일정/WBS" | "문서" | "일반";
-
-interface QaResult {
+/** 대화 한 턴: 질문 + (로딩/완료/오류) 답변 상태 */
+interface Turn {
+  id: number;
   question: string;
-  topic: QaTopic;
-  answer: string;
-  docs: DocItem[];
-  jumpTo?: "requirements" | "risk";
+  status: "loading" | "done" | "error";
+  answer: AssistantAnswer | null;
+  error: string | null;
 }
 
-const TOPIC_CLASS: Record<QaTopic, string> = {
-  요구사항: "border-blue-200 bg-blue-50 text-blue-700",
-  리스크: "border-red-200 bg-red-50 text-red-700",
-  "일정/WBS": "border-purple-200 bg-purple-50 text-purple-700",
-  문서: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  일반: "border-border bg-muted/40 text-muted-foreground",
-};
-
-/**
- * 질문 의도를 파악해 요구사항·리스크·일정·문서 전반에서 답변을 구성합니다(데모).
- * 백엔드 연동 시 이 함수를 통합 질의응답(RAG) API 호출로 교체합니다.
- */
-function runQa(question: string, projectName: string): QaResult {
-  const q = question.toLowerCase();
-  const pick = (fn: (d: DocItem) => boolean) => PROJECT_DOCS.filter(fn);
-
-  // 요구사항 ↔ WBS 정합성
-  if (q.includes("요구사항") && (q.includes("wbs") || q.includes("일정"))) {
-    return {
-      question,
-      topic: "일정/WBS",
-      answer:
-        "요구사항과 WBS를 대조한 결과, 결제 단계(2단계 vs 3단계)와 성능 테스트 기간이 WBS에 반영되지 않았습니다. 해당 항목을 WBS에 추가하거나 요구사항을 확정해 주세요.",
-      docs: pick(
-        (d) => d.category === "요구사항" || d.category === "일정 및 WBS" || d.title.includes("WBS"),
-      ),
-      jumpTo: "requirements",
-    };
-  }
-
-  // 리스크 (시급/위험 포함)
-  if (q.includes("리스크") || q.includes("시급") || q.includes("위험")) {
-    return {
-      question,
-      topic: "리스크",
-      answer:
-        "현재 가장 시급한 리스크는 '시스템 아키텍처 보안 요구사항 미반영'입니다. 재생성이 필요하며, 결제 기능 범위 변경으로 인한 일정 지연 리스크도 검토 대기 상태입니다.",
-      docs: pick((d) => d.category === "리스크" || d.status === "재생성 필요"),
-      jumpTo: "risk",
-    };
-  }
-
-  // 일정 / 지연
-  if (q.includes("지연") || q.includes("일정") || q.includes("wbs") || q.includes("마일스톤")) {
-    return {
-      question,
-      topic: "일정/WBS",
-      answer:
-        "일정상 '개발' 단계(8주)가 가장 길고, 성능 테스트 미반영으로 '시험' 단계에서 지연 위험이 있습니다. 개발 후반 일정에 버퍼를 두는 것을 권장합니다.",
-      docs: pick((d) => d.category === "일정 및 WBS" || d.title.includes("WBS") || d.title.includes("간트")),
-    };
-  }
-
-  // 보안 (문서 + 리스크 교차)
-  if (q.includes("보안")) {
-    return {
-      question,
-      topic: "문서",
-      answer:
-        "보안 관련 내용은 요구사항 문서와 리스크 분석 보고서에 있으나, 시스템 아키텍처 산출물에는 암호화 계층이 아직 반영되지 않았습니다. 아키텍처 재생성이 필요합니다.",
-      docs: pick(
-        (d) => d.category === "구조도" || d.category === "리스크" || d.category === "요구사항",
-      ),
-      jumpTo: "risk",
-    };
-  }
-
-  // 요구사항 일반
-  if (q.includes("요구사항") || q.includes("핵심") || q.includes("기능")) {
-    return {
-      question,
-      topic: "요구사항",
-      answer:
-        "핵심 기능 요구사항은 'PM 확정 요구사항 v1.0'에 정리돼 있습니다. 전체 목록·상태는 요구사항 화면에서 확인할 수 있어요.",
-      docs: pick((d) => d.category === "요구사항" || d.category === "구조도"),
-      jumpTo: "requirements",
-    };
-  }
-
-  // 화면/설계
-  if (q.includes("화면") || q.includes("설계")) {
-    return {
-      question,
-      topic: "문서",
-      answer:
-        "가장 최신 화면 설계 문서는 '사용자 흐름도 v2.0'(2025-07-12, PM 승인)입니다. 기능 구조도와 함께 보면 화면 흐름을 파악하기 좋습니다.",
-      docs: pick((d) => d.category === "화면 설계" || d.category === "구조도"),
-    };
-  }
-
-  // 그 외: 문서 검색 폴백
-  const term = question.trim();
-  let docs = PROJECT_DOCS.filter(
-    (d) => d.title.includes(term) || d.category.includes(term),
-  );
-  if (docs.length === 0) docs = PROJECT_DOCS.slice(0, 3);
-  return {
-    question,
-    topic: "문서",
-    answer: `'${term}'와 관련해 ${projectName}의 자료 ${docs.length}건을 찾았습니다. 아래 항목을 확인해 보세요.`,
-    docs,
-  };
+/** 출처 한 건의 표시 제목. document_name 우선, 없으면 요구사항/WBS id로 대체. */
+function sourceTitle(s: AssistantSource): string {
+  if (s.documentName) return s.documentName;
+  if (s.requirementId != null) return `요구사항 #${s.requirementId}`;
+  if (s.wbsId != null) return `WBS #${s.wbsId}`;
+  if (s.deliverableId) return `산출물 ${s.deliverableId}`;
+  return "관련 자료";
 }
 
 export function AiDocSearch({
   project,
   onOpenRequirements,
-  onOpenRisk,
 }: {
   project: ProjectSummary;
   onOpenRequirements?: () => void;
+  /** 현재 화면에서는 사용하지 않지만 호출부 호환을 위해 유지한다. */
   onOpenRisk?: () => void;
 }) {
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<QaResult | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const nextId = useRef(1);
 
-  const ask = (question: string) => {
-    const q = question.trim();
-    if (!q) return;
-    setInput(q);
-    setLoading(true);
-    setResult(null);
-    setTimeout(() => {
-      setResult(runQa(q, project.name));
-      setLoading(false);
-    }, 900);
+  const busy = turns.some((t) => t.status === "loading");
+  const started = turns.length > 0;
+
+  const ask = async (raw: string) => {
+    const q = raw.trim();
+    if (!q || busy) return;
+
+    const id = nextId.current++;
+    setInput("");
+    setTurns((prev) => [
+      ...prev,
+      { id, question: q, status: "loading", answer: null, error: null },
+    ]);
+
+    try {
+      const answer = await assistantApi.query(project.id, q, getAccessToken());
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, status: "done", answer } : t,
+        ),
+      );
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "질문 처리 중 오류가 발생했습니다.";
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, status: "error", error: message } : t,
+        ),
+      );
+    }
   };
 
-  const reset = () => {
-    setResult(null);
+  const retry = (turn: Turn) => {
+    // 실패한 턴을 다시 로딩 상태로 되돌리고 재호출한다(새 턴 추가 없이 제자리 재시도).
+    setTurns((prev) =>
+      prev.map((t) =>
+        t.id === turn.id ? { ...t, status: "loading", error: null } : t,
+      ),
+    );
+    void (async () => {
+      try {
+        const answer = await assistantApi.query(
+          project.id,
+          turn.question,
+          getAccessToken(),
+        );
+        setTurns((prev) =>
+          prev.map((t) =>
+            t.id === turn.id ? { ...t, status: "done", answer } : t,
+          ),
+        );
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "질문 처리 중 오류가 발생했습니다.";
+        setTurns((prev) =>
+          prev.map((t) =>
+            t.id === turn.id ? { ...t, status: "error", error: message } : t,
+          ),
+        );
+      }
+    })();
+  };
+
+  const clearAll = () => {
+    setTurns([]);
     setInput("");
   };
 
-  const jump =
-    result?.jumpTo === "requirements"
-      ? { label: "요구사항에서 자세히 보기", onClick: onOpenRequirements }
-      : result?.jumpTo === "risk"
-        ? { label: "리스크 관리에서 보기", onClick: onOpenRisk }
-        : null;
-
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
-      {/* 히어로 */}
-      {!result && !loading && (
+      {/* 히어로 — 대화 시작 전에만 */}
+      {!started && (
         <div className="text-center">
           <span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-accent text-primary">
             <MessagesSquare className="size-7" />
@@ -183,16 +132,16 @@ export function AiDocSearch({
           <p className="mt-2 text-muted-foreground text-sm">
             요구사항·리스크·일정·문서까지, 프로젝트 전반에 대해 자연어로 질문하세요.
             <br />
-            AI가 관련 정보를 찾아 답하고, 해당 화면으로 바로 안내합니다.
+            AI가 관련 자료를 찾아 근거와 함께 답합니다.
           </p>
         </div>
       )}
 
-      {/* 질문창 */}
+      {/* 질문창 (항상 상단 고정 느낌으로 유지) */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          ask(input);
+          void ask(input);
         }}
         className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm"
       >
@@ -200,22 +149,22 @@ export function AiDocSearch({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="프로젝트에 대해 무엇이든 물어보세요..."
+          placeholder={started ? "이어서 질문하기..." : "프로젝트에 대해 무엇이든 물어보세요..."}
           className="flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
         />
-        <Button type="submit" className="rounded-full" size="sm" disabled={loading}>
+        <Button type="submit" className="rounded-full" size="sm" disabled={busy}>
           질문
         </Button>
       </form>
 
-      {/* 예시 질문 */}
-      {!result && !loading && (
+      {/* 예시 질문 — 대화 시작 전에만 */}
+      {!started && (
         <div className="space-y-2">
           <div className="text-center text-muted-foreground text-xs">예시 질문</div>
           {AI_SEARCH_EXAMPLES.map((q) => (
             <button
               key={q}
-              onClick={() => ask(q)}
+              onClick={() => void ask(q)}
               className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:bg-muted/50"
             >
               <ArrowRight className="size-4 shrink-0 text-primary" />
@@ -225,83 +174,145 @@ export function AiDocSearch({
         </div>
       )}
 
+      {/* 대화 로그 — 위(오래된 질문)에서 아래(최신)로 누적 */}
+      {started && (
+        <div className="space-y-6">
+          {turns.map((turn) => (
+            <TurnBlock
+              key={turn.id}
+              turn={turn}
+              onOpenRequirements={onOpenRequirements}
+              onRetry={() => retry(turn)}
+            />
+          ))}
+
+          <div className="flex justify-center pt-1">
+            <Button variant="ghost" size="sm" onClick={clearAll} disabled={busy}>
+              <Trash2 className="size-4" /> 대화 지우기
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 대화 한 턴(질문 + 답변)을 렌더한다. */
+function TurnBlock({
+  turn,
+  onOpenRequirements,
+  onRetry,
+}: {
+  turn: Turn;
+  onOpenRequirements?: () => void;
+  onRetry: () => void;
+}) {
+  const { question, status, answer, error } = turn;
+  const llmNote = answer ? assistantLlmStatusLabel(answer.llmStatus) : null;
+  const hasRequirementSource =
+    answer?.sources.some((s) => s.requirementId != null) ?? false;
+
+  return (
+    <div className="space-y-3">
+      {/* 질문 (사용자) */}
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+          {question}
+        </div>
+      </div>
+
       {/* 로딩 */}
-      {loading && (
+      {status === "loading" && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="size-4 animate-spin text-primary" />
+          프로젝트 정보를 분석하고 있어요…
+        </div>
+      )}
+
+      {/* 오류 */}
+      {status === "error" && (
         <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-            <Loader2 className="size-6 animate-spin text-primary" />
-            <div className="text-foreground text-sm">프로젝트 정보를 분석하고 있어요…</div>
-            <div className="text-muted-foreground text-xs">{input}</div>
+          <CardContent className="flex items-center justify-between gap-3 py-4">
+            <span className="flex items-center gap-2 text-muted-foreground text-sm">
+              <AlertCircle className="size-4 text-red-500" />
+              {error}
+            </span>
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              다시 시도
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* 결과 */}
-      {result && !loading && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-muted-foreground text-sm">
-              질문 · <span className="text-foreground">{result.question}</span>
-            </div>
-            <Button variant="ghost" size="sm" onClick={reset}>
-              <RotateCcw className="size-4" /> 새 질문
-            </Button>
-          </div>
-
+      {/* 답변 */}
+      {status === "done" && answer && (
+        <>
           <Card className="border-blue-100 bg-blue-50/40">
             <CardContent className="pt-5">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-1.5 text-blue-700 text-xs">
                   <Sparkles className="size-3.5" /> AI 답변
                 </span>
-                <Badge variant="outline" className={cn("font-normal", TOPIC_CLASS[result.topic])}>
-                  {result.topic}
-                </Badge>
+                {llmNote && (
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 font-normal text-amber-700">
+                    {llmNote}
+                  </Badge>
+                )}
               </div>
-              <p className="mt-2 text-foreground text-sm leading-relaxed">{result.answer}</p>
-              {jump && jump.onClick && (
+              <p className="mt-2 whitespace-pre-line text-foreground text-sm leading-relaxed">
+                {answer.answer || "답변을 생성하지 못했습니다."}
+              </p>
+              {hasRequirementSource && onOpenRequirements && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 bg-card"
-                  onClick={jump.onClick}
+                  onClick={onOpenRequirements}
                 >
-                  {jump.label} <ArrowRight className="size-3.5" />
+                  요구사항에서 자세히 보기 <ArrowRight className="size-3.5" />
                 </Button>
               )}
             </CardContent>
           </Card>
 
-          {result.docs.length > 0 && (
+          {answer.sources.length > 0 && (
             <div>
-              <div className="mb-2 text-muted-foreground text-sm">
-                관련 문서 {result.docs.length}건
+              <div className="mb-2 text-muted-foreground text-xs">
+                근거 {answer.sources.length}건
               </div>
               <div className="space-y-2">
-                {result.docs.map((d) => (
+                {answer.sources.map((s, i) => (
                   <div
-                    key={d.id}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                    key={`${s.documentId ?? s.requirementId ?? s.wbsId ?? "src"}-${i}`}
+                    className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3"
                   >
-                    <span className="flex size-9 items-center justify-center rounded-md bg-muted">
+                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                       <FileText className="size-4 text-muted-foreground" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-foreground text-sm">{d.title}</div>
-                      <div className="text-muted-foreground text-xs">
-                        {d.version} · {d.updatedAt}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-foreground text-sm">{sourceTitle(s)}</span>
+                        {s.page != null && (
+                          <span className="shrink-0 text-muted-foreground text-xs">p.{s.page}</span>
+                        )}
                       </div>
+                      {s.excerpt && (
+                        <p className="mt-1 line-clamp-3 text-muted-foreground text-xs leading-relaxed">
+                          {s.excerpt}
+                        </p>
+                      )}
                     </div>
-                    <Badge variant="secondary" className="font-normal">
-                      {d.category}
-                    </Badge>
-                    <ChevronRight className={cn("size-4 text-muted-foreground")} />
+                    {s.reviewStatus && (
+                      <Badge variant="secondary" className="shrink-0 font-normal">
+                        {s.reviewStatus}
+                      </Badge>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

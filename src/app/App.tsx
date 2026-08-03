@@ -437,6 +437,8 @@ function DemoApplication() {
         <RiskManagement
           key={selectedProject?.id}
           project={selectedProject!}
+          showCommunicationRisk
+          hideManagedRisks
         />
       );
     } else if (pmMenu === "notice") {

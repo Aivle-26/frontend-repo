@@ -6,7 +6,6 @@ import {
   Gauge,
   Sparkles,
   CalendarClock,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -117,47 +116,47 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     return map;
   }, [rows, team]);
 
-const progressByMember = useMemo(() => {
-  return team.map((member) => {
-    const memberRows = rows.filter(
-      (row) => row.owner === member.name,
-    );
+  const progressByMember = useMemo(() => {
+    return team.map((member) => {
+      const memberRows = rows.filter(
+        (row) => row.owner === member.name,
+      );
 
-    const total = memberRows.length;
+      const total = memberRows.length;
 
-    const completed = memberRows.filter(
-      (row) => row.status === "완료",
-    ).length;
+      const completed = memberRows.filter(
+        (row) => row.status === "완료",
+      ).length;
 
-    const progress =
-      total === 0
-        ? 0
-        : Math.round((completed / total) * 100);
+      const progress =
+        total === 0
+          ? 0
+          : Math.round((completed / total) * 100);
 
-    return {
-      ...member,
-      total,
-      completed,
-      progress,
-    };
-  });
-}, [rows, team]);
+      return {
+        ...member,
+        total,
+        completed,
+        progress,
+      };
+    });
+  }, [rows, team]);
 
-const { rows: delayRows } = demoRepository.getTeamProgressDelay(project.id);
+  const { rows: delayRows } = demoRepository.getTeamProgressDelay(project.id);
 
-const mergedProgress = useMemo(() => {
-  return progressByMember.map((member) => {
-    const delay = delayRows.find((d) => d.id === member.id);
-    return {
-      ...member,
-      currentTask: delay?.currentTask ?? "배정된 업무 없음",
-      dueDate: delay?.dueDate ?? "-",
-      actualProgress: delay?.progress ?? member.progress,
-      expectedProgress: delay?.expectedProgress ?? member.progress,
-      delayDays: delay?.delayDays ?? 0,
-    };
-  });
-}, [progressByMember, delayRows]);
+  const mergedProgress = useMemo(() => {
+    return progressByMember.map((member) => {
+      const delay = delayRows.find((d) => d.id === member.id);
+      return {
+        ...member,
+        currentTask: delay?.currentTask ?? "배정된 업무 없음",
+        dueDate: delay?.dueDate ?? "-",
+        actualProgress: delay?.progress ?? member.progress,
+        expectedProgress: delay?.expectedProgress ?? member.progress,
+        delayDays: delay?.delayDays ?? 0,
+      };
+    });
+  }, [progressByMember, delayRows]);
 
   const maxLoad = Math.max(1, ...Array.from(loadByMember.values()));
   const topMember = useMemo(() => {
@@ -263,144 +262,144 @@ const mergedProgress = useMemo(() => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                {(["미배정", "배정됨", "전체"] as AssignFilter[]).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors",
-                      filter === f
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/70",
-                    )}
-                  >
-                    {f}
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 text-xs",
-                        filter === f ? "bg-white/20" : "bg-background",
-                      )}
-                    >
-                      {counts[f]}
-                    </span>
-                  </button>
-                ))}
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="요구사항·담당자 검색"
-                  className="ml-auto h-8 w-48"
-                />
-              </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>요구사항</TableHead>
-                    <TableHead className="w-20">우선순위</TableHead>
-                    <TableHead className="w-64">담당자 / 마감</TableHead>
-                    <TableHead className="w-24 text-right">배정</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((r) => {
-                    const assigned = isAssigned(r);
-                    const chosen = pick[r.id]?.owner || r.recommendedOwner;
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell>
-                          <div className="text-foreground text-sm">{r.text}</div>
-                          <div className="mt-1 flex items-center gap-1.5">
-                            <Badge variant="outline" className="font-normal">
-                              {r.category}
-                            </Badge>
-                            {!assigned && (
-                              <button
-                                onClick={() => setPickOwner(r.id, r.recommendedOwner)}
-                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-100"
-                                title="AI 추천 담당자로 지정"
-                              >
-                                <Sparkles className="size-3" /> 추천 {r.recommendedOwner}
-                              </button>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={priorityVariant(r.priority)}>{r.priority}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {assigned ? (
-                            <div className="flex items-center gap-2">
-                              <Avatar className="size-6">
-                                <AvatarFallback className="text-[10px]">
-                                  {r.owner.slice(0, 1)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-foreground text-sm">{r.owner}</span>
-                              {r.due && (
-                                <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
-                                  <CalendarClock className="size-3" />
-                                  {r.due}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={chosen}
-                                onValueChange={(v) => setPickOwner(r.id, v)}
-                              >
-                                <SelectTrigger className="h-8 w-28">
-                                  <SelectValue placeholder="담당자" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {assignees.map((a) => (
-                                    <SelectItem key={a} value={a}>
-                                      {a}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                type="date"
-                                value={pick[r.id]?.due ?? ""}
-                                onChange={(e) => setPickDue(r.id, e.target.value)}
-                                className="h-8 w-36"
-                              />
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {assigned ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-muted-foreground"
-                              onClick={() => unassign(r)}
-                            >
-                              취소
-                            </Button>
-                          ) : (
-                            <Button size="sm" className="h-8" onClick={() => assign(r)}>
-                              배정
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        {filter === "미배정"
-                          ? "미배정 요구사항이 없어요. 모두 배정되었습니다 🎉"
-                          : "해당하는 요구사항이 없습니다."}
-                      </TableCell>
-                    </TableRow>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["미배정", "배정됨", "전체"] as AssignFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors",
+                  filter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70",
+                )}
+              >
+                {f}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-xs",
+                    filter === f ? "bg-white/20" : "bg-background",
                   )}
-                </TableBody>
-              </Table>
+                >
+                  {counts[f]}
+                </span>
+              </button>
+            ))}
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="요구사항·담당자 검색"
+              className="ml-auto h-8 w-48"
+            />
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>요구사항</TableHead>
+                <TableHead className="w-20">우선순위</TableHead>
+                <TableHead className="w-64">담당자 / 마감</TableHead>
+                <TableHead className="w-24 text-right">배정</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => {
+                const assigned = isAssigned(r);
+                const chosen = pick[r.id]?.owner || r.recommendedOwner;
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <div className="text-foreground text-sm">{r.text}</div>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <Badge variant="outline" className="font-normal">
+                          {r.category}
+                        </Badge>
+                        {!assigned && (
+                          <button
+                            onClick={() => setPickOwner(r.id, r.recommendedOwner)}
+                            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-100"
+                            title="AI 추천 담당자로 지정"
+                          >
+                            <Sparkles className="size-3" /> 추천 {r.recommendedOwner}
+                          </button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={priorityVariant(r.priority)}>{r.priority}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {assigned ? (
+                        <div className="flex items-center gap-2">
+                          <Avatar className="size-6">
+                            <AvatarFallback className="text-[10px]">
+                              {r.owner.slice(0, 1)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-foreground text-sm">{r.owner}</span>
+                          {r.due && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
+                              <CalendarClock className="size-3" />
+                              {r.due}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={chosen}
+                            onValueChange={(v) => setPickOwner(r.id, v)}
+                          >
+                            <SelectTrigger className="h-8 w-28">
+                              <SelectValue placeholder="담당자" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {assignees.map((a) => (
+                                <SelectItem key={a} value={a}>
+                                  {a}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="date"
+                            value={pick[r.id]?.due ?? ""}
+                            onChange={(e) => setPickDue(r.id, e.target.value)}
+                            className="h-8 w-36"
+                          />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {assigned ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-muted-foreground"
+                          onClick={() => unassign(r)}
+                        >
+                          취소
+                        </Button>
+                      ) : (
+                        <Button size="sm" className="h-8" onClick={() => assign(r)}>
+                          배정
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                    {filter === "미배정"
+                      ? "미배정 요구사항이 없어요. 모두 배정되었습니다 🎉"
+                      : "해당하는 요구사항이 없습니다."}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -527,47 +526,6 @@ const mergedProgress = useMemo(() => {
 
       {/* 담당자 재배정 추천 (AI 서버 연동, 팀원 데이터 기반) */}
       <ReassignmentCard projectId={project.id} />
-
-      {/* 예산 (예산 관리 기능이 아직 없어 예시 데이터로 보여드립니다) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="size-4" /> 예산
-          </CardTitle>
-          <CardDescription>
-            예산 집행 현황이에요. 아직 실제 예산 데이터가 연동되어 있지 않아 예시로 보여드려요.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-muted-foreground text-xs">총 예산(견적)</p>
-              <p className="mt-1 text-foreground text-sm">{project.estimate || "-"}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">집행 금액</p>
-              <p className="mt-1 text-foreground text-sm">2,150만원</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs">잔여 예산</p>
-              <p className="mt-1 text-foreground text-sm">1,250만원</p>
-            </div>
-          </div>
-          <div>
-            <div className="mb-1.5 flex items-center justify-between text-muted-foreground text-xs">
-              <span>집행률</span>
-              <span>63%</span>
-            </div>
-            <Progress value={63} />
-          </div>
-          <Badge
-            variant="outline"
-            className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-          >
-            정상 범위
-          </Badge>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -40,8 +40,6 @@ import type { Notice, NoticeCategory } from "@/app/data/demoData";
 import { addNotice, useNotices } from "@/app/state/staffNoticeStore";
 import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
-import { CountUp } from "@/app/components/common/CountUp";
-import { cn } from "@/app/components/ui/utils";
 
 const FILTERS: (NoticeCategory | "전체")[] = [
   "전체",
@@ -511,39 +509,5 @@ export function StaffNoticeBoard({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-interface KpiCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone?: "blue" | "red" | "amber" | "violet";
-}
-
-const KPI_TONE_STYLES: Record<
-  NonNullable<KpiCardProps["tone"]>,
-  { card: string; icon: string }
-> = {
-  blue: { card: "bg-blue-50/70 border-blue-100", icon: "text-blue-600" },
-  red: { card: "bg-red-50/70 border-red-100", icon: "text-red-600" },
-  amber: { card: "bg-amber-50/70 border-amber-100", icon: "text-amber-600" },
-  violet: { card: "bg-violet-50/70 border-violet-100", icon: "text-violet-600" },
-};
-
-function KpiCard({ icon, label, value, tone }: KpiCardProps) {
-  const toneStyle = tone ? KPI_TONE_STYLES[tone] : null;
-  return (
-    <Card className={toneStyle?.card}>
-      <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-sm">{label}</span>
-          <span className={cn("text-muted-foreground", toneStyle?.icon)}>{icon}</span>
-        </div>
-        <div className="mt-2 text-foreground text-2xl">
-          <CountUp value={`${value}건`} />
-        </div>
-      </CardContent>
-    </Card>
   );
 }

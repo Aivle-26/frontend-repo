@@ -318,6 +318,61 @@ export interface FinalCostEstimateResponse extends CostEstimateResponse {
   updatedAt: string;
 }
 
+export interface AssignmentRecommendationCandidate {
+  employeeNumber: string;
+  availableHoursPerWeek: number;
+}
+
+export interface AssignmentRecommendationRequestBody {
+  candidates?: AssignmentRecommendationCandidate[];
+}
+
+export interface AssignmentRequiredSkill {
+  skillCode: string;
+  minLevel: string | null;
+}
+
+export interface AssignmentRecommendedMember {
+  employeeNumber: string;
+  name: string;
+  email: string;
+  recommendationScore: number;
+  assignedHours: number;
+  remainingAvailableHours: number;
+}
+
+export interface AssignmentRecommendation {
+  wbsId: number;
+  wbsName: string;
+  requiredRoleCode: string;
+  requiredSkills: AssignmentRequiredSkill[];
+  estimatedPersonDays: number;
+  estimatedHours: number;
+  estimatedMm: number;
+  requiredHeadcount: number;
+  recommendedMembers: AssignmentRecommendedMember[];
+  recommendationReason: string | null;
+}
+
+export interface AssignmentRecommendationResponse {
+  projectId: number;
+  candidateMode: "ALL" | "SELECTED";
+  candidates: {
+    employeeNumber: string;
+    name: string;
+    email: string;
+    availableHoursPerWeek: number;
+  }[];
+  assignments: AssignmentRecommendation[];
+  totalEstimatedPersonDays: number;
+  totalEstimatedHours: number;
+  totalEstimatedMm: number;
+  unassignedWbsIds: number[];
+  warnings: string[];
+  llmStatus: string | null;
+}
+
+
 
 export interface SaveFinalWbsTask {
   externalTaskId: string;
@@ -813,6 +868,20 @@ export const projectRepository = {
       `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       {
         method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  recommendAssignments(
+    projectId: string | number,
+    input: AssignmentRecommendationRequestBody = {},
+  ) {
+    return apiFetch<AssignmentRecommendationResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/assignments/recommend`,
+      {
+        method: "POST",
         body: JSON.stringify(input),
         auth: true,
       },

@@ -662,6 +662,91 @@ export interface WeeklyScrumReportResponse {
   updatedAt: string | null;
 }
 
+/* ---- PM 검토(Phase 2): AI 결과 카드 렌더용 타입 (JsonNode 실제 구조) ---- */
+
+/** AI 응답 필드는 snake_case (ai-server 스키마 기준). */
+export interface WeeklyScrumEvidence {
+  member_name?: string | null;
+  role?: string | null;
+  text: string;
+}
+
+/** analysis.review.review_findings[] 항목 (AiReviewFinding). */
+export interface WeeklyScrumFinding {
+  finding_id: string;
+  type: string;
+  title: string;
+  description: string;
+  impact?: string | null;
+  recommended_action?: string | null;
+  confidence?: string | null;
+  evidence?: WeeklyScrumEvidence[];
+  suggested_owner_id?: string | null;
+  suggested_owner?: string | null;
+  suggested_due_date?: string | null;
+  review_status?: string | null;
+}
+
+/** analysis.recommendation.recommended_next_actions[] 항목 (NextWeekActionPlan). */
+export interface WeeklyScrumAction {
+  action_id: string;
+  title: string;
+  owner_id?: string | null;
+  owner?: string | null;
+  assignment_status?: string | null;
+  due_date?: string | null;
+  priority?: string | null;
+  done_condition?: string | null;
+  reason?: string | null;
+  source_finding_id?: string | null;
+  source_finding_ids?: string[];
+  review_status?: string | null;
+}
+
+/** analysis.review 전체 (WeeklyScrumReviewResponse). */
+export interface WeeklyScrumReviewResult {
+  review_findings?: WeeklyScrumFinding[];
+  overall_status?: string;
+}
+
+/** analysis.recommendation 전체. */
+export interface WeeklyScrumRecommendationResult {
+  recommended_next_actions?: WeeklyScrumAction[];
+  next_week_start?: string;
+  next_week_end?: string;
+}
+
+export type WeeklyScrumReviewDecision = "APPROVED" | "MODIFIED" | "REJECTED";
+
+/** PUT .../analysis/review 의 findings[] 항목 (백엔드 FindingDecision, camelCase). */
+export interface WeeklyScrumFindingDecision {
+  findingId: string;
+  reviewStatus: WeeklyScrumReviewDecision;
+  reviewComment?: string;
+  modifiedTitle?: string;
+  modifiedDescription?: string;
+  modifiedAction?: string;
+}
+
+/** PUT .../analysis/review 의 actions[] 항목 (백엔드 ActionDecision, camelCase). */
+export interface WeeklyScrumActionDecision {
+  actionId: string;
+  reviewStatus: WeeklyScrumReviewDecision;
+  reviewComment?: string;
+  modifiedTitle?: string;
+  modifiedOwnerId?: string;
+  modifiedOwner?: string;
+  modifiedDueDate?: string;
+  modifiedPriority?: string;
+  modifiedDoneCondition?: string;
+  modifiedReason?: string;
+}
+
+export interface SaveWeeklyScrumReviewBody {
+  findings: WeeklyScrumFindingDecision[];
+  actions: WeeklyScrumActionDecision[];
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -1296,6 +1381,26 @@ export const projectRepository = {
     return apiFetch<WeeklyScrumReportResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/analysis`,
       { auth: true },
+    );
+  },
+
+  // PM: 검토 결과(Finding·Action 승인/수정/거절) 저장 → 상태 PM_REVIEWING
+  saveWeeklyScrumReview(
+    projectId: string | number,
+    weekStartDate: string,
+    body: SaveWeeklyScrumReviewBody,
+  ) {
+    return apiFetch<WeeklyScrumReportResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/analysis/review`,
+      { method: "PUT", body: JSON.stringify(body), auth: true },
+    );
+  },
+
+  // PM: 최종 확정(finalize) → 상태 FINALIZED, finalReport 생성
+  finalizeWeeklyScrum(projectId: string | number, weekStartDate: string) {
+    return apiFetch<WeeklyScrumReportResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/analysis/finalize`,
+      { method: "POST", auth: true },
     );
   },
 

@@ -1,74 +1,109 @@
 import { useEffect, useState } from "react";
+import type { Task, TaskColumn, Priority } from "@/app/data/demoData";
 import {
-  TASKS,
-  type Task,
-  type TaskColumn,
-} from "@/app/data/demoData";
+  projectRepository,
+  type TaskAssignmentResponse,
+  type TaskProgressStatus,
+} from "@/app/api/projectRepository";
+import { toast } from "sonner";
 
 /**
  * 업무 보드 스토어입니다.
  *
- * ⚠️ 의도적으로 localStorage에 저장하지 않습니다. — 직원 화면은 아직
- * "UI만 구현" 단계라 시연용으로 쓰지 않기 때문에, 코드를 새로 받거나
- * 새로고침하거나 로그아웃 후 재로그인하면 항상 데모 데이터(TASKS)로
- * 깨끗하게 리셋되는 게 더 낫습니다.
- *
- * 메모리(모듈 변수)에만 상태를 두고, 같은 세션(탭을 새로고침하지 않은 동안)
- * 안에서는 커스텀 이벤트로 화면들끼리 동기화됩니다. 실제 백엔드 API가
- * 생기면 이 스토어를 그 API 호출로 교체하면 됩니다.
+ * 실제 백엔드 API(GET /tasks/me, PATCH /tasks/{wbsId}/progress)를 씁니다.
+ * 화면(StaffDashboard)이 마운트될 때 loadTasks(projectId, projectName)를
+ * 한 번 호출해줘야 하고, 그 뒤로는 이 모듈이 메모리에 최신 상태를 들고
+ * 있으면서 커스텀 이벤트로 화면들끼리 동기화합니다.
  */
 
 const TASK_CHANGED_EVENT = "aipm:tasks-changed";
 
-let currentTasks: Task[] = TASKS;
+let currentTasks: Task[] = [];
+let currentProjectId: string | null = null;
 
-export function getTasks(): Task[] {
-  return currentTasks;
-}
-
-function setTasks(tasks: Task[]): void {
-  currentTasks = tasks;
-
+function notify(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(TASK_CHANGED_EVENT));
   }
 }
 
-/**
- * 특정 업무의 열(column)을 변경합니다.
- *
- * todo   : 할 일
- * doing  : 진행 중
- * review : 검토
- * done   : 완료
- */
-export function updateTaskColumn(taskId: string, column: TaskColumn): void {
-  setTasks(
-    currentTasks.map((task) => (task.id === taskId ? { ...task, column } : task)),
-  );
+function statusToColumn(status: TaskProgressStatus): TaskColumn {
+  if (status === "COMPLETED") return "done";
+  if (status === "TODO") return "todo";
+  // IN_PROGRESS / REVIEW / DELAYED — 검토 요청 컬럼은 없앴으므로 진행 중으로 묶는다.
+  return "doing";
+}
+
+function columnToStatus(column: TaskColumn): { status: TaskProgressStatus; progressRate: number } {
+  if (column === "done") return { status: "COMPLETED", progressRate: 100 };
+  if (column === "todo") return { status: "TODO", progressRate: 0 };
+  return { status: "IN_PROGRESS", progressRate: 50 };
+}
+
+/** 백엔드 응답을 화면에서 쓰는 Task 형태로 변환한다. */
+function mapTask(res: TaskAssignmentResponse, projectName: string): Task {
+  const priority: Priority = res.overdue || res.milestone ? "높음" : "중간";
+  return {
+    id: String(res.wbsId),
+    title: res.taskName,
+    column: statusToColumn(res.status),
+    priority,
+    due: res.dueDate ?? "-",
+    assignee: "나",
+    relatedReq: res.description || res.taskCode,
+    projectName,
+  };
+}
+
+/** 프로젝트를 열 때(StaffDashboard 마운트 시) 호출해서 실제 업무 목록을 불러온다. */
+export async function loadTasks(projectId: string, projectName: string): Promise<void> {
+  currentProjectId = projectId;
+  try {
+    const list = await projectRepository.getMyTasks(projectId);
+    currentTasks = list.map((t) => mapTask(t, projectName));
+  } catch (error) {
+    console.error("업무 목록을 불러오지 못했습니다.", error);
+    toast.error("업무 목록을 불러오지 못했습니다.");
+    currentTasks = [];
+  }
+  notify();
+}
+
+export function getTasks(): Task[] {
+  return currentTasks;
+}
+
+async function patchProgress(taskId: string, column: TaskColumn): Promise<void> {
+  if (!currentProjectId) return;
+  const { status, progressRate } = columnToStatus(column);
+
+  // 낙관적 업데이트: 응답 기다리지 않고 화면부터 바꾼다.
+  const previous = currentTasks;
+  currentTasks = currentTasks.map((t) => (t.id === taskId ? { ...t, column } : t));
+  notify();
+
+  try {
+    await projectRepository.updateTaskProgress(currentProjectId, taskId, {
+      status,
+      progressRate,
+    });
+  } catch (error) {
+    console.error("업무 상태 변경에 실패했습니다.", error);
+    toast.error("업무 상태 변경에 실패했습니다. 다시 시도해 주세요.");
+    // 실패하면 원래 상태로 되돌린다.
+    currentTasks = previous;
+    notify();
+  }
 }
 
 /** 특정 업무를 완료 상태로 변경합니다. */
 export function completeTask(taskId: string): void {
-  updateTaskColumn(taskId, "done");
+  void patchProgress(taskId, "done");
 }
 
-/**
- * 업무를 추가하거나 기존 업무를 수정합니다.
- * 같은 ID의 업무가 있으면 수정하고, 없으면 새 업무를 추가합니다.
- */
-export function upsertTask(task: Task): void {
-  const exists = currentTasks.some((t) => t.id === task.id);
-  setTasks(
-    exists
-      ? currentTasks.map((t) => (t.id === task.id ? { ...t, ...task } : t))
-      : [...currentTasks, task],
-  );
-}
-
-/** 특정 업무를 삭제합니다. */
-export function removeTask(taskId: string): void {
-  setTasks(currentTasks.filter((task) => task.id !== taskId));
+/** 특정 업무의 열(column)을 변경합니다. (todo / doing / done) */
+export function updateTaskColumn(taskId: string, column: TaskColumn): void {
+  void patchProgress(taskId, column);
 }
 
 /**
@@ -76,10 +111,10 @@ export function removeTask(taskId: string): void {
  * 업무가 변경되면 자동으로 새로운 업무 목록을 불러와 화면을 다시 렌더링합니다.
  */
 export function useTasks(): Task[] {
-  const [tasks, setTasksState] = useState<Task[]>(() => getTasks());
+  const [tasks, setTasks] = useState<Task[]>(() => getTasks());
 
   useEffect(() => {
-    const sync = () => setTasksState(getTasks());
+    const sync = () => setTasks(getTasks());
 
     window.addEventListener(TASK_CHANGED_EVENT, sync);
 

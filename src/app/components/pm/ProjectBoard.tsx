@@ -1038,9 +1038,10 @@ function ProjectCard({
       <CardContent className="pt-5">
         <div className="flex items-start justify-between gap-2">
           <button onClick={onOpenName} className="min-w-0 text-left">
-            <div className="text-foreground truncate hover:underline">{p.name}</div>
-            <div className="text-muted-foreground text-xs truncate">{p.client}</div>
+            <div className="truncate text-foreground hover:underline">{p.name}</div>
+            <div className="truncate text-xs text-muted-foreground">{p.client}</div>
           </button>
+
           {mode === "real" ? (
             <RealStatusBadge
               status={p.server?.status}
@@ -1055,10 +1056,11 @@ function ProjectCard({
         <div className="mt-4 min-h-[52px]">
           {mode === "real" ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <CalendarClock className="size-3.5 shrink-0" />
                 <span className="truncate">{p.updatedAt}</span>
               </div>
+
               <div className="flex items-baseline gap-2">
                 <span
                   className={`text-2xl font-medium leading-none ${
@@ -1071,9 +1073,12 @@ function ProjectCard({
                 >
                   {dday.label}
                 </span>
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   {dday.overdue ? "마감 지남" : "마감까지"}
-              <div className="flex items-center justify-between gap-3">
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">서버 상태</span>
                 <span className="text-foreground">
                   {planningComplete
@@ -1084,54 +1089,53 @@ function ProjectCard({
             </div>
           ) : isActive ? (
             <>
-              <div className="flex items-center justify-between text-sm mb-1.5">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">진행률</span>
                 <span className="text-foreground">
                   <CountUp value={`${p.progress}%`} />
                 </span>
               </div>
+
               <Progress value={p.progress} />
-              <div className="mt-3 flex items-center gap-4 text-muted-foreground text-xs">
+
+              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
-                  <CalendarClock className="size-3.5" /> {p.dueDate}
+                  <CalendarClock className="size-3.5" />
+                  {p.dueDate}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <AlertTriangle className="size-3.5" /> 리스크 {p.riskCount}
+                  <AlertTriangle className="size-3.5" />
+                  리스크 {p.riskCount}
                 </span>
               </div>
             </>
-          ) : null}
-
-          {mode === "demo" && p.status === "준비" ? (
+          ) : p.status === "준비" ? (
             <>
-              <div className="flex items-center justify-between text-sm mb-1.5">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">준비 단계</span>
                 <span className="text-foreground">
                   {p.wizardStep}/{WIZARD_STEPS.length}
                 </span>
               </div>
               <Progress value={stepPct} />
-              <div className="mt-3 text-muted-foreground text-xs">
+              <div className="mt-3 text-xs text-muted-foreground">
                 요구사항 {p.reqCount}건 · AI 추천 검토 중
               </div>
             </>
-          ) : null}
-
-          {mode === "demo" && p.status === "승인대기" ? (
+          ) : p.status === "승인대기" ? (
             <div className="space-y-1.5 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">견적</span>
                 <span className="text-foreground">{p.estimate}</span>
               </div>
-              <div className="text-muted-foreground text-xs">
+              <div className="text-xs text-muted-foreground">
                 요구사항 {p.reqCount}건 · 2사 승인 대기
               </div>
             </div>
-          ) : null}
-
-          {mode === "demo" && p.status === "분석중" ? (
-            <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
-              <Loader2 className="size-4 animate-spin" /> AI가 초기 문서를 분석하고 있어요…
+          ) : p.status === "분석중" ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              AI가 초기 문서를 분석하고 있어요…
             </div>
           ) : null}
         </div>
@@ -1154,6 +1158,7 @@ function ProjectCard({
                 )}
                 삭제
               </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -1163,6 +1168,7 @@ function ProjectCard({
                     onOpen();
                     return;
                   }
+
                   onOpenReal(planningProgress?.stage ?? "requirements");
                 }}
               >
@@ -1186,11 +1192,13 @@ function ProjectCard({
               열기 <ArrowRight className="size-3.5" />
             </Button>
           ) : null}
+
           {mode === "demo" && isPrep ? (
             <>
               <Button variant="ghost" size="sm" onClick={onEdit}>
                 <Pencil className="size-3.5" /> 수정
               </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -1205,6 +1213,7 @@ function ProjectCard({
                 )}
                 삭제
               </Button>
+
               <Button
                 size="sm"
                 disabled={p.wizardStep < WIZARD_STEPS.length}
@@ -1214,6 +1223,7 @@ function ProjectCard({
               </Button>
             </>
           ) : null}
+
           {mode === "demo" && p.status === "분석중" ? (
             <Button
               variant="ghost"

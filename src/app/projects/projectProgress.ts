@@ -142,7 +142,6 @@ export async function getProjectPlanningProgress(
         ? DASHBOARD_PROGRESS
         : STAGE_META.budget;
     }
-    }
   } catch (error) {
     if (!isNotFound(error)) {
       console.warn(`프로젝트 ${projectId} 업무 배정 진행도 조회 실패`, error);

@@ -98,7 +98,6 @@ export interface ProjectSummary {
   projectId: number;
   name: string;
   description: string | null;
-  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string | null;
@@ -110,7 +109,6 @@ export interface ProjectSummary {
 export interface CreateProjectDraftRequest {
   name: string;
   description: string | null;
-  clientOrganization: string | null;
   pmEmployeeNumber: string;
   plannedStartDate: string;
   plannedEndDate: string;
@@ -119,7 +117,6 @@ export interface CreateProjectDraftRequest {
 export interface CreateProjectDraftResponse {
   projectId: number;
   name: string;
-  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string;
@@ -373,6 +370,45 @@ export interface AssignmentRecommendationResponse {
   unassignedWbsIds: number[];
   warnings: string[];
   llmStatus: string | null;
+}
+
+export type TaskProgressStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "DELAYED";
+
+export interface TaskAssignmentResponse {
+  assignmentId: number;
+  projectId: number;
+  wbsId: number;
+  taskCode: string;
+  taskName: string;
+  description: string;
+  employeeNumber: string;
+  status: TaskProgressStatus;
+  progressRate: number;
+  startDate: string | null;
+  dueDate: string | null;
+  estimatedHours: number;
+  milestone: boolean;
+  bufferDays: number;
+  overdue: boolean;
+  assignedAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateTaskProgressRequestBody {
+  status: TaskProgressStatus;
+  progressRate: number;
+}
+
+export interface ProjectProgressResponse {
+  projectId: number;
+  employeeNumber: string | null;
+  progressRate: number;
+  totalTaskCount: number;
+  assignedTaskCount: number;
+  completedTaskCount: number;
+  delayedTaskCount: number;
+  totalEstimatedHours: number;
+  completedEstimatedHours: number;
 }
 
 
@@ -885,6 +921,42 @@ export const projectRepository = {
       `/projects/${encodeURIComponent(String(projectId))}/assignments/recommend`,
       {
         method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  getMyTasks(projectId: string | number) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/me`,
+      { auth: true },
+    );
+  },
+
+  getDueSoonTasks(projectId: string | number, days = 3) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/due-soon?days=${days}`,
+      { auth: true },
+    );
+  },
+
+  getMyProgress(projectId: string | number) {
+    return apiFetch<ProjectProgressResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/progress/me`,
+      { auth: true },
+    );
+  },
+
+  updateTaskProgress(
+    projectId: string | number,
+    wbsId: string | number,
+    input: UpdateTaskProgressRequestBody,
+  ) {
+    return apiFetch<TaskAssignmentResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/progress`,
+      {
+        method: "PATCH",
         body: JSON.stringify(input),
         auth: true,
       },

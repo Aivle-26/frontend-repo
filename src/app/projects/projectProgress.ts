@@ -10,6 +10,68 @@ export type PlanningStage =
   | "assign"
   | "budget";
 
+ const BUDGET_COMPLETED_STORAGE_KEY =
+   "bidworks:completed-project-budgets";
+
+ function readCompletedBudgetProjectIds(): string[] {
+   if (typeof window === "undefined") {
+     return [];
+   }
+
+   try {
+     const raw = window.localStorage.getItem(
+       BUDGET_COMPLETED_STORAGE_KEY,
+     );
+
+     if (!raw) {
+       return [];
+     }
+
+     const parsed = JSON.parse(raw);
+
+     return Array.isArray(parsed)
+       ? parsed.map((value) => String(value))
+       : [];
+   } catch {
+     return [];
+   }
+ }
+
+ export function isProjectBudgetCompleted(
+   projectId: string | number,
+ ): boolean {
+   return readCompletedBudgetProjectIds().includes(
+     String(projectId),
+   );
+ }
+
+ export function markProjectBudgetCompleted(
+   projectId: string | number,
+ ): void {
+   if (typeof window === "undefined") {
+     return;
+   }
+
+   const projectIds = new Set(
+     readCompletedBudgetProjectIds(),
+   );
+
+   projectIds.add(String(projectId));
+
+   window.localStorage.setItem(
+     BUDGET_COMPLETED_STORAGE_KEY,
+     JSON.stringify([...projectIds]),
+   );
+
+   window.dispatchEvent(
+     new CustomEvent("project-budget-completed", {
+       detail: {
+         projectId: String(projectId),
+       },
+     }),
+   );
+ }
+
 export interface ProjectPlanningProgress {
   stage: PlanningStage;
   buttonLabel: string;
@@ -46,7 +108,7 @@ const STAGE_META: Record<PlanningStage, ProjectPlanningProgress> = {
 };
 
 const DASHBOARD_PROGRESS: ProjectPlanningProgress = {
-  stage: "assign",
+  stage: "budget",
   buttonLabel: "대시보드 열기",
   planningComplete: true,
 };
@@ -76,7 +138,10 @@ export async function getProjectPlanningProgress(
     const assignedTaskCount = Number(progress.assignedTaskCount ?? 0);
 
     if (totalTaskCount > 0 && assignedTaskCount >= totalTaskCount) {
-      return DASHBOARD_PROGRESS;
+      return isProjectBudgetCompleted(projectId)
+        ? DASHBOARD_PROGRESS
+        : STAGE_META.budget;
+    }
     }
   } catch (error) {
     if (!isNotFound(error)) {

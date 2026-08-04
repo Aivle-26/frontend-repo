@@ -38,6 +38,7 @@ import {
   type CostEstimateResponse,
   type CostEstimateRequestBody,
 } from "@/app/api/projectRepository";
+import { markProjectBudgetCompleted } from "@/app/projects/projectProgress";
 
 /**
  * [예산] 페이지.
@@ -159,8 +160,18 @@ export function PmBudget({ project }: PmBudgetProps) {
     setEstimating(true);
     setEstimateError("");
     try {
-      const res = await projectRepository.estimateProjectCost(project.id, body);
-      setResult(res);
+      const saved = await projectRepository.saveFinalCostEstimate(
+        project.id,
+        body,
+      );
+
+      if (saved.confirmed === true) {
+        markProjectBudgetCompleted(project.id);
+      }
+
+      toast.success(
+        "최종 견적을 저장했습니다. 프로젝트 화면에서 대시보드를 열 수 있습니다.",
+      );
     } catch (caught) {
       setEstimateError(
         caught instanceof ApiError ? caught.message : "견적 계산에 실패했습니다.",

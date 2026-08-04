@@ -89,7 +89,7 @@ const PM_BOTTOM_MENU: SidebarItem[] = [
 const STAFF_MENU: SidebarItem[] = [
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
-  { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
+  { key: "submit", label: "위클리 스크럼", icon: Send, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
 ];
 
@@ -555,7 +555,7 @@ function DemoApplication() {
       subtitle = "RFP 맥락";
       body = <StaffContext />;
     } else if (staffMenu === "submit") {
-      subtitle = "산출물 제출";
+      subtitle = "위클리 스크럼 제출";
       body = (
         <StaffSubmit
           project={selectedProject ?? null}

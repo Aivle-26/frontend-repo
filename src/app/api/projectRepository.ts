@@ -98,6 +98,7 @@ export interface ProjectSummary {
   projectId: number;
   name: string;
   description: string | null;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string | null;
@@ -109,6 +110,7 @@ export interface ProjectSummary {
 export interface CreateProjectDraftRequest {
   name: string;
   description: string | null;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   plannedStartDate: string;
   plannedEndDate: string;
@@ -117,6 +119,7 @@ export interface CreateProjectDraftRequest {
 export interface CreateProjectDraftResponse {
   projectId: number;
   name: string;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string;

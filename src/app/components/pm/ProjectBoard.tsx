@@ -104,6 +104,7 @@ export function ProjectBoard({
   const [detail, setDetail] = useState<ProjectSummary | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newClient, setNewClient] = useState("");
   const [newStartDate, setNewStartDate] = useState("");
   const [newEndDate, setNewEndDate] = useState("");
   const [pendingDocs, setPendingDocs] = useState<PendingProjectDocument[]>([]);
@@ -227,6 +228,7 @@ export function ProjectBoard({
 
   const openNew = () => {
     setNewName("");
+    setNewClient("");
     setNewStartDate("");
     setNewEndDate("");
     setPendingDocs([]);
@@ -238,6 +240,7 @@ export function ProjectBoard({
   const resetNewProject = () => {
     setNewOpen(false);
     setNewName("");
+    setNewClient("");
     setNewStartDate("");
     setNewEndDate("");
     setPendingDocs([]);
@@ -271,6 +274,7 @@ export function ProjectBoard({
         draft = await projectRepository.createProjectDraft({
           name: newName.trim(),
           description: null,
+          clientOrganization: newClient.trim() || null,
           pmEmployeeNumber,
           plannedStartDate: newStartDate,
           plannedEndDate: newEndDate,
@@ -462,7 +466,7 @@ export function ProjectBoard({
                     label="서버 상태"
                     value={formatServerProjectStatus(detail.server?.status)}
                   />
-                  <DetailStat label="담당 PM" value={detail.client} />
+                  <DetailStat label="고객사" value={detail.client} />
                   <DetailStat label="프로젝트 기간" value={detail.updatedAt} />
                   <DetailStat
                     label="설명"
@@ -682,6 +686,16 @@ export function ProjectBoard({
               />
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm text-foreground">고객사</label>
+              <Input
+                value={newClient}
+                onChange={(e) => setNewClient(e.target.value)}
+                placeholder="예: 한국전력공사"
+                disabled={isCreatingProject || !!createdDraft}
+              />
+            </div>
+
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <label
@@ -878,7 +892,7 @@ function mapCreatedDraft(
       plannedEndDate: draft.plannedEndDate,
     },
     name: draft.name,
-    client: `PM ${draft.pmEmployeeNumber}`,
+    client: draft.clientOrganization?.trim() || "고객사 미지정",
     status: "준비",
     progress: 0,
     dueDate: draft.plannedEndDate,
@@ -890,6 +904,22 @@ function mapCreatedDraft(
     docs,
     requirements: [],
   };
+}
+
+function ddayLabel(endDate?: string | null): {
+  label: string;
+  overdue: boolean;
+  soon: boolean;
+} {
+  if (!endDate) return { label: "-", overdue: false, soon: false };
+  const end = new Date(`${endDate}T00:00:00`).getTime();
+  if (Number.isNaN(end)) return { label: "-", overdue: false, soon: false };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((end - today.getTime()) / 86_400_000);
+  if (days === 0) return { label: "D-DAY", overdue: false, soon: true };
+  if (days > 0) return { label: `D-${days}`, overdue: false, soon: days <= 7 };
+  return { label: `D+${Math.abs(days)}`, overdue: true, soon: false };
 }
 
 function getProjectActionError(caught: unknown, fallback: string) {
@@ -972,6 +1002,7 @@ function ProjectCard({
   const isActive = p.status === "진행중" || p.status === "완료";
   const isPrep = p.status === "준비" || p.status === "승인대기";
   const stepPct = Math.round((p.wizardStep / WIZARD_STEPS.length) * 100);
+  const dday = ddayLabel(p.server?.plannedEndDate);
 
   return (
     <Card
@@ -995,15 +1026,25 @@ function ProjectCard({
         {/* 상태별 본문 */}
         <div className="mt-4 min-h-[52px]">
           {mode === "real" ? (
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">프로젝트 기간</span>
-                <span className="truncate text-foreground">{p.updatedAt}</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                <CalendarClock className="size-3.5 shrink-0" />
+                <span className="truncate">{p.updatedAt}</span>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">서버 상태</span>
-                <span className="text-foreground">
-                  {formatServerProjectStatus(p.server?.status)}
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-2xl font-medium leading-none ${
+                    dday.overdue
+                      ? "text-red-600"
+                      : dday.soon
+                        ? "text-amber-600"
+                        : "text-foreground"
+                  }`}
+                >
+                  {dday.label}
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {dday.overdue ? "마감 지남" : "마감까지"}
                 </span>
               </div>
             </div>

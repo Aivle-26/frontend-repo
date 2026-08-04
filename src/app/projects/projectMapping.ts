@@ -17,9 +17,7 @@ export function mapApiProject(project: ApiProjectSummary): ProjectSummary {
       plannedEndDate: project.plannedEndDate,
     },
     name: project.name,
-    client: project.pmEmployeeNumber
-      ? `PM ${project.pmEmployeeNumber}`
-      : "PM 미지정",
+    client: project.clientOrganization?.trim() || "고객사 미지정",
     status: mapProjectStatus(project.status),
     progress: project.status?.toUpperCase() === "COMPLETED" ? 100 : 0,
     dueDate: project.plannedEndDate ?? "-",

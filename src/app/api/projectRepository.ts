@@ -626,15 +626,6 @@ export interface AnalyzeWeeklyScrumBody {
   enableLlm?: boolean;
 }
 
-/** 직원 위클리 스크럼 제출 본문 (PUT /{weekStartDate}, SaveWeeklyScrumRequest). */
-export interface SaveWeeklyScrumBody {
-  completedWork: string;
-  plannedWork: string;
-  blockers?: string | null;
-  /** 세부 항목(선택). 현재 폼에서는 미사용, 추후 확장용. */
-  details?: unknown;
-}
-
 export type WeeklyScrumWorkflowStatus =
   | "DRAFT_INPUT"
   | "SUMMARIZED"
@@ -1388,18 +1379,6 @@ export const projectRepository = {
   },
 
   /* ---------------- 위클리 스크럼 ---------------- */
-
-  // 직원: 해당 주차 위클리 스크럼 제출/수정 (본인 사번은 서버가 토큰에서 결정)
-  saveWeeklyScrum(
-    projectId: string | number,
-    weekStartDate: string,
-    body: SaveWeeklyScrumBody,
-  ) {
-    return apiFetch<WeeklyScrumSubmissionItem>(
-      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}`,
-      { method: "PUT", body: JSON.stringify(body), auth: true },
-    );
-  },
 
   // 해당 주차에 제출된 스크럼 목록
   getWeeklyScrums(projectId: string | number, weekStartDate: string) {

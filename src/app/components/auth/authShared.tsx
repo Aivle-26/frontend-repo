@@ -10,7 +10,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import landingBackground from "@assets/landing/landing-background.png";
+import loginPageBackground from "@assets/landing/login-page-background.png";
 import featureRfpAnalysis from "@assets/landing/feature-rfp-analysis.png";
 import featureSchedule from "@assets/landing/feature-schedule.png";
 import featureRisk from "@assets/landing/feature-risk.png";
@@ -314,12 +314,7 @@ function LandingPanel() {
   return (
     <section className="relative overflow-hidden rounded-[36px] bg-white/70 px-6 py-8 sm:px-8 lg:min-h-[820px] lg:px-10 lg:py-10 xl:px-14 xl:py-12">
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[36px]">
-        <img
-          src={landingBackground}
-          alt=""
-          className="absolute bottom-0 right-0 h-auto w-[82%] max-w-[980px] opacity-70"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,251,255,0.985)_0%,rgba(248,251,255,0.965)_32%,rgba(248,251,255,0.84)_57%,rgba(248,251,255,0.48)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,251,255,0.92)_0%,rgba(248,251,255,0.82)_42%,rgba(248,251,255,0.56)_100%)]" />
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
@@ -398,8 +393,12 @@ interface AuthShellProps {
 /** 좌측 소개 패널 + 우측 카드 2단 레이아웃 */
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#f8fbff]">
-      <div className="mx-auto flex w-full max-w-[1560px] flex-1 items-center px-4 py-4 sm:px-6">
+    <div
+      className="relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url(${loginPageBackground})` }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-white/12" />
+      <div className="relative z-10 mx-auto flex w-full max-w-[1560px] flex-1 items-center px-4 py-4 sm:px-6">
         <div className="grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:gap-16">
           <LandingPanel />
 
@@ -429,7 +428,9 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
           </div>
         </div>
       </div>
-      <SiteFooter />
+      <div className="relative z-10">
+        <SiteFooter />
+      </div>
     </div>
   );
 }

@@ -62,6 +62,14 @@ function mapTask(res: TaskAssignmentResponse, projectName: string): Task {
 
 /** 프로젝트를 열 때(StaffDashboard 마운트 시) 호출해서 실제 업무 목록을 불러온다. */
 export async function loadTasks(projectId: string, projectName: string): Promise<void> {
+  // 이미 같은 프로젝트의 예시(더미) 데이터를 보여주고 있다면 다시 불러오지 않는다.
+  // (예시 데이터는 서버에 진짜로 존재하지 않아서, 화면 안에서 "완료 처리" 같은
+  //  로컬 상태 변경을 했더라도 재조회하면 항상 초기 상태로 리셋되어 버리기 때문.)
+  if (currentProjectId === projectId && currentIsDemoData && currentTasks.length > 0) {
+    notify();
+    return;
+  }
+
   currentProjectId = projectId;
   try {
     const list = await projectRepository.getMyTasks(projectId);

@@ -1,4 +1,11 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type UIEvent,
+} from "react";
 import { Briefcase, Eye, EyeOff, UserRound } from "lucide-react";
 import {
   ApiError,
@@ -7,6 +14,7 @@ import {
   type SignupRequest,
 } from "@/app/api/projectRepository";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/app/components/ui/input";
 import {
   AuthShell,
@@ -18,6 +26,10 @@ import {
   RoleCard,
 } from "@/app/components/auth/authShared";
 import { cn } from "@/app/components/ui/utils";
+import {
+  AGREEMENT_CONTENT,
+  AgreementModal,
+} from "@/app/components/auth/AgreementModal";
 
 interface SignupScreenProps {
   onBackToLogin: (options?: { email?: string; message?: string }) => void;
@@ -34,6 +46,7 @@ interface SignupForm {
 
 type FormErrors = Partial<Record<keyof SignupForm, string>>;
 type SignupStep = "details" | "verification";
+type AgreementType = "terms" | "privacy";
 
 const EMPTY_FORM: SignupForm = {
   employeeNumber: "",
@@ -92,6 +105,81 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
+  const [agreementModalOpen, setAgreementModalOpen] = useState(false);
+  const [activeAgreement, setActiveAgreement] = useState<AgreementType | null>(
+    null,
+  );
+  const [hasReachedBottom, setHasReachedBottom] = useState(false);
+  const agreementScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!agreementModalOpen || !activeAgreement) return;
+
+    setHasReachedBottom(false);
+    const frame = window.requestAnimationFrame(() => {
+      const element = agreementScrollRef.current;
+      if (!element) return;
+
+      element.scrollTop = 0;
+      if (element.scrollHeight <= element.clientHeight + 4) {
+        setHasReachedBottom(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [agreementModalOpen, activeAgreement]);
+
+  const closeAgreementModal = () => {
+    setAgreementModalOpen(false);
+    setActiveAgreement(null);
+    setHasReachedBottom(false);
+  };
+
+  const openAgreementModal = (type: AgreementType) => {
+    setActiveAgreement(type);
+    setHasReachedBottom(false);
+    setAgreementModalOpen(true);
+  };
+
+  const handleAgreementClick = (type: AgreementType) => {
+    setErrorMessage("");
+
+    if (type === "terms" && termsAgreed) {
+      setTermsAgreed(false);
+      return;
+    }
+
+    if (type === "privacy" && privacyAcknowledged) {
+      setPrivacyAcknowledged(false);
+      return;
+    }
+
+    openAgreementModal(type);
+  };
+
+  const handleAgreementScroll = (event: UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    const reachedBottom =
+      element.scrollTop + element.clientHeight >= element.scrollHeight - 4;
+
+    if (reachedBottom) {
+      setHasReachedBottom(true);
+    }
+  };
+
+  const handleAgree = () => {
+    if (!hasReachedBottom || !activeAgreement) return;
+
+    if (activeAgreement === "terms") {
+      setTermsAgreed(true);
+    } else {
+      setPrivacyAcknowledged(true);
+    }
+
+    closeAgreementModal();
+  };
 
   const update =
     (field: keyof SignupForm) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +195,11 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
 
     if (step === "verification") {
       await handleVerifySignup();
+      return;
+    }
+
+    if (!termsAgreed || !privacyAcknowledged) {
+      setErrorMessage("필수 동의 항목을 모두 확인해 주세요.");
       return;
     }
 
@@ -197,6 +290,10 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
   };
 
   const isVerificationStep = step === "verification";
+  const isConsentComplete = termsAgreed && privacyAcknowledged;
+  const activeAgreementContent = activeAgreement
+    ? AGREEMENT_CONTENT[activeAgreement]
+    : AGREEMENT_CONTENT.terms;
 
   return (
     <AuthShell
@@ -215,7 +312,8 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
         </p>
       }
     >
-      <form className="space-y-3.5" onSubmit={handleSubmit} noValidate>
+      <>
+        <form className="space-y-3.5" onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <FormField label="사번" error={errors.employeeNumber}>
             <Input
@@ -300,25 +398,75 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
         </FormField>
 
         <FormField label="역할 선택">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="mx-auto grid w-full max-w-[288px] grid-cols-1 gap-6 sm:grid-cols-2">
             <RoleCard
               active={role === "pm"}
               disabled={isVerificationStep || isSubmitting}
               onClick={() => setRole("pm")}
               icon={<Briefcase className="size-4" />}
               title="PM"
-              desc="공고 분석과 업무 배정, 진행 현황을 관리합니다."
             />
             <RoleCard
               active={role === "staff"}
               disabled={isVerificationStep || isSubmitting}
               onClick={() => setRole("staff")}
               icon={<UserRound className="size-4" />}
-              title="직원"
-              desc="배정 업무를 확인하고 제출물과 피드백을 관리합니다."
+              title="STAFF"
             />
           </div>
         </FormField>
+
+        {!isVerificationStep ? (
+          <div className="space-y-2.5" aria-label="필수 동의 항목">
+            <div className="group flex w-fit max-w-full items-start gap-2.5 text-sm leading-5 text-slate-700">
+              <Checkbox
+                id="termsAgreed"
+                type="button"
+                checked={termsAgreed}
+                onCheckedChange={() => handleAgreementClick("terms")}
+                aria-labelledby="termsAgreementLabel"
+                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#5B84DC] data-[state=checked]:bg-[#5B84DC] group-hover:data-[state=unchecked]:border-[#7EA1EC] group-hover:data-[state=unchecked]:bg-[#F3F7FF] group-hover:data-[state=checked]:border-[#6C92E4] group-hover:data-[state=checked]:bg-[#6C92E4]"
+                disabled={isSubmitting}
+              />
+              <button
+                id="termsAgreementLabel"
+                type="button"
+                onClick={() => handleAgreementClick("terms")}
+                className="text-left transition-colors group-hover:text-[#5B84DC] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
+              >
+                <span className="font-semibold text-[#5B84DC]">[필수]</span>{" "}
+                PM Agent 서비스 이용약관 동의
+              </button>
+            </div>
+
+            <div className="group flex w-fit max-w-full items-start gap-2.5 text-sm leading-5 text-slate-700">
+              <Checkbox
+                id="privacyAcknowledged"
+                type="button"
+                checked={privacyAcknowledged}
+                onCheckedChange={() => handleAgreementClick("privacy")}
+                aria-labelledby="privacyAgreementLabel"
+                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#5B84DC] data-[state=checked]:bg-[#5B84DC] group-hover:data-[state=unchecked]:border-[#7EA1EC] group-hover:data-[state=unchecked]:bg-[#F3F7FF] group-hover:data-[state=checked]:border-[#6C92E4] group-hover:data-[state=checked]:bg-[#6C92E4]"
+                disabled={isSubmitting}
+              />
+              <button
+                id="privacyAgreementLabel"
+                type="button"
+                onClick={() => handleAgreementClick("privacy")}
+                className="text-left transition-colors group-hover:text-[#5B84DC] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
+              >
+                <span className="font-semibold text-[#5B84DC]">[필수]</span>{" "}
+                개인정보 수집·이용 안내 확인
+              </button>
+            </div>
+
+            <p className="text-xs leading-5 text-slate-400">
+              필수 항목을 모두 확인해야 인증메일을 보낼 수 있습니다.
+            </p>
+          </div>
+        ) : null}
 
         {isVerificationStep ? (
           <FormField label="이메일 인증번호" error={errors.verificationCode}>
@@ -365,7 +513,11 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
         ) : null}
 
         <div className="pt-1">
-          <PrimaryButton disabled={isSubmitting}>
+          <PrimaryButton
+            disabled={
+              isSubmitting || (!isVerificationStep && !isConsentComplete)
+            }
+          >
             {isSubmitting
               ? isVerificationStep
                 ? "인증 확인 중..."
@@ -375,7 +527,18 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
                 : "인증번호 받기"}
           </PrimaryButton>
         </div>
-      </form>
+        </form>
+
+        <AgreementModal
+          open={agreementModalOpen}
+          content={activeAgreementContent}
+          hasReachedBottom={hasReachedBottom}
+          scrollContainerRef={agreementScrollRef}
+          onScroll={handleAgreementScroll}
+          onAgree={handleAgree}
+          onClose={closeAgreementModal}
+        />
+      </>
     </AuthShell>
   );
 }

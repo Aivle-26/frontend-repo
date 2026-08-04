@@ -136,22 +136,20 @@ export function LoginScreen({
         </FormField>
 
         <FormField label="역할 선택">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="mx-auto grid w-full max-w-[288px] grid-cols-1 gap-6 sm:grid-cols-2">
             <RoleCard
               active={role === "pm"}
               disabled={isSubmitting}
               onClick={() => setRole("pm")}
               icon={<Briefcase className="size-4" />}
               title="PM"
-              desc="공고 분석과 업무 배정, 진행 현황을 관리합니다."
             />
             <RoleCard
               active={role === "staff"}
               disabled={isSubmitting}
               onClick={() => setRole("staff")}
               icon={<UserRound className="size-4" />}
-              title="직원"
-              desc="배정 업무를 확인하고 제출물과 피드백을 관리합니다."
+              title="STAFF"
             />
           </div>
         </FormField>

@@ -456,7 +456,6 @@ interface RoleCardProps {
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
-  desc: string;
 }
 
 export function RoleCard({
@@ -465,7 +464,6 @@ export function RoleCard({
   onClick,
   icon,
   title,
-  desc,
 }: RoleCardProps) {
   return (
     <button
@@ -473,7 +471,7 @@ export function RoleCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group relative overflow-hidden rounded-[22px] border px-4 py-3 text-left transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-80",
+        "group relative overflow-hidden rounded-[18px] border px-3 py-2 text-left transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-80",
         active
           ? "translate-y-[-1px] border-[#6b9aff] bg-[#f4f8ff] shadow-[0_14px_28px_rgba(47,111,242,0.14)] ring-1 ring-[#cfe0ff]"
           : "border-slate-200 bg-white hover:border-[#cbdcfb] hover:bg-[#fafcff] hover:shadow-[0_10px_20px_rgba(15,23,42,0.06)]",
@@ -487,10 +485,10 @@ export function RoleCard({
             : "group-hover:opacity-100 bg-[radial-gradient(circle_at_top_left,_rgba(47,111,242,0.06),_transparent_55%)]",
         )}
       />
-      <div className="relative mb-2 flex items-center gap-2.5">
+      <div className="relative flex items-center gap-2.5">
         <span
           className={cn(
-            "flex size-9 items-center justify-center rounded-full transition-all duration-200",
+            "flex size-8 items-center justify-center rounded-full transition-all duration-200",
             active
               ? "bg-[#2F6FF2] text-white shadow-[0_8px_18px_rgba(47,111,242,0.30)]"
               : "bg-slate-100 text-slate-500 group-hover:bg-[#eef4ff] group-hover:text-[#2F6FF2]",
@@ -507,7 +505,6 @@ export function RoleCard({
           {title}
         </span>
       </div>
-      <p className="relative text-[12px] leading-5 text-slate-500">{desc}</p>
     </button>
   );
 }

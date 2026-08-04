@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   Lightbulb,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -179,7 +180,7 @@ export function AiDocSearch({
       {started && (
         <div
           ref={logContainerRef}
-          className="max-h-[65vh] space-y-6 overflow-y-auto scroll-smooth pr-1"
+          className="max-h-[65vh] space-y-6 overflow-y-auto scroll-smooth pr-1 print:max-h-none print:overflow-visible"
         >
           {turns.map((turn) => (
             <TurnBlock
@@ -190,7 +191,7 @@ export function AiDocSearch({
             />
           ))}
 
-          <div className="flex justify-center pt-1">
+          <div className="flex justify-center pt-1 print:hidden">
             <Button variant="ghost" size="sm" onClick={clearAll} disabled={busy}>
               <Trash2 className="size-4" /> 대화 지우기
             </Button>
@@ -198,8 +199,8 @@ export function AiDocSearch({
         </div>
       )}
 
-      {/* 질문창 — 화면 하단에 고정, 대화가 길어져도 항상 바로 이어서 질문 가능 */}
-      <div className="sticky bottom-0 space-y-2 bg-background pb-2 pt-1">
+      {/* 질문창 — 화면 하단에 고정, 대화가 길어져도 항상 바로 이어서 질문 가능 (인쇄 시 숨김) */}
+      <div className="sticky bottom-0 space-y-2 bg-background pb-2 pt-1 print:hidden">
         {/* 빠른 질문 칩 — 대화 중에도 계속 떠있음 (예시 질문의 축약 버전) */}
         {started && (
           <div className="flex flex-wrap gap-1.5">
@@ -300,7 +301,7 @@ function TurnBlock({
               <AlertCircle className="size-4 text-red-500" />
               {error}
             </span>
-            <Button variant="outline" size="sm" onClick={onRetry}>
+            <Button variant="outline" size="sm" onClick={onRetry} className="print:hidden">
               다시 시도
             </Button>
           </CardContent>
@@ -323,8 +324,16 @@ function TurnBlock({
                 )}
                 <button
                   type="button"
+                  onClick={() => window.print()}
+                  className="ml-auto flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground print:hidden"
+                  title="PDF로 저장 (인쇄 창에서 '대상: PDF로 저장' 선택)"
+                >
+                  <Printer className="size-3.5" /> PDF로 저장
+                </button>
+                <button
+                  type="button"
                   onClick={handleCopy}
-                  className="ml-auto flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+                  className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground print:hidden"
                   title="답변 복사"
                 >
                   {copied ? (
@@ -345,7 +354,7 @@ function TurnBlock({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mt-3 bg-card"
+                  className="mt-3 bg-card print:hidden"
                   onClick={onOpenRequirements}
                 >
                   요구사항에서 자세히 보기 <ArrowRight className="size-3.5" />
@@ -360,33 +369,33 @@ function TurnBlock({
                 <FileText className="size-3.5 text-primary" />
                 이 답변의 근거 {answer.sources.length}건
               </div>
-              <div className="space-y-2">
+              <div className="divide-y divide-border">
                 {answer.sources.map((s, i) => (
                   <div
                     key={`${s.documentId ?? s.requirementId ?? s.wbsId ?? "src"}-${i}`}
-                    className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                    className="flex items-start gap-2.5 py-2.5"
                   >
-                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
-                      <FileText className="size-4 text-muted-foreground" />
+                    <span className="mt-0.5 shrink-0 text-muted-foreground text-xs">
+                      {i + 1}.
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-foreground text-sm">{sourceTitle(s)}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-foreground text-sm">{sourceTitle(s)}</span>
                         {s.page != null && (
                           <span className="shrink-0 text-muted-foreground text-xs">p.{s.page}</span>
                         )}
+                        {s.reviewStatus && (
+                          <Badge variant="secondary" className="shrink-0 font-normal">
+                            {s.reviewStatus}
+                          </Badge>
+                        )}
                       </div>
                       {s.excerpt && (
-                        <p className="mt-1 line-clamp-3 text-muted-foreground text-xs leading-relaxed">
+                        <p className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-relaxed">
                           {s.excerpt}
                         </p>
                       )}
                     </div>
-                    {s.reviewStatus && (
-                      <Badge variant="secondary" className="shrink-0 font-normal">
-                        {s.reviewStatus}
-                      </Badge>
-                    )}
                   </div>
                 ))}
               </div>

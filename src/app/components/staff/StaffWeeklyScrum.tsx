@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ListChecks,
-  Sparkles,
-  RefreshCcw,
-  Save,
   Send,
   AlertCircle,
 } from "lucide-react";
@@ -230,26 +227,6 @@ export function StaffWeeklyScrum({
     });
   };
 
-  /** 체크된 업무를 바탕으로 초안 문장을 조립한다 (실제 AI 호출 아님, 프론트 로직). */
-  const generateDraft = () => {
-    const checked = tasks.filter((t) => checkedTaskIds.has(t.wbsId));
-    const doneLines = checked
-      .filter((t) => t.status === "COMPLETED")
-      .map((t) => `• ${t.taskName}을(를) 완료했습니다.`);
-    const inProgressLines = checked
-      .filter((t) => t.status === "IN_PROGRESS" || t.status === "REVIEW")
-      .map((t) => `• ${t.taskName} 진행 중입니다. (${t.progressRate}% 완료)`);
-    const delayedLines = checked
-      .filter((t) => t.overdue || t.status === "DELAYED")
-      .map((t) => `• ${t.taskName}이(가) 지연되고 있습니다. 확인이 필요합니다.`);
-
-    setCompletedWork(doneLines.join("\n") || "");
-    setInProgressWork(inProgressLines.join("\n") || "");
-    setBlockers(delayedLines.join("\n") || "");
-    setPlannedWork((prev) => prev || "• ");
-    toast.success("체크한 업무를 바탕으로 초안을 만들었어요. 내용을 확인하고 수정해 주세요.");
-  };
-
   const buildRequestBody = () => ({
     completedWork: completedWork.trim() || "-",
     plannedWork: plannedWork.trim() || "-",
@@ -417,85 +394,87 @@ export function StaffWeeklyScrum({
           </CardContent>
         </Card>
 
-        {/* AI 스크럼 초안 */}
+        {/* 위클리 스크럼 제출 */}
         <Card>
           <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="size-4" /> AI 스크럼 초안
-                </CardTitle>
-                <CardDescription>
-                  내 업무 진행 현황을 바탕으로 초안을 만들었어요. 내용을 확인하고 수정해 주세요.
-                </CardDescription>
-              </div>
-              <Button size="sm" onClick={generateDraft} disabled={tasksLoading}>
-                <Sparkles className="size-3.5" /> AI 초안 생성
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="size-4" /> 위클리 스크럼 제출
+            </CardTitle>
+            <CardDescription>
+              {projectName} · {currentUserName}님, 이번 주 진행 상황을 정리해 제출하세요.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {existingLoading ? (
               <Skeleton className="h-64 w-full" />
             ) : (
               <>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      existing
+                        ? "border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+                        : "font-normal"
+                    }
+                  >
+                    {existing ? "제출됨" : "미제출"}
+                  </Badge>
+                  {existing && (
+                    <span className="text-muted-foreground text-xs">
+                      최근 저장 {existing.updatedAt.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-muted-foreground text-sm">이번 주 완료한 일</label>
+                  <label className="flex items-center gap-1 text-foreground text-sm">
+                    완료한 일 (Done) <span className="text-red-500">*</span>
+                  </label>
                   <Textarea
                     value={completedWork}
                     onChange={(e) => setCompletedWork(e.target.value)}
-                    rows={3}
-                    placeholder="• 완료한 업무를 적어주세요"
+                    rows={4}
+                    placeholder="이번 주에 완료한 업무를 적어주세요"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-muted-foreground text-sm">진행 중인 일</label>
-                  <Textarea
-                    value={inProgressWork}
-                    onChange={(e) => setInProgressWork(e.target.value)}
-                    rows={3}
-                    placeholder="• 진행 중인 업무를 적어주세요"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-muted-foreground text-sm">블로커 및 이슈</label>
-                  <Textarea
-                    value={blockers}
-                    onChange={(e) => setBlockers(e.target.value)}
-                    rows={3}
-                    placeholder="• 막히고 있는 부분이 있다면 적어주세요"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-muted-foreground text-sm">다음 주 계획</label>
+                  <label className="flex items-center gap-1 text-foreground text-sm">
+                    다음 주 계획 (Todo) <span className="text-red-500">*</span>
+                  </label>
                   <Textarea
                     value={plannedWork}
                     onChange={(e) => setPlannedWork(e.target.value)}
-                    rows={3}
-                    placeholder="• 다음 주 계획을 적어주세요"
+                    rows={4}
+                    placeholder="다음 주 계획을 적어주세요"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1 text-foreground text-sm">
+                    <AlertCircle className="size-3.5 text-red-500" /> 블로커 · 이슈 (선택)
+                  </label>
+                  <Textarea
+                    value={blockers}
+                    onChange={(e) => setBlockers(e.target.value)}
+                    rows={4}
+                    placeholder="막히고 있는 부분이 있다면 적어주세요"
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Button variant="outline" size="sm" onClick={generateDraft}>
-                    <RefreshCcw className="size-3.5" /> 초안 다시 생성
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => void handleSave(true)}
+                    disabled={saving || submitting || !completedWork.trim() || !plannedWork.trim()}
+                  >
+                    <Send className="size-4" />
+                    {submitting ? "제출 중…" : existing ? "수정 제출" : "제출"}
                   </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleSave(false)}
-                      disabled={saving || submitting}
-                    >
-                      <Save className="size-4" /> {saving ? "저장 중…" : "임시 저장"}
-                    </Button>
-                    <Button
-                      onClick={() => void handleSave(true)}
-                      disabled={saving || submitting}
-                    >
-                      <Send className="size-4" /> {submitting ? "제출 중…" : "위클리 스크럼 제출"}
-                    </Button>
-                  </div>
                 </div>
+
+                <p className="text-muted-foreground text-xs">
+                  제출한 내용은 PM의 AI 주간 종합 분석에 사용됩니다. 같은 주차에 다시 제출하면
+                  기존 내용이 갱신됩니다.
+                </p>
               </>
             )}
           </CardContent>

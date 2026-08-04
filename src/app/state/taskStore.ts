@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Task, TaskColumn, Priority } from "@/app/data/demoData";
+import { TASKS, type Task, type TaskColumn, type Priority } from "@/app/data/demoData";
 import {
   projectRepository,
   type TaskAssignmentResponse,
@@ -14,12 +14,17 @@ import { toast } from "sonner";
  * 화면(StaffDashboard)이 마운트될 때 loadTasks(projectId, projectName)를
  * 한 번 호출해줘야 하고, 그 뒤로는 이 모듈이 메모리에 최신 상태를 들고
  * 있으면서 커스텀 이벤트로 화면들끼리 동기화합니다.
+ *
+ * 실제 배정된 업무가 아직 없거나(빈 배열) API 호출 자체가 실패하면,
+ * 화면이 텅 비어 보이지 않도록 예시(더미) 업무로 채운다. 이 경우
+ * isDemoData가 true가 되므로 화면에서 "예시 데이터" 표시에 활용할 수 있다.
  */
 
 const TASK_CHANGED_EVENT = "aipm:tasks-changed";
 
 let currentTasks: Task[] = [];
 let currentProjectId: string | null = null;
+let currentIsDemoData = false;
 
 function notify(): void {
   if (typeof window !== "undefined") {
@@ -60,13 +65,26 @@ export async function loadTasks(projectId: string, projectName: string): Promise
   currentProjectId = projectId;
   try {
     const list = await projectRepository.getMyTasks(projectId);
-    currentTasks = list.map((t) => mapTask(t, projectName));
+    if (list.length > 0) {
+      currentTasks = list.map((t) => mapTask(t, projectName));
+      currentIsDemoData = false;
+    } else {
+      // 아직 실제로 배정된 업무가 없다 — 화면이 비어 보이지 않도록 예시 데이터로 채운다.
+      currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+      currentIsDemoData = true;
+    }
   } catch (error) {
     console.error("업무 목록을 불러오지 못했습니다.", error);
-    toast.error("업무 목록을 불러오지 못했습니다.");
-    currentTasks = [];
+    toast.error("실제 업무 목록을 불러오지 못해 예시 데이터를 보여드려요.");
+    currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+    currentIsDemoData = true;
   }
   notify();
+}
+
+/** 지금 보이는 업무 목록이 실제 데이터가 아니라 예시(더미)인지 여부. */
+export function isTasksDemoData(): boolean {
+  return currentIsDemoData;
 }
 
 export function getTasks(): Task[] {

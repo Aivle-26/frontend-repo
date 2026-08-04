@@ -18,7 +18,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/app/components/ui/utils";
 import type { Task, TaskColumn } from "@/app/data/demoData";
-import { useTasks, loadTasks } from "@/app/state/taskStore";
+import { useTasks, loadTasks, isTasksDemoData } from "@/app/state/taskStore";
 import { CountUp } from "@/app/components/common/CountUp";
 import {
   projectRepository,
@@ -131,7 +131,14 @@ export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDash
       {/* Kanban */}
       <Card>
         <CardHeader>
-          <CardTitle>업무 보드</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>업무 보드</CardTitle>
+            {!tasksLoading && isTasksDemoData() && (
+              <Badge variant="outline" className="font-normal">
+                예시 데이터
+              </Badge>
+            )}
+          </div>
           <CardDescription>업무 카드를 클릭하면 상세 화면으로 이동합니다.</CardDescription>
         </CardHeader>
         <CardContent>

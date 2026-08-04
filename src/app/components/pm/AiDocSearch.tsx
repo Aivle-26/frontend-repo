@@ -142,7 +142,7 @@ export function AiDocSearch({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 py-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 py-4">
       {/* 히어로 — 대화 시작 전에만 */}
       {!started && (
         <div className="text-center">
@@ -158,27 +158,7 @@ export function AiDocSearch({
         </div>
       )}
 
-      {/* 질문창 (항상 상단 고정 느낌으로 유지) */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void ask(input);
-        }}
-        className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm"
-      >
-        <Search className="size-4 shrink-0 text-muted-foreground" />
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={started ? "이어서 질문하기..." : "프로젝트에 대해 무엇이든 물어보세요..."}
-          className="flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <Button type="submit" className="rounded-full" size="sm" disabled={busy}>
-          질문
-        </Button>
-      </form>
-
-      {/* 예시 질문 — 대화 시작 전에만 */}
+      {/* 예시 질문 — 대화 시작 전에만 (긴 설명형 버튼) */}
       {!started && (
         <div className="space-y-2">
           <div className="text-center text-muted-foreground text-xs">예시 질문</div>
@@ -217,6 +197,45 @@ export function AiDocSearch({
           </div>
         </div>
       )}
+
+      {/* 질문창 — 화면 하단에 고정, 대화가 길어져도 항상 바로 이어서 질문 가능 */}
+      <div className="sticky bottom-0 space-y-2 bg-background pb-2 pt-1">
+        {/* 빠른 질문 칩 — 대화 중에도 계속 떠있음 (예시 질문의 축약 버전) */}
+        {started && (
+          <div className="flex flex-wrap gap-1.5">
+            {AI_SEARCH_EXAMPLES.slice(0, 4).map((q) => (
+              <button
+                key={q}
+                onClick={() => void ask(q)}
+                disabled={busy}
+                className="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted/50 disabled:opacity-50"
+              >
+                <Lightbulb className="size-3" />
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void ask(input);
+          }}
+          className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm"
+        >
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={started ? "이어서 질문하기..." : "프로젝트에 대해 무엇이든 물어보세요..."}
+            className="flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+          />
+          <Button type="submit" className="rounded-full" size="sm" disabled={busy}>
+            질문
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -236,6 +255,26 @@ function TurnBlock({
   const hasRequirementSource =
     answer?.sources.some((s) => s.requirementId != null) ?? false;
 
+  // 로딩 중일 때만 문구를 일정 주기로 바꿔가며 보여준다 (실제 진행 단계 아님, 연출용).
+  const [thinkingIndex, setThinkingIndex] = useState(0);
+  useEffect(() => {
+    if (status !== "loading") return;
+    const timer = setInterval(() => {
+      setThinkingIndex((i) => (i + 1) % THINKING_MESSAGES.length);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [status]);
+
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    if (!answer?.answer) return;
+    void navigator.clipboard.writeText(answer.answer).then(() => {
+      setCopied(true);
+      toast.success("답변을 복사했어요.");
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
   return (
     <div className="space-y-3">
       {/* 질문 (사용자) */}
@@ -249,7 +288,7 @@ function TurnBlock({
       {status === "loading" && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="size-4 animate-spin text-primary" />
-          프로젝트 정보를 분석하고 있어요…
+          {THINKING_MESSAGES[thinkingIndex]}
         </div>
       )}
 
@@ -282,6 +321,22 @@ function TurnBlock({
                     {llmNote}
                   </Badge>
                 )}
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="ml-auto flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+                  title="답변 복사"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="size-3.5 text-emerald-600" /> 복사됨
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5" /> 복사
+                    </>
+                  )}
+                </button>
               </div>
               <p className="mt-2 whitespace-pre-line text-foreground text-sm leading-relaxed">
                 {answer.answer || "답변을 생성하지 못했습니다."}
@@ -300,9 +355,10 @@ function TurnBlock({
           </Card>
 
           {answer.sources.length > 0 && (
-            <div>
-              <div className="mb-2 text-muted-foreground text-xs">
-                근거 {answer.sources.length}건
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <div className="mb-2 flex items-center gap-1.5 text-foreground text-xs">
+                <FileText className="size-3.5 text-primary" />
+                이 답변의 근거 {answer.sources.length}건
               </div>
               <div className="space-y-2">
                 {answer.sources.map((s, i) => (

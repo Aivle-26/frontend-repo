@@ -414,18 +414,6 @@ export interface UpdateTaskProgressRequestBody {
   progressRate: number;
 }
 
-export interface ProjectProgressResponse {
-  projectId: number;
-  employeeNumber: string | null;
-  progressRate: number;
-  totalTaskCount: number;
-  assignedTaskCount: number;
-  completedTaskCount: number;
-  delayedTaskCount: number;
-  totalEstimatedHours: number;
-  completedEstimatedHours: number;
-}
-
 export interface TeamMemberSkill {
   skillCode: string;
   proficiencyLevel: number;
@@ -543,13 +531,6 @@ export interface ProjectScheduleResult {
   warnings: string[];
 }
 
-export type TaskProgressStatus =
-  | "TODO"
-  | "IN_PROGRESS"
-  | "REVIEW"
-  | "COMPLETED"
-  | "DELAYED";
-
 export interface MemberProgress {
   employeeNumber: string;
   name: string;
@@ -562,35 +543,6 @@ export interface MemberProgress {
 
 export interface TeamProgressResponse {
   members: MemberProgress[];
-}
-
-export interface ProjectProgressResponse {
-  employeeNumber: string;
-  progressRate: number;
-  totalTaskCount: number;
-  assignedTaskCount: number;
-  completedTaskCount: number;
-  delayedTaskCount: number;
-  totalEstimatedHours: number;
-  completedEstimatedHours: number;
-}
-
-export interface TaskAssignmentResponse {
-  wbsId: number;
-  taskCode: string;
-  taskName: string;
-  description: string;
-  employeeNumber: string | null;
-  status: TaskProgressStatus;
-  progressRate: number;
-  startDate: string | null;
-  dueDate: string | null;
-  estimatedHours: number;
-}
-
-export interface UpdateTaskProgressBody {
-  status: TaskProgressStatus;
-  progressRate: number;
 }
 
 export interface AssignTaskBody {
@@ -611,6 +563,14 @@ export interface WeeklyScrumSubmissionItem {
   details: unknown | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 직원 위클리 스크럼 제출 본문 (PUT /{weekStartDate}). */
+export interface SaveWeeklyScrumBody {
+  completedWork: string;
+  plannedWork: string;
+  blockers?: string | null;
+  details?: unknown;
 }
 
 export interface MissingWeeklyScrumMembers {
@@ -1338,34 +1298,6 @@ export const projectRepository = {
     );
   },
 
-  // 프로젝트 전체 진행률
-  getProjectProgress(projectId: string | number) {
-    return apiFetch<ProjectProgressResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/progress`,
-      { auth: true },
-    );
-  },
-
-  // 직원: 내게 배정된 업무 목록
-  getMyTasks(projectId: string | number) {
-    return apiFetch<TaskAssignmentResponse[]>(
-      `/projects/${encodeURIComponent(String(projectId))}/tasks/me`,
-      { auth: true },
-    );
-  },
-
-  // 직원/PM: 태스크 진행률·상태 갱신
-  updateTaskProgress(
-    projectId: string | number,
-    wbsId: string | number,
-    body: UpdateTaskProgressBody,
-  ) {
-    return apiFetch<TaskAssignmentResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/progress`,
-      { method: "PATCH", body: JSON.stringify(body), auth: true },
-    );
-  },
-
   // PM: WBS 태스크에 담당자 배정
   assignTask(
     projectId: string | number,
@@ -1379,6 +1311,18 @@ export const projectRepository = {
   },
 
   /* ---------------- 위클리 스크럼 ---------------- */
+
+  // 직원: 해당 주차 위클리 스크럼 제출/수정 (본인 사번은 서버가 토큰에서 결정)
+  saveWeeklyScrum(
+    projectId: string | number,
+    weekStartDate: string,
+    body: SaveWeeklyScrumBody,
+  ) {
+    return apiFetch<WeeklyScrumSubmissionItem>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}`,
+      { method: "PUT", body: JSON.stringify(body), auth: true },
+    );
+  },
 
   // 해당 주차에 제출된 스크럼 목록
   getWeeklyScrums(projectId: string | number, weekStartDate: string) {

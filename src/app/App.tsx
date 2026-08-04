@@ -41,6 +41,7 @@ import { StaffTaskDetail } from "@/app/components/staff/StaffTaskDetail";
 import { StaffDocuments } from "@/app/components/staff/StaffDocuments";
 import { StaffContext } from "@/app/components/staff/StaffContext";
 import { StaffSubmit } from "@/app/components/staff/StaffSubmit";
+import { StaffWeeklyScrum } from "@/app/components/staff/StaffWeeklyScrum";
 import { StaffFeedback } from "@/app/components/staff/StaffFeedback";
 import { StaffComments } from "@/app/components/staff/StaffComments";
 import { SlackIntegration } from "@/app/components/integrations/SlackIntegration";
@@ -90,6 +91,7 @@ const STAFF_MENU: SidebarItem[] = [
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
   { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
+  { key: "weeklyScrum", label: "위클리 스크럼", icon: ClipboardList, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
 ];
 
@@ -561,6 +563,18 @@ function DemoApplication() {
           project={selectedProject ?? null}
           currentUserName={authSession?.name ?? ""}
         />
+      );
+    } else if (staffMenu === "weeklyScrum") {
+      subtitle = "위클리 스크럼";
+      body = selectedProject ? (
+        <StaffWeeklyScrum
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          employeeNumber={authSession?.employeeNumber ?? ""}
+          currentUserName={authSession?.name ?? ""}
+        />
+      ) : (
+        <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );
     } else if (staffMenu === "feedback") {
       subtitle = "피드백";

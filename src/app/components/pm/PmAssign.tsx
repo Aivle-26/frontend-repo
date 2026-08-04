@@ -8,6 +8,7 @@ import {
   CalendarClock,
   AlertCircle,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -164,13 +165,16 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >([]);
-  const [assignLoading, setAssignLoading] = useState(true);
+  // 자동 호출 방지: 진입 시 추천을 돌리지 않고, 버튼을 눌러야 실행한다.
+  const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [hasRecommended, setHasRecommended] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
   const [savingAssignments, setSavingAssignments] = useState(false);
 
   const loadRecommendations = () => {
     setAssignLoading(true);
+    setHasRecommended(true);
     setAssignError("");
     projectRepository
       .recommendAssignments(project.id)
@@ -197,9 +201,14 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .finally(() => setAssignLoading(false));
   };
 
+  // 프로젝트가 바뀌면 이전 추천 결과를 비우고, 다시 버튼으로 실행하도록 초기화한다.
   useEffect(() => {
-    loadRecommendations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setAssignRecs([]);
+    setCandidates([]);
+    setSelectedMember({});
+    setHasRecommended(false);
+    setAssignError("");
+    setAssignLoading(false);
   }, [project.id]);
 
   const handleSaveAssignments = () => {
@@ -534,13 +543,32 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       {/* 담당자 추천 */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>담당자 추천</CardTitle>
-            {!assignLoading && !assignError && (
-              <Badge variant="outline" className="font-normal">
-                AI 추천 {assignRecs.length}건
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {!assignLoading && !assignError && hasRecommended && (
+                <Badge variant="outline" className="font-normal">
+                  AI 추천 {assignRecs.length}건
+                </Badge>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={loadRecommendations}
+                disabled={assignLoading}
+              >
+                {assignLoading ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" /> 추천 중…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    {hasRecommended ? "다시 추천" : "AI 담당자 추천"}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -558,7 +586,22 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
             </div>
           )}
 
-          {!assignLoading && !assignError && (
+          {!assignLoading && !assignError && !hasRecommended && (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12 text-center">
+              <Sparkles className="size-6 text-muted-foreground" />
+              <p className="text-foreground text-sm">
+                아직 담당자 추천을 실행하지 않았습니다.
+              </p>
+              <p className="max-w-xs text-muted-foreground text-xs">
+                화면 진입 시 자동으로 추천하지 않습니다. 위 [AI 담당자 추천] 버튼을 눌러 실행하세요.
+              </p>
+              <Button size="sm" onClick={loadRecommendations}>
+                <Sparkles className="size-3.5" /> AI 담당자 추천 실행
+              </Button>
+            </div>
+          )}
+
+          {!assignLoading && !assignError && hasRecommended && (
             <>
               <Table>
                 <TableHeader>

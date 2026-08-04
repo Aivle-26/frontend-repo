@@ -59,6 +59,7 @@ import {
   type ProjectMemberResponse,
 } from "@/app/api/projectRepository";
 import { CountUp } from "@/app/components/common/CountUp";
+import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
 
 type AssignFilter = "미배정" | "배정됨" | "전체";
 
@@ -290,48 +291,6 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     });
     return map;
   }, [rows, team]);
-
-  const progressByMember = useMemo(() => {
-    return team.map((member) => {
-      const memberRows = rows.filter(
-        (row) => row.owner === member.name,
-      );
-
-      const total = memberRows.length;
-
-      const completed = memberRows.filter(
-        (row) => row.status === "완료",
-      ).length;
-
-      const progress =
-        total === 0
-          ? 0
-          : Math.round((completed / total) * 100);
-
-      return {
-        ...member,
-        total,
-        completed,
-        progress,
-      };
-    });
-  }, [rows, team]);
-
-  const { rows: delayRows } = demoRepository.getTeamProgressDelay(project.id);
-
-  const mergedProgress = useMemo(() => {
-    return progressByMember.map((member) => {
-      const delay = delayRows.find((d) => d.id === member.id);
-      return {
-        ...member,
-        currentTask: delay?.currentTask ?? "배정된 업무 없음",
-        dueDate: delay?.dueDate ?? "-",
-        actualProgress: delay?.progress ?? member.progress,
-        expectedProgress: delay?.expectedProgress ?? member.progress,
-        delayDays: delay?.delayDays ?? 0,
-      };
-    });
-  }, [progressByMember, delayRows]);
 
   const maxLoad = Math.max(1, ...Array.from(loadByMember.values()));
   const topMember = useMemo(() => {
@@ -674,80 +633,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
 
       {/* 팀원 진행 현황 (완료율 + 일정 대비 지연) | 팀 워크로드 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-4" /> 팀원 진행 현황
-            </CardTitle>
-            <CardDescription>
-              완료 업무 비율과 일정 대비 진행 상태를 함께 보여드려요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {mergedProgress.map((member) => {
-              const status =
-                member.delayDays > 0
-                  ? "지연"
-                  : member.actualProgress < member.expectedProgress
-                    ? "주의"
-                    : "정상";
-              const statusStyle =
-                status === "지연"
-                  ? "bg-red-50 text-red-700 border-red-200"
-                  : status === "주의"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-200";
-              const barColor =
-                status === "지연"
-                  ? "bg-red-500"
-                  : status === "주의"
-                    ? "bg-amber-500"
-                    : "bg-emerald-500";
-              return (
-                <div key={member.id} className="rounded-lg border border-border p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <Avatar className="size-7 shrink-0">
-                        <AvatarFallback className="text-[10px]">
-                          {member.name.slice(0, 1)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-foreground text-sm">{member.name}</span>
-                          <span className="text-muted-foreground text-xs">{member.role}</span>
-                        </div>
-                        <p className="truncate text-muted-foreground text-xs">
-                          {member.currentTask} · 마감 {member.dueDate} · 완료{" "}
-                          {member.completed}건/{member.total}건
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className={cn("shrink-0 font-normal", statusStyle)}>
-                      {status === "지연" ? `${member.delayDays}일 지연` : status}
-                    </Badge>
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn("h-full rounded-full", barColor)}
-                        style={{ width: `${member.actualProgress}%` }}
-                      />
-                    </div>
-                    <span className="shrink-0 text-muted-foreground text-xs">
-                      실제 {member.actualProgress}% / 목표 {member.expectedProgress}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {mergedProgress.length === 0 && (
-              <p className="py-6 text-center text-muted-foreground text-sm">
-                이 프로젝트에 배정된 팀원이 없습니다.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <TeamProgressDelayCard projectId={project.id} />
 
         {/* 팀 워크로드 */}
         <Card>

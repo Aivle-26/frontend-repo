@@ -149,6 +149,10 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   };
 
   const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>([]);
+  // 추천 응답의 candidates = 배정 가능한 전체 후보 명단(드롭다운에 사용)
+  const [candidates, setCandidates] = useState<
+    { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
+  >([]);
   const [assignLoading, setAssignLoading] = useState(true);
   const [assignError, setAssignError] = useState("");
   const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
@@ -161,6 +165,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .recommendAssignments(project.id)
       .then((res) => {
         setAssignRecs(res.assignments ?? []);
+        setCandidates(res.candidates ?? []);
         const defaults: Record<number, string> = {};
         for (const a of res.assignments ?? []) {
           if (a.recommendedMembers[0]) {
@@ -186,13 +191,39 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  const handleSaveAssignments = () => {
+  const handleSaveAssignments = async () => {
+    // 선택된 담당자가 있는 작업만 저장한다.
+    const entries = assignRecs
+      .map((rec) => ({
+        wbsId: rec.wbsId,
+        employeeNumber:
+          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber,
+      }))
+      .filter((e): e is { wbsId: number; employeeNumber: string } => !!e.employeeNumber);
+
+    if (entries.length === 0) {
+      toast.error("배정할 담당자를 먼저 선택하세요.");
+      return;
+    }
+
     setSavingAssignments(true);
-    // TODO: 배정 확정 저장 API가 아직 백엔드에 없다. 생기면 여기서 호출한다.
-    setTimeout(() => {
+    try {
+      await Promise.all(
+        entries.map((e) =>
+          projectRepository.assignTask(project.id, e.wbsId, {
+            employeeNumber: e.employeeNumber,
+          }),
+        ),
+      );
+      toast.success(`${entries.length}건의 담당자를 배정했어요.`);
+      loadRecommendations();
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError ? caught.message : "배정 저장에 실패했습니다.",
+      );
+    } finally {
       setSavingAssignments(false);
-      toast("배정 저장 API가 아직 준비되지 않았어요. 백엔드에 확인 요청해 주세요.");
-    }, 300);
+    }
   };
 
   const [rows, setRows] = useState<AssignRow[]>(
@@ -517,11 +548,18 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
                 </TableHeader>
                 <TableBody>
                   {assignRecs.map((rec) => {
-                    const topMemberNumber = rec.recommendedMembers[0]?.employeeNumber;
-                    const chosen =
-                      rec.recommendedMembers.find(
-                        (m) => m.employeeNumber === selectedMember[rec.wbsId],
-                      ) ?? rec.recommendedMembers[0];
+                    const recRank = new Map(
+                      rec.recommendedMembers.map((m, i) => [m.employeeNumber, i] as const),
+                    );
+                    const selected =
+                      selectedMember[rec.wbsId] ??
+                      rec.recommendedMembers[0]?.employeeNumber ??
+                      "";
+                    const recMember = rec.recommendedMembers.find(
+                      (m) => m.employeeNumber === selected,
+                    );
+                    const options =
+                      candidates.length > 0 ? candidates : rec.recommendedMembers;
                     return (
                       <TableRow key={rec.wbsId}>
                         <TableCell>
@@ -537,30 +575,39 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={chosen?.employeeNumber}
+                            value={selected || undefined}
                             onValueChange={(v) =>
                               setSelectedMember((prev) => ({ ...prev, [rec.wbsId]: v }))
                             }
                           >
                             <SelectTrigger className="w-56">
-                              <SelectValue />
+                              <SelectValue placeholder="담당자 선택" />
                             </SelectTrigger>
                             <SelectContent>
-                              {rec.recommendedMembers.map((m, i) => (
-                                <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
-                                  {m.name} {i === 0 ? "(AI 1순위)" : `(AI ${i + 1}순위)`}
-                                </SelectItem>
-                              ))}
+                              {options.map((m) => {
+                                const rank = recRank.get(m.employeeNumber);
+                                return (
+                                  <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
+                                    {m.name}
+                                    {rank !== undefined ? ` (AI ${rank + 1}순위)` : ""}
+                                  </SelectItem>
+                                );
+                              })}
+                              {options.length === 0 && (
+                                <div className="px-2 py-1.5 text-muted-foreground text-xs">
+                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
+                                </div>
+                              )}
                             </SelectContent>
                           </Select>
                         </TableCell>
                         <TableCell className="text-right">
-                          {chosen ? (
+                          {recMember ? (
                             <>
                               <span className="text-foreground">
-                                {Math.round(chosen.recommendationScore)}점
+                                {Math.round(recMember.recommendationScore)}점
                               </span>
-                              {chosen.employeeNumber === topMemberNumber && (
+                              {recRank.get(selected) === 0 && (
                                 <span className="ml-1.5 text-muted-foreground text-xs">
                                   · 추천
                                 </span>

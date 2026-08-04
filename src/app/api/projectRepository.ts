@@ -572,6 +572,11 @@ export interface UpdateTaskProgressBody {
   progressRate: number;
 }
 
+export interface AssignTaskBody {
+  employeeNumber: string;
+  dueDate?: string | null;
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -1129,6 +1134,18 @@ export const projectRepository = {
     return apiFetch<TaskAssignmentResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/progress`,
       { method: "PATCH", body: JSON.stringify(body), auth: true },
+    );
+  },
+
+  // PM: WBS 태스크에 담당자 배정
+  assignTask(
+    projectId: string | number,
+    wbsId: string | number,
+    body: AssignTaskBody,
+  ) {
+    return apiFetch<TaskAssignmentResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/assignment`,
+      { method: "PUT", body: JSON.stringify(body), auth: true },
     );
   },
 

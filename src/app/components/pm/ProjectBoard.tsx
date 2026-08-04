@@ -66,6 +66,10 @@ import {
   type ProjectPlanningProgress,
 } from "@/app/projects/projectProgress";
 
+
+let highlightedProjectIdForCurrentVisit: string | null = null;
+let clearHighlightedProjectTimer: ReturnType<typeof setTimeout> | null = null;
+
 const STATUS_META: Record<
   ProjectStatus,
   { label: string; badge: string; icon: React.ComponentType<{ className?: string }> }
@@ -129,8 +133,24 @@ export function ProjectBoard({
     Record<string, boolean>
   >({});
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(
-    null,
+    highlightedProjectIdForCurrentVisit,
   );
+
+  useEffect(() => {
+    if (clearHighlightedProjectTimer) {
+      clearTimeout(clearHighlightedProjectTimer);
+      clearHighlightedProjectTimer = null;
+    }
+
+    setHighlightedProjectId(highlightedProjectIdForCurrentVisit);
+
+    return () => {
+      clearHighlightedProjectTimer = setTimeout(() => {
+        highlightedProjectIdForCurrentVisit = null;
+        clearHighlightedProjectTimer = null;
+      }, 0);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -292,6 +312,7 @@ export function ProjectBoard({
             (project) => project.id !== createdProject.id,
           ),
         ]);
+        highlightedProjectIdForCurrentVisit = createdProject.id;
         setHighlightedProjectId(createdProject.id);
         onProjectCreated(createdProject);
       }

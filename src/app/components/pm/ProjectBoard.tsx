@@ -128,6 +128,9 @@ export function ProjectBoard({
   const [progressLoading, setProgressLoading] = useState<
     Record<string, boolean>
   >({});
+  const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(
+    null,
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -289,6 +292,7 @@ export function ProjectBoard({
             (project) => project.id !== createdProject.id,
           ),
         ]);
+        setHighlightedProjectId(createdProject.id);
         onProjectCreated(createdProject);
       }
 
@@ -433,6 +437,7 @@ export function ProjectBoard({
             onStart={() => startProject(p.id)}
             planningProgress={planningProgress[p.id]}
             isProgressLoading={progressLoading[p.id] === true}
+            isHighlighted={highlightedProjectId === p.id}
             onOpenReal={(stage) => onExtract(p, stage)}
           />
         ))}
@@ -1007,6 +1012,7 @@ interface ProjectCardProps {
   onStart: () => void;
   planningProgress?: ProjectPlanningProgress;
   isProgressLoading?: boolean;
+  isHighlighted?: boolean;
   onOpenReal: (stage: PlanningStage) => void;
 }
 
@@ -1021,6 +1027,7 @@ function ProjectCard({
   onStart,
   planningProgress,
   isProgressLoading = false,
+  isHighlighted = false,
   onOpenReal,
 }: ProjectCardProps) {
   const isActive = p.status === "진행중" || p.status === "완료";
@@ -1031,7 +1038,11 @@ function ProjectCard({
 
   return (
     <Card
-      className="transition-shadow hover:shadow-md"
+      className={cn(
+        "transition-all hover:shadow-md",
+        isHighlighted &&
+          "border-blue-500 ring-2 ring-blue-200 shadow-md shadow-blue-100",
+      )}
       data-testid={mode === "real" ? "real-project-card" : undefined}
       data-project-id={mode === "real" ? p.id : undefined}
     >

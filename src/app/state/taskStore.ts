@@ -94,6 +94,15 @@ export function getTasks(): Task[] {
 
 async function patchProgress(taskId: string, column: TaskColumn): Promise<void> {
   if (!currentProjectId) return;
+
+  // 예시(더미) 데이터를 보고 있을 때는 실제 백엔드에 존재하지 않는 업무라
+  // API를 호출하면 무조건 실패한다. 화면 상태만 바꿔주고 서버 호출은 건너뛴다.
+  if (currentIsDemoData) {
+    currentTasks = currentTasks.map((t) => (t.id === taskId ? { ...t, column } : t));
+    notify();
+    return;
+  }
+
   const { status, progressRate } = columnToStatus(column);
 
   // 낙관적 업데이트: 응답 기다리지 않고 화면부터 바꾼다.

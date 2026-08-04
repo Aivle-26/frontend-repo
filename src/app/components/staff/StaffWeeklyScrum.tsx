@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Save,
 } from "lucide-react";
 import {
   Card,
@@ -551,7 +552,14 @@ export function StaffWeeklyScrum({
                   />
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleSave(false)}
+                    disabled={saving || submitting}
+                  >
+                    <Save className="size-4" /> {saving ? "저장 중…" : "임시 저장"}
+                  </Button>
                   <Button
                     onClick={() => void handleSave(true)}
                     disabled={saving || submitting || !completedWork.trim() || !plannedWork.trim()}

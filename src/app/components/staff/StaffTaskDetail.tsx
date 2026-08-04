@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   CalendarClock,
@@ -10,6 +10,8 @@ import {
   MessageSquare,
   CheckCircle2,
   RotateCcw,
+  UploadCloud,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,19 +38,55 @@ import {
   updateTaskColumn,
   useTasks,
 } from "@/app/state/taskStore";
+import { projectRepository, ApiError } from "@/app/api/projectRepository";
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "-";
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)}KB`;
+  return `${(kb / 1024).toFixed(1)}MB`;
+}
 
 interface StaffTaskDetailProps {
   taskId: string;
+  projectId: string;
   currentUserName: string;
   onBack: () => void;
 }
 
 export function StaffTaskDetail({
   taskId,
+  projectId,
   currentUserName,
   onBack,
 }: StaffTaskDetailProps) {
   const tasks = useTasks();
+
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelected = (selected: File | null) => {
+    setAttachedFile(selected);
+  };
+
+  const handleUploadAttachment = async () => {
+    if (!attachedFile) {
+      fileInputRef.current?.click();
+      return;
+    }
+    setUploadingFile(true);
+    try {
+      await projectRepository.uploadProjectDocuments(projectId, [attachedFile]);
+      toast.success(`${attachedFile.name} 파일을 첨부했어요.`);
+      setAttachedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : "파일 첨부에 실패했습니다.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
 
   const task = tasks.find(
     (item) => item.id === taskId,
@@ -278,22 +316,65 @@ export function StaffTaskDetail({
             </CardHeader>
 
             <CardContent className="space-y-4">
-              <div
-                onClick={async () => {
-                  await demoRepository.attachFile();
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
+              />
+              {attachedFile ? (
+                <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
+                    <div className="min-w-0">
+                      <p className="truncate text-emerald-900 text-sm">{attachedFile.name}</p>
+                      <p className="text-emerald-700/80 text-xs">
+                        {formatFileSize(attachedFile.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="shrink-0 rounded-md p-1.5 text-emerald-700 hover:bg-emerald-100"
+                    title="선택 취소"
+                  >
+                    <X className="size-4" aria-label="선택 취소" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 py-8 text-center hover:bg-muted"
+                >
+                  <Paperclip className="size-6 text-muted-foreground" />
 
-                  toast.success(
-                    "파일 첨부 흐름을 확인했습니다.",
-                  );
-                }}
-                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 py-8 text-center hover:bg-muted"
-              >
-                <Paperclip className="size-6 text-muted-foreground" />
-
-                <span className="text-sm text-foreground">
-                  파일을 끌어다 놓거나
-                  클릭하여 첨부
-                </span>
+                  <span className="text-sm text-foreground">
+                    파일을 끌어다 놓거나
+                    클릭하여 첨부
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                {attachedFile && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    다른 파일로 바꾸기
+                  </Button>
+                )}
+                <Button
+                  onClick={() => void handleUploadAttachment()}
+                  disabled={uploadingFile || !attachedFile}
+                >
+                  <UploadCloud className="size-4" />
+                  {uploadingFile ? "업로드 중…" : "첨부 파일 업로드"}
+                </Button>
               </div>
 
               <div className="flex items-center gap-2">

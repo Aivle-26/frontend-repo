@@ -587,6 +587,7 @@ function DemoApplication() {
       body = (
         <StaffTaskDetail
           taskId={selectedTaskId}
+          projectId={selectedProjectId || "1"}
           currentUserName={authSession?.name ?? ""}
           onBack={() => setSelectedTaskId(null)}
         />

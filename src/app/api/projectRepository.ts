@@ -98,6 +98,7 @@ export interface ProjectSummary {
   projectId: number;
   name: string;
   description: string | null;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string | null;
@@ -109,6 +110,7 @@ export interface ProjectSummary {
 export interface CreateProjectDraftRequest {
   name: string;
   description: string | null;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   plannedStartDate: string;
   plannedEndDate: string;
@@ -117,6 +119,7 @@ export interface CreateProjectDraftRequest {
 export interface CreateProjectDraftResponse {
   projectId: number;
   name: string;
+  clientOrganization: string | null;
   pmEmployeeNumber: string;
   status: string;
   plannedStartDate: string;
@@ -409,6 +412,43 @@ export interface ProjectProgressResponse {
   delayedTaskCount: number;
   totalEstimatedHours: number;
   completedEstimatedHours: number;
+}
+
+export interface TeamMemberSkill {
+  skillCode: string;
+  proficiencyLevel: number;
+  experienceMonths: number;
+}
+
+/** 회사 전체 등록된 직원 (프로젝트에 아직 안 붙어있을 수도 있음). */
+export interface TeamMemberResponse {
+  employeeNumber: string;
+  name: string;
+  email: string;
+  capabilityRegistered: boolean;
+  roles: string[];
+  skills: TeamMemberSkill[];
+}
+
+/** 특정 프로젝트에 실제로 등록된 팀원. */
+export interface ProjectMemberResponse {
+  projectMemberId: number;
+  projectId: number;
+  employeeNumber: string;
+  name: string;
+  email: string;
+  availableHoursPerWeek: number;
+  selectedBy: string;
+  joinedAt: string;
+  roles: string[];
+  skills: TeamMemberSkill[];
+}
+
+export interface SaveProjectMembersRequestBody {
+  members: {
+    employeeNumber: string;
+    availableHoursPerWeek: number | null;
+  }[];
 }
 
 
@@ -963,6 +1003,31 @@ export const projectRepository = {
     );
   },
 
+  /** 회사 전체 등록된 직원 목록 (PM 전용). */
+  getAllTeamMembers() {
+    return apiFetch<TeamMemberResponse[]>(`/users/team-members`, { auth: true });
+  },
+
+  /** 특정 프로젝트에 지금 등록된 팀원 목록. */
+  getProjectMembers(projectId: string | number) {
+    return apiFetch<ProjectMemberResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/team-members`,
+      { auth: true },
+    );
+  },
+
+  /** 프로젝트 팀원 명단을 통째로 교체 저장 (PM 전용). */
+  saveProjectMembers(projectId: string | number, input: SaveProjectMembersRequestBody) {
+    return apiFetch<ProjectMemberResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/team-members/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
   generateSchedule(projectId: string | number) {
     return apiFetch<AgentRequestResult>(
       `/projects/${encodeURIComponent(String(projectId))}/schedules/generate`,
@@ -1025,4 +1090,4 @@ export const projectRepository = {
     });
   },
 
-};
+};;

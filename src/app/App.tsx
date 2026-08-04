@@ -581,6 +581,7 @@ function DemoApplication() {
       body = (
         <StaffDashboard
           projectId={selectedProjectId || "1"}
+          projectName={selectedProject?.name ?? ""}
           currentUserName={authSession?.name ?? ""}
           onOpenTask={(taskId: string) =>
             setSelectedTaskId(taskId)

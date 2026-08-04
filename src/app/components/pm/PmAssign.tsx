@@ -38,6 +38,7 @@ import {
 } from "@/app/components/ui/table";
 import { cn } from "@/app/components/ui/utils";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { demoRepository } from "@/app/data/demoRepository";
 import {
   projectRequirements,
@@ -48,6 +49,8 @@ import {
   projectRepository,
   ApiError,
   type AssignmentRecommendation,
+  type TeamMemberResponse,
+  type ProjectMemberResponse,
 } from "@/app/api/projectRepository";
 import { CountUp } from "@/app/components/common/CountUp";
 
@@ -69,6 +72,81 @@ const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 export function PmAssign({ project }: { project: ProjectSummary }) {
   const { team, assignees } = demoRepository.getPmAssign();
   const requirements = projectRequirements(project);
+
+  // 프로젝트 팀원 관리
+  const [allMembers, setAllMembers] = useState<TeamMemberResponse[]>([]);
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberResponse[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersError, setMembersError] = useState("");
+  const [memberHours, setMemberHours] = useState<Record<string, number>>({});
+  const [savingMembers, setSavingMembers] = useState(false);
+
+  const loadTeamMembers = () => {
+    setMembersLoading(true);
+    setMembersError("");
+    Promise.all([
+      projectRepository.getAllTeamMembers(),
+      projectRepository.getProjectMembers(project.id),
+    ])
+      .then(([all, current]) => {
+        setAllMembers(all);
+        setProjectMembers(current);
+        const hours: Record<string, number> = {};
+        for (const m of current) {
+          hours[m.employeeNumber] = m.availableHoursPerWeek;
+        }
+        setMemberHours(hours);
+      })
+      .catch((caught) => {
+        setMembersError(
+          caught instanceof ApiError
+            ? `팀원 목록을 불러오지 못했습니다. (${caught.status}) ${caught.message}`
+            : "팀원 목록을 불러오지 못했습니다. 네트워크 상태를 확인해 주세요.",
+        );
+      })
+      .finally(() => setMembersLoading(false));
+  };
+
+  useEffect(() => {
+    loadTeamMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
+  const projectMemberNumbers = new Set(projectMembers.map((m) => m.employeeNumber));
+
+  const toggleMember = (employeeNumber: string, checked: boolean) => {
+    if (checked) {
+      setMemberHours((prev) => ({ ...prev, [employeeNumber]: prev[employeeNumber] ?? 40 }));
+    } else {
+      setMemberHours((prev) => {
+        const next = { ...prev };
+        delete next[employeeNumber];
+        return next;
+      });
+    }
+  };
+
+  const handleSaveMembers = () => {
+    setSavingMembers(true);
+    projectRepository
+      .saveProjectMembers(project.id, {
+        members: Object.entries(memberHours).map(([employeeNumber, availableHoursPerWeek]) => ({
+          employeeNumber,
+          availableHoursPerWeek,
+        })),
+      })
+      .then((saved) => {
+        setProjectMembers(saved);
+        toast.success("프로젝트 팀원을 저장했어요.");
+        loadRecommendations();
+      })
+      .catch((caught) => {
+        toast.error(
+          caught instanceof ApiError ? caught.message : "팀원 저장에 실패했습니다.",
+        );
+      })
+      .finally(() => setSavingMembers(false));
+  };
 
   const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>([]);
   const [assignLoading, setAssignLoading] = useState(true);
@@ -271,6 +349,134 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
 
   return (
     <div className="space-y-6">
+      {/* 프로젝트 팀원 관리 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>프로젝트 팀원 관리</CardTitle>
+            {!membersLoading && !membersError && (
+              <Badge variant="outline" className="font-normal">
+                등록됨 {projectMembers.length}명
+              </Badge>
+            )}
+          </div>
+          <CardDescription>
+            체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {membersLoading && (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          )}
+
+          {!membersLoading && membersError && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <AlertCircle className="size-4" /> {membersError}
+            </div>
+          )}
+
+          {!membersLoading && !membersError && (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <TableHead>이름</TableHead>
+                    <TableHead>역할</TableHead>
+                    <TableHead>역량 등록</TableHead>
+                    <TableHead className="text-right">주당 가능 시간</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allMembers.map((m) => {
+                    const checked = m.employeeNumber in memberHours;
+                    return (
+                      <TableRow key={m.employeeNumber}>
+                        <TableCell>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => toggleMember(m.employeeNumber, !!v)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-foreground">{m.name}</div>
+                          <div className="text-muted-foreground text-xs">{m.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {m.roles.map((role) => (
+                              <Badge key={role} variant="outline" className="font-normal">
+                                {role}
+                              </Badge>
+                            ))}
+                            {m.roles.length === 0 && (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {m.capabilityRegistered ? (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+                            >
+                              등록됨
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-200 bg-amber-50 font-normal text-amber-700"
+                            >
+                              미등록
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={168}
+                            disabled={!checked}
+                            value={memberHours[m.employeeNumber] ?? 0}
+                            onChange={(e) =>
+                              setMemberHours((prev) => ({
+                                ...prev,
+                                [m.employeeNumber]: Number(e.target.value) || 0,
+                              }))
+                            }
+                            className="ml-auto w-24 text-right"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {allMembers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        등록된 직원이 없습니다.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="flex items-center justify-between">
+                <p className="text-muted-foreground text-xs">
+                  "역량 미등록" 팀원은 담당자 추천에 활용되지 않을 수 있어요.
+                </p>
+                <Button onClick={handleSaveMembers} disabled={savingMembers}>
+                  {savingMembers ? "저장 중…" : "팀원 저장"}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* 담당자 추천 */}
       <Card>
         <CardHeader>

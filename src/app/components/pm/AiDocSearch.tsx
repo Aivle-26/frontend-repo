@@ -8,7 +8,11 @@ import {
   Loader2,
   AlertCircle,
   Trash2,
+  Copy,
+  Check,
+  Lightbulb,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
@@ -20,6 +24,14 @@ import {
   type AssistantAnswer,
   type AssistantSource,
 } from "@/app/api/assistantApi";
+
+/** 답변을 기다리는 동안 순서대로 돌아가며 보여줄 문구 (실제 진행 단계와 무관, 연출용) */
+const THINKING_MESSAGES = [
+  "질문을 이해하는 중…",
+  "요구사항 문서를 찾는 중…",
+  "WBS·일정을 확인하는 중…",
+  "관련 근거를 정리하는 중…",
+];
 
 /** 대화 한 턴: 질문 + (로딩/완료/오류) 답변 상태 */
 interface Turn {

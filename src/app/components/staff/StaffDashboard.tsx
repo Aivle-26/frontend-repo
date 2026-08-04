@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   FileText,
   ListTree,
-  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -22,7 +21,6 @@ import { useTasks, loadTasks, isTasksDemoData } from "@/app/state/taskStore";
 import { CountUp } from "@/app/components/common/CountUp";
 import {
   projectRepository,
-  ApiError,
   type RequirementResponse,
   type WbsTask,
 } from "@/app/api/projectRepository";
@@ -45,6 +43,109 @@ interface StaffDashboardProps {
   onOpenTask: (taskId: string) => void;
 }
 
+/** 실제 요구사항/WBS를 못 가져올 때(권한 없음 등) 보여줄 예시 데이터. */
+const DEMO_REQUIREMENTS: RequirementResponse[] = [
+  {
+    requirementId: -1,
+    analysisResultId: null,
+    sourceDocumentId: null,
+    externalReferenceId: null,
+    type: "기능",
+    title: "사용자 로그인 및 권한 관리 기능 구현",
+    description: "",
+    acceptanceCriteria: null,
+    dueDate: null,
+    deliverableName: null,
+    securityCondition: null,
+    sourceDocumentName: null,
+    sourceExcerpt: null,
+    priority: "높음",
+    status: "확정",
+  } as RequirementResponse,
+  {
+    requirementId: -2,
+    analysisResultId: null,
+    sourceDocumentId: null,
+    externalReferenceId: null,
+    type: "비기능",
+    title: "동시 접속 500명 기준 응답속도 2초 이내 유지",
+    description: "",
+    acceptanceCriteria: null,
+    dueDate: null,
+    deliverableName: null,
+    securityCondition: null,
+    sourceDocumentName: null,
+    sourceExcerpt: null,
+    priority: "중간",
+    status: "확정",
+  } as RequirementResponse,
+  {
+    requirementId: -3,
+    analysisResultId: null,
+    sourceDocumentId: null,
+    externalReferenceId: null,
+    type: "기능",
+    title: "관리자용 대시보드 통계 화면 제공",
+    description: "",
+    acceptanceCriteria: null,
+    dueDate: null,
+    deliverableName: null,
+    securityCondition: null,
+    sourceDocumentName: null,
+    sourceExcerpt: null,
+    priority: "낮음",
+    status: "확정",
+  } as RequirementResponse,
+];
+
+const DEMO_WBS_TASKS: WbsTask[] = [
+  {
+    taskId: -1,
+    externalTaskId: "demo-1",
+    parentExternalTaskId: null,
+    taskCode: "1.1",
+    taskName: "요구사항 정의 및 화면 설계",
+    description: "",
+    phase: "설계",
+    requiredSkills: [],
+    difficulty: "중",
+    estimatedHours: 24,
+    orderIndex: 1,
+    requirementIds: [],
+    confirmed: true,
+  },
+  {
+    taskId: -2,
+    externalTaskId: "demo-2",
+    parentExternalTaskId: null,
+    taskCode: "2.1",
+    taskName: "API 연동 구현",
+    description: "",
+    phase: "개발",
+    requiredSkills: [],
+    difficulty: "상",
+    estimatedHours: 40,
+    orderIndex: 2,
+    requirementIds: [],
+    confirmed: true,
+  },
+  {
+    taskId: -3,
+    externalTaskId: "demo-3",
+    parentExternalTaskId: null,
+    taskCode: "3.1",
+    taskName: "통합 테스트 및 배포",
+    description: "",
+    phase: "테스트",
+    requiredSkills: [],
+    difficulty: "중",
+    estimatedHours: 16,
+    orderIndex: 3,
+    requirementIds: [],
+    confirmed: true,
+  },
+];
+
 export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDashboardProps) {
   // 업무 보드는 taskStore(실제 백엔드 API 연동)를 그대로 쓴다.
   // 업무 상세 화면에서 "완료 처리"를 누르면 즉시 여기에도 반영된다.
@@ -65,12 +166,11 @@ export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDash
   const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
   const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
   const [reqWbsLoading, setReqWbsLoading] = useState(true);
-  const [reqWbsError, setReqWbsError] = useState("");
+  const [reqWbsIsDemo, setReqWbsIsDemo] = useState(false);
 
   useEffect(() => {
     let ignore = false;
     setReqWbsLoading(true);
-    setReqWbsError("");
 
     Promise.allSettled([
       projectRepository.getRequirements(projectId),
@@ -78,16 +178,24 @@ export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDash
     ]).then(([reqResult, wbsResult]) => {
       if (ignore) return;
 
-      if (reqResult.status === "fulfilled") {
-        setRequirements(reqResult.value.finalRequirements ?? []);
-      } else if (
-        !(reqResult.reason instanceof ApiError && reqResult.reason.status === 404)
-      ) {
-        setReqWbsError("요구사항·WBS를 불러오지 못했습니다.");
-      }
+      const gotRequirements =
+        reqResult.status === "fulfilled" && (reqResult.value.finalRequirements ?? []).length > 0;
+      const gotWbs =
+        wbsResult.status === "fulfilled" && (wbsResult.value?.finalTasks ?? []).length > 0;
 
-      if (wbsResult.status === "fulfilled" && wbsResult.value) {
-        setWbsTasks(wbsResult.value.finalTasks ?? []);
+      if (gotRequirements || gotWbs) {
+        setRequirements(
+          reqResult.status === "fulfilled" ? (reqResult.value.finalRequirements ?? []) : [],
+        );
+        setWbsTasks(
+          wbsResult.status === "fulfilled" ? (wbsResult.value?.finalTasks ?? []) : [],
+        );
+        setReqWbsIsDemo(false);
+      } else {
+        // 실데이터를 못 가져왔거나 비어있다 — 예시 데이터로 채운다.
+        setRequirements(DEMO_REQUIREMENTS);
+        setWbsTasks(DEMO_WBS_TASKS);
+        setReqWbsIsDemo(true);
       }
 
       setReqWbsLoading(false);
@@ -180,9 +288,16 @@ export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDash
       {/* 관련 요구사항·WBS */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="size-4" /> 관련 요구사항·WBS
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="size-4" /> 관련 요구사항·WBS
+            </CardTitle>
+            {!reqWbsLoading && reqWbsIsDemo && (
+              <Badge variant="outline" className="font-normal">
+                예시 데이터
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           {reqWbsLoading && (
@@ -192,13 +307,7 @@ export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDash
             </div>
           )}
 
-          {!reqWbsLoading && reqWbsError && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <AlertCircle className="size-4" /> {reqWbsError}
-            </div>
-          )}
-
-          {!reqWbsLoading && !reqWbsError && (
+          {!reqWbsLoading && (
             <>
               <div className="space-y-2">
                 <p className="flex items-center gap-1.5 text-muted-foreground text-xs">

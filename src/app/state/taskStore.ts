@@ -70,13 +70,14 @@ export async function loadTasks(projectId: string, projectName: string): Promise
       currentIsDemoData = false;
     } else {
       // 아직 실제로 배정된 업무가 없다 — 화면이 비어 보이지 않도록 예시 데이터로 채운다.
-      currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+      // 예시 데이터는 원래 갖고 있던 다양한 프로젝트명을 그대로 보여준다(현재 프로젝트로 통일하지 않음).
+      currentTasks = TASKS;
       currentIsDemoData = true;
     }
   } catch (error) {
     console.error("업무 목록을 불러오지 못했습니다.", error);
     toast.error("실제 업무 목록을 불러오지 못해 예시 데이터를 보여드려요.");
-    currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+    currentTasks = TASKS;
     currentIsDemoData = true;
   }
   notify();

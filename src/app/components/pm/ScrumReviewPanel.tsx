@@ -27,6 +27,8 @@ import {
   type WeeklyScrumReportResponse,
   type WeeklyScrumReviewDecision,
   type WeeklyScrumReviewResult,
+  type WeeklyScrumSummaryResult,
+  type WeeklyScrumTeamSummary,
 } from "@/app/api/projectRepository";
 
 export interface OwnerOption {
@@ -323,12 +325,15 @@ export function ScrumReviewPanel({
   };
 
   const reviewSaved = analysis.status === "PM_REVIEWING";
+  const summary = analysis.summary as WeeklyScrumSummaryResult | null;
 
   return (
     <div className="space-y-4">
+      <ScrumSummaryView summary={summary} />
+
       <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5 text-amber-800 text-xs">
-        AI가 도출한 발견사항과 다음 주 액션을 검토하세요. 각 항목을 승인 · 수정 · 거절한 뒤
-        [검토 저장]하면 최종 확정을 진행할 수 있습니다.
+        아래는 AI가 도출한 발견사항과 다음 주 액션입니다. 위 요약을 참고해 각 항목을 승인 ·
+        수정 · 거절한 뒤 [검토 저장]하면 최종 확정을 진행할 수 있습니다.
       </div>
 
       {/* 발견사항(Findings) */}
@@ -581,6 +586,108 @@ export function ScrumReviewPanel({
 }
 
 /* ------------------------------ 하위 UI ------------------------------ */
+
+const OVERALL_STATUS_META: Record<string, { label: string; className: string }> = {
+  ON_TRACK: { label: "정상", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  AT_RISK: { label: "주의", className: "border-amber-200 bg-amber-50 text-amber-700" },
+  OFF_TRACK: { label: "위험", className: "border-red-200 bg-red-50 text-red-700" },
+};
+
+/** summarize 단계의 팀 요약을 읽기 전용으로 표시 (이번 주 실제 내용). */
+function ScrumSummaryView({ summary }: { summary: WeeklyScrumSummaryResult | null }) {
+  const team: WeeklyScrumTeamSummary | undefined = summary?.team_summary;
+  if (!team) return null;
+
+  const status = team.overall_status ? OVERALL_STATUS_META[team.overall_status] : null;
+  const counts: { label: string; value: number | undefined }[] = [
+    { label: "완료", value: summary?.completed_task_count },
+    { label: "진행", value: summary?.in_progress_task_count },
+    { label: "지연", value: summary?.delayed_task_count },
+    { label: "이슈", value: summary?.issue_count },
+    { label: "리스크", value: summary?.risk_count },
+  ];
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-foreground text-sm">주간 요약</span>
+        {status && (
+          <Badge variant="outline" className={cn("font-normal", status.className)}>
+            {status.label}
+          </Badge>
+        )}
+        <span className="ml-auto flex flex-wrap gap-2 text-muted-foreground text-xs">
+          {counts
+            .filter((c) => typeof c.value === "number")
+            .map((c) => (
+              <span key={c.label}>
+                {c.label} {c.value}
+              </span>
+            ))}
+        </span>
+      </div>
+
+      {team.executive_summary && (
+        <p className="whitespace-pre-line text-foreground text-sm leading-relaxed">
+          {team.executive_summary}
+        </p>
+      )}
+
+      <SummaryList title="핵심 이슈" items={team.key_issues} tone="text-red-600" />
+      <SummaryList title="핵심 리스크" items={team.key_risks} tone="text-amber-600" />
+      <SummaryList title="다음 주 계획" items={team.next_week_plan_summary} tone="text-blue-600" />
+
+      {team.member_summaries && team.member_summaries.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground text-xs">
+            팀원별 요약 ({team.member_summaries.length})
+          </summary>
+          <div className="mt-2 space-y-2">
+            {team.member_summaries.map((m, i) => (
+              <div key={i} className="rounded-lg border border-border p-2.5">
+                <div className="text-foreground text-sm">
+                  {m.member_name}
+                  {m.role && (
+                    <span className="ml-1.5 text-muted-foreground text-xs">{m.role}</span>
+                  )}
+                </div>
+                {m.summary && (
+                  <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
+                    {m.summary}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function SummaryList({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items?: string[];
+  tone: string;
+}) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <div className={cn("text-xs", tone)}>{title}</div>
+      <ul className="space-y-0.5">
+        {items.map((it, i) => (
+          <li key={i} className="text-foreground text-xs leading-relaxed">
+            · {it}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function DecisionSwitch({
   value,

@@ -712,6 +712,38 @@ export interface WeeklyScrumAction {
   review_status?: string | null;
 }
 
+/** analysis.summary.team_summary (WeeklyTeamSummary). */
+export interface WeeklyScrumMemberSummary {
+  member_name?: string;
+  role?: string | null;
+  summary?: string;
+  key_completed_tasks?: string[];
+  key_in_progress_tasks?: string[];
+  key_issues?: string[];
+  key_risks?: string[];
+  next_week_focus?: string[];
+}
+
+export interface WeeklyScrumTeamSummary {
+  overall_status?: string;
+  executive_summary?: string;
+  team_progress?: string[];
+  member_summaries?: WeeklyScrumMemberSummary[];
+  key_issues?: string[];
+  key_risks?: string[];
+  next_week_plan_summary?: string[];
+}
+
+/** analysis.summary 전체 (WeeklyScrumSummarizeResponse). */
+export interface WeeklyScrumSummaryResult {
+  team_summary?: WeeklyScrumTeamSummary;
+  completed_task_count?: number;
+  in_progress_task_count?: number;
+  delayed_task_count?: number;
+  issue_count?: number;
+  risk_count?: number;
+}
+
 /** analysis.review 전체 (WeeklyScrumReviewResponse). */
 export interface WeeklyScrumReviewResult {
   review_findings?: WeeklyScrumFinding[];

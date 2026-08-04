@@ -57,6 +57,7 @@ import {
   type AssignmentRecommendation,
   type TeamMemberResponse,
   type ProjectMemberResponse,
+  type MemberProgress,
 } from "@/app/api/projectRepository";
 import { CountUp } from "@/app/components/common/CountUp";
 import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
@@ -77,7 +78,6 @@ function priorityVariant(p: string) {
 const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 
 export function PmAssign({ project }: { project: ProjectSummary }) {
-  const { team, assignees } = demoRepository.getPmAssign();
   const requirements = projectRequirements(project);
 
   // 프로젝트 팀원 관리
@@ -280,30 +280,49 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     };
   }, [rows]);
 
-  // 담당자별 현재 배정 건수 (실시간 워크로드)
-  const loadByMember = useMemo(() => {
-    const map = new Map<string, number>();
-    team.forEach((m) => map.set(m.name, 0));
-    rows.forEach((r) => {
-      if (isAssigned(r) && r.owner) {
-        map.set(r.owner, (map.get(r.owner) ?? 0) + 1);
-      }
-    });
-    return map;
-  }, [rows, team]);
+  // 팀 워크로드 (실 데이터: /progress/members, 팀원 진행 현황이랑 같은 API)
+  const [workloadMembers, setWorkloadMembers] = useState<MemberProgress[]>([]);
+  const [workloadLoading, setWorkloadLoading] = useState(true);
+  const [workloadError, setWorkloadError] = useState("");
 
-  const maxLoad = Math.max(1, ...Array.from(loadByMember.values()));
-  const topMember = useMemo(() => {
+  useEffect(() => {
+    let ignore = false;
+    setWorkloadLoading(true);
+    setWorkloadError("");
+    projectRepository
+      .getTeamProgress(project.id)
+      .then((res) => {
+        if (ignore) return;
+        setWorkloadMembers(res.members ?? []);
+      })
+      .catch((caught) => {
+        if (ignore) return;
+        if (caught instanceof ApiError && caught.status === 404) {
+          setWorkloadMembers([]);
+        } else {
+          setWorkloadError("팀 워크로드를 불러오지 못했습니다.");
+        }
+      })
+      .finally(() => {
+        if (!ignore) setWorkloadLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [project.id]);
+
+  const maxWorkloadHours = Math.max(1, ...workloadMembers.map((m) => m.totalEstimatedHours));
+  const topWorkloadMember = useMemo(() => {
     let name = "-";
     let max = -1;
-    loadByMember.forEach((v, k) => {
-      if (v > max) {
-        max = v;
-        name = k;
+    workloadMembers.forEach((m) => {
+      if (m.totalEstimatedHours > max) {
+        max = m.totalEstimatedHours;
+        name = m.name;
       }
     });
-    return { name, count: Math.max(0, max) };
-  }, [loadByMember]);
+    return { name, hours: Math.max(0, max) };
+  }, [workloadMembers]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -356,28 +375,44 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       <Card>
         <Collapsible open={membersOpen} onOpenChange={setMembersOpen}>
           <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer select-none">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  프로젝트 팀원 관리
-                  <ChevronDown
-                    className={cn(
-                      "size-4 text-muted-foreground transition-transform",
-                      membersOpen && "rotate-180",
-                    )}
-                  />
-                </CardTitle>
-                {!membersLoading && !membersError && (
-                  <Badge variant="outline" className="font-normal">
-                    등록됨 {projectMembers.length}명
-                  </Badge>
-                )}
+            <CardHeader
+              className={cn(
+                "cursor-pointer select-none",
+                !membersOpen && "py-4",
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Users className="size-4 shrink-0 text-muted-foreground" />
+                  <CardTitle className="truncate">프로젝트 팀원 관리</CardTitle>
+                  {!membersLoading && !membersError && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0 font-normal",
+                        !membersOpen &&
+                          projectMembers.length > 0 &&
+                          "border-emerald-200 bg-emerald-50 text-emerald-700",
+                      )}
+                    >
+                      {projectMembers.length > 0
+                        ? `등록됨 ${projectMembers.length}명`
+                        : "미등록"}
+                    </Badge>
+                  )}
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "size-4 shrink-0 text-muted-foreground transition-transform",
+                    membersOpen && "rotate-180",
+                  )}
+                />
               </div>
-              <CardDescription>
-                {membersOpen
-                  ? '체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.'
-                  : "펼쳐서 팀원을 추가/변경할 수 있어요."}
-              </CardDescription>
+              {membersOpen && (
+                <CardDescription>
+                  체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
+                </CardDescription>
+              )}
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -641,40 +676,63 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
             <CardTitle className="flex items-center gap-2">
               <Users className="size-4" /> 팀 워크로드
             </CardTitle>
-            <CardDescription>배정 시 실시간으로 반영됩니다.</CardDescription>
+            <CardDescription>배정된 업무의 예상 공수(시간) 기준이에요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {team.map((m) => {
-              const load = loadByMember.get(m.name) ?? 0;
-              const pct = Math.round((load / maxLoad) * 100);
-              const isTop = m.name === topMember.name && topMember.count > 0;
-              return (
-                <div key={m.id} className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="size-7">
-                      <AvatarFallback className="text-[10px]">
-                        {m.name.slice(0, 1)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="leading-tight">
-                      <div className="text-foreground text-sm">{m.name}</div>
-                      <div className="text-muted-foreground text-xs">{m.role}</div>
+            {workloadLoading && (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            )}
+
+            {!workloadLoading && workloadError && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <AlertCircle className="size-4" /> {workloadError}
+              </div>
+            )}
+
+            {!workloadLoading && !workloadError && workloadMembers.length === 0 && (
+              <p className="py-6 text-center text-muted-foreground text-sm">
+                아직 배정된 팀원이 없습니다.
+              </p>
+            )}
+
+            {!workloadLoading &&
+              !workloadError &&
+              workloadMembers.map((m) => {
+                const pct = Math.round((m.totalEstimatedHours / maxWorkloadHours) * 100);
+                const isTop = m.name === topWorkloadMember.name && topWorkloadMember.hours > 0;
+                return (
+                  <div key={m.employeeNumber} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="size-7">
+                        <AvatarFallback className="text-[10px]">
+                          {m.name.slice(0, 1)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="leading-tight">
+                        <div className="text-foreground text-sm">{m.name}</div>
+                        <div className="text-muted-foreground text-xs">
+                          업무 {m.totalTaskCount}건
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
+                          isTop
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {m.totalEstimatedHours}h
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        "ml-auto rounded-full px-2 py-0.5 text-xs font-medium",
-                        isTop
-                          ? "bg-amber-50 text-amber-700"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {load}건
-                    </span>
+                    <Progress value={pct} />
                   </div>
-                  <Progress value={pct} />
-                </div>
-              );
-            })}
+                );
+              })}
           </CardContent>
         </Card>
       </div>

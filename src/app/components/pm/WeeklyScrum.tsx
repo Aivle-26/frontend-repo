@@ -28,6 +28,7 @@ import {
   type WeeklyScrumWorkflowStatus,
 } from "@/app/api/projectRepository";
 import type { ProjectSummary } from "@/app/data/demoData";
+import { ScrumReviewPanel, type OwnerOption } from "./ScrumReviewPanel";
 
 /* ==================================================================== */
 /* 주차(Week) 계산                                                       */
@@ -115,6 +116,7 @@ function statusMeta(status: WeeklyScrumWorkflowStatus): {
   processing: boolean;
 } {
   switch (status) {
+    case "ACTIONS_RECOMMENDED":
     case "PM_REVIEWING":
       return {
         label: "PM 검토 필요",
@@ -158,6 +160,9 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   const [analysis, setAnalysis] = useState<WeeklyScrumReportResponse | null>(null);
   const [generating, setGenerating] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
+
+  // PM 검토 액션 담당자 지정용 활성 프로젝트 구성원
+  const [memberOptions, setMemberOptions] = useState<OwnerOption[]>([]);
 
   // 주차 선택 달력용 값
   const thisMonday = useMemo(() => startOfWeek(new Date()), []);
@@ -225,6 +230,25 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
       cancelled = true;
     };
   }, [project.id, weekStart]);
+
+  // 프로젝트 활성 구성원 로드 (액션 담당자 지정 옵션)
+  useEffect(() => {
+    let cancelled = false;
+    projectRepository
+      .getProjectMembers(project.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setMemberOptions(
+          rows.map((m) => ({ employeeNumber: m.employeeNumber, name: m.name })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setMemberOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
 
   // 기존 분석 결과 로드 (주차 변경 시)
   useEffect(() => {
@@ -570,6 +594,17 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                     </div>
                   )}
 
+                  {analysis.llmStatuses &&
+                    [
+                      analysis.llmStatuses.summarize,
+                      analysis.llmStatuses.review,
+                      analysis.llmStatuses.recommend,
+                    ].some((s) => s === "FALLBACK") && (
+                      <p className="text-amber-600 text-xs">
+                        일부 단계가 규칙 기반(FALLBACK)으로 처리되었습니다.
+                      </p>
+                    )}
+
                   {analysis.status === "FINALIZED" && analysis.finalReport ? (
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
                       <div className="mb-2 text-muted-foreground text-xs">최종 확정 보고서</div>
@@ -577,26 +612,22 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                         {analysis.finalReport}
                       </p>
                     </div>
+                  ) : analysis.status === "ACTIONS_RECOMMENDED" ||
+                    analysis.status === "PM_REVIEWING" ? (
+                    <ScrumReviewPanel
+                      projectId={project.id}
+                      weekStart={weekStart}
+                      analysis={analysis}
+                      ownerOptions={memberOptions}
+                      onUpdated={setAnalysis}
+                    />
                   ) : (
                     <div className="rounded-lg border border-border p-4 text-sm">
-                      <p className="text-foreground">
-                        AI 분석이 생성되었습니다.{" "}
-                        {analysis.status === "PM_REVIEWING"
-                          ? "PM 검토가 필요합니다."
-                          : "처리 중입니다."}
-                      </p>
+                      <p className="text-foreground">AI 분석을 처리하고 있습니다.</p>
                       <p className="mt-1 text-muted-foreground text-xs">
-                        상세 검토(Finding·Action 승인/수정/거절)와 최종 확정은 다음 단계에서
-                        제공됩니다.
+                        요약 → 검토 → 다음 액션 추천 순으로 진행됩니다. 잠시 후 다시
+                        확인해 주세요.
                       </p>
-                      {analysis.llmStatuses &&
-                        [analysis.llmStatuses.summarize, analysis.llmStatuses.review, analysis.llmStatuses.recommend].some(
-                          (s) => s === "FALLBACK",
-                        ) && (
-                          <p className="mt-2 text-amber-600 text-xs">
-                            일부 단계가 규칙 기반(FALLBACK)으로 처리되었습니다.
-                          </p>
-                        )}
                     </div>
                   )}
                 </div>

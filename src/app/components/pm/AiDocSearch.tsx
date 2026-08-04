@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
   ArrowRight,
@@ -54,6 +54,15 @@ export function AiDocSearch({
 
   const busy = turns.some((t) => t.status === "loading");
   const started = turns.length > 0;
+
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // 새 질문/답변이 추가되거나 로딩→완료로 바뀔 때마다 최신 대화가 보이도록 맨 아래로 스크롤한다.
+  useEffect(() => {
+    const el = logContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [turns]);
 
   const ask = async (raw: string) => {
     const q = raw.trim();
@@ -174,9 +183,12 @@ export function AiDocSearch({
         </div>
       )}
 
-      {/* 대화 로그 — 위(오래된 질문)에서 아래(최신)로 누적 */}
+      {/* 대화 로그 — 위(오래된 질문)에서 아래(최신)로 누적, 새 턴이 생기면 자동으로 맨 아래로 스크롤 */}
       {started && (
-        <div className="space-y-6">
+        <div
+          ref={logContainerRef}
+          className="max-h-[65vh] space-y-6 overflow-y-auto scroll-smooth pr-1"
+        >
           {turns.map((turn) => (
             <TurnBlock
               key={turn.id}

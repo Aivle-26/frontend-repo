@@ -451,6 +451,15 @@ export interface SaveProjectMembersRequestBody {
   }[];
 }
 
+export interface SaveFinalAssignmentsRequestBody {
+  assignments: {
+    wbsId: number;
+    employeeNumber: string;
+    assignedHours: number;
+    dueDate?: string | null;
+  }[];
+}
+
 
 
 export interface SaveFinalWbsTask {
@@ -1080,6 +1089,26 @@ export const projectRepository = {
         body: JSON.stringify(input),
         auth: true,
       },
+    );
+  },
+
+  /** 담당자 배정을 최종 일괄 저장 (담당자 추천 화면의 "배정 저장"). */
+  saveFinalAssignments(projectId: string | number, input: SaveFinalAssignmentsRequestBody) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/assignments/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  /** 프로젝트 전체 담당자 배정 조회. */
+  getProjectAssignments(projectId: string | number) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/assignments`,
+      { auth: true },
     );
   },
 

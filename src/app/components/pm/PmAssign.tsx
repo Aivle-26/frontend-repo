@@ -7,6 +7,7 @@ import {
   Sparkles,
   CalendarClock,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -39,6 +40,11 @@ import {
 import { cn } from "@/app/components/ui/utils";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { Checkbox } from "@/app/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/app/components/ui/collapsible";
 import { demoRepository } from "@/app/data/demoRepository";
 import {
   projectRequirements,
@@ -80,6 +86,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   const [membersError, setMembersError] = useState("");
   const [memberHours, setMemberHours] = useState<Record<string, number>>({});
   const [savingMembers, setSavingMembers] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(true);
 
   const loadTeamMembers = () => {
     setMembersLoading(true);
@@ -96,6 +103,8 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
           hours[m.employeeNumber] = m.availableHoursPerWeek;
         }
         setMemberHours(hours);
+        // 이미 등록된 팀원이 있으면 접어서 시작 (화면이 너무 길어지지 않게).
+        setMembersOpen(current.length === 0);
       })
       .catch((caught) => {
         setMembersError(
@@ -138,6 +147,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .then((saved) => {
         setProjectMembers(saved);
         toast.success("프로젝트 팀원을 저장했어요.");
+        setMembersOpen(false);
         loadRecommendations();
       })
       .catch((caught) => {
@@ -191,39 +201,42 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  const handleSaveAssignments = async () => {
-    // 선택된 담당자가 있는 작업만 저장한다.
-    const entries = assignRecs
-      .map((rec) => ({
-        wbsId: rec.wbsId,
-        employeeNumber:
-          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber,
-      }))
-      .filter((e): e is { wbsId: number; employeeNumber: string } => !!e.employeeNumber);
+  const handleSaveAssignments = () => {
+    // 선택된 담당자가 있는 작업만 저장한다. (AI 추천 후보가 아니어도 배정 가능)
+    const assignments = assignRecs
+      .map((rec) => {
+        const employeeNumber =
+          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber;
+        if (!employeeNumber) return null;
+        const recMember = rec.recommendedMembers.find(
+          (m) => m.employeeNumber === employeeNumber,
+        );
+        return {
+          wbsId: rec.wbsId,
+          employeeNumber,
+          assignedHours: recMember?.assignedHours || rec.estimatedHours,
+        };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
 
-    if (entries.length === 0) {
+    if (assignments.length === 0) {
       toast.error("배정할 담당자를 먼저 선택하세요.");
       return;
     }
 
     setSavingAssignments(true);
-    try {
-      await Promise.all(
-        entries.map((e) =>
-          projectRepository.assignTask(project.id, e.wbsId, {
-            employeeNumber: e.employeeNumber,
-          }),
-        ),
-      );
-      toast.success(`${entries.length}건의 담당자를 배정했어요.`);
-      loadRecommendations();
-    } catch (caught) {
-      toast.error(
-        caught instanceof ApiError ? caught.message : "배정 저장에 실패했습니다.",
-      );
-    } finally {
-      setSavingAssignments(false);
-    }
+    projectRepository
+      .saveFinalAssignments(project.id, { assignments })
+      .then(() => {
+        toast.success("담당자 배정을 저장했어요.");
+        loadRecommendations();
+      })
+      .catch((caught) => {
+        toast.error(
+          caught instanceof ApiError ? caught.message : "배정 저장에 실패했습니다.",
+        );
+      })
+      .finally(() => setSavingAssignments(false));
   };
 
   const [rows, setRows] = useState<AssignRow[]>(
@@ -382,20 +395,34 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
     <div className="space-y-6">
       {/* 프로젝트 팀원 관리 */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>프로젝트 팀원 관리</CardTitle>
-            {!membersLoading && !membersError && (
-              <Badge variant="outline" className="font-normal">
-                등록됨 {projectMembers.length}명
-              </Badge>
-            )}
-          </div>
-          <CardDescription>
-            체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <Collapsible open={membersOpen} onOpenChange={setMembersOpen}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer select-none">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  프로젝트 팀원 관리
+                  <ChevronDown
+                    className={cn(
+                      "size-4 text-muted-foreground transition-transform",
+                      membersOpen && "rotate-180",
+                    )}
+                  />
+                </CardTitle>
+                {!membersLoading && !membersError && (
+                  <Badge variant="outline" className="font-normal">
+                    등록됨 {projectMembers.length}명
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                {membersOpen
+                  ? '체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.'
+                  : "펼쳐서 팀원을 추가/변경할 수 있어요."}
+              </CardDescription>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
           {membersLoading && (
             <div className="space-y-2">
               <Skeleton className="h-10 w-full" />
@@ -505,7 +532,9 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
               </div>
             </>
           )}
-        </CardContent>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* 담당자 추천 */}

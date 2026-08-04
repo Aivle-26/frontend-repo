@@ -446,6 +446,7 @@ function DemoApplication() {
           project={selectedProject!}
           showCommunicationRisk
           hideManagedRisks
+          showTeamProgress
         />
       );
     } else if (pmMenu === "notice") {

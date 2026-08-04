@@ -1,16 +1,51 @@
-import { Hourglass } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, Hourglass, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
-import { demoRepository } from "@/app/data/demoRepository";
+import {
+  ApiError,
+  projectRepository,
+  type MemberProgress,
+} from "@/app/api/projectRepository";
 
 interface TeamProgressDelayCardProps {
   projectId: string;
 }
 
 export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps) {
-  const { rows } = demoRepository.getTeamProgressDelay(projectId);
-  const delayedCount = rows.filter((d) => d.delayDays > 0).length;
+  const [members, setMembers] = useState<MemberProgress[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    projectRepository
+      .getTeamProgress(projectId)
+      .then((res) => {
+        if (!cancelled) setMembers(res.members ?? []);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        if (caught instanceof ApiError && caught.status === 404) {
+          setMembers([]);
+        } else {
+          setError(
+            caught instanceof Error ? caught.message : "팀원 진행 상황을 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const delayedCount = members.filter((m) => m.delayedTaskCount > 0).length;
 
   return (
     <Card>
@@ -18,66 +53,78 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <Hourglass className="size-4 text-blue-600" />
-            <span className="text-foreground">팀원 진행도 지연</span>
+            <span className="text-foreground">팀원 진행 상황</span>
           </div>
-          {delayedCount > 0 ? (
-            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-normal">
-              지연 {delayedCount}명
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-normal">
-              전원 정상
-            </Badge>
+          {!loading && !error && members.length > 0 && (
+            delayedCount > 0 ? (
+              <Badge variant="outline" className="border-red-200 bg-red-50 font-normal text-red-700">
+                지연 {delayedCount}명
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+              >
+                전원 정상
+              </Badge>
+            )
           )}
         </div>
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground text-sm">
+            <Loader2 className="size-4 animate-spin" /> 불러오는 중…
+          </div>
+        ) : error ? (
+          <div className="flex items-center gap-2 py-6 text-muted-foreground text-sm">
+            <AlertCircle className="size-4 text-red-500" /> {error}
+          </div>
+        ) : members.length === 0 ? (
           <p className="py-6 text-center text-muted-foreground text-sm">
-            이 프로젝트에 배정된 팀원이 없습니다.
+            아직 배정된 팀원이 없거나 진행 데이터가 없습니다.
           </p>
         ) : (
           <div className="space-y-3">
-            {rows.map((d) => {
-              const status =
-                d.delayDays > 0 ? "지연" : d.progress < d.expectedProgress ? "주의" : "정상";
-              const statusStyle =
-                status === "지연"
-                  ? "bg-red-50 text-red-700 border-red-200"
-                  : status === "주의"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-emerald-50 text-emerald-700 border-emerald-200";
-              const barColor =
-                status === "지연"
-                  ? "bg-red-500"
-                  : status === "주의"
-                    ? "bg-amber-500"
-                    : "bg-emerald-500";
+            {members.map((m) => {
+              const delayed = m.delayedTaskCount > 0;
+              const barColor = delayed
+                ? "bg-red-500"
+                : m.progressRate >= 100
+                  ? "bg-emerald-500"
+                  : "bg-blue-500";
               return (
-                <div key={d.id} className="rounded-lg border border-border p-3">
+                <div key={m.employeeNumber} className="rounded-lg border border-border p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-foreground text-sm">{d.name}</span>
-                        <span className="text-muted-foreground text-xs">{d.role}</span>
-                      </div>
-                      <p className="mt-0.5 truncate text-muted-foreground text-xs">
-                        {d.currentTask} · 마감 {d.dueDate}
+                      <span className="text-foreground text-sm">{m.name}</span>
+                      <p className="mt-0.5 text-muted-foreground text-xs">
+                        완료 {m.completedTaskCount}/{m.totalTaskCount}건 · 공수 {m.totalEstimatedHours}h
                       </p>
                     </div>
-                    <Badge variant="outline" className={cn("shrink-0 font-normal", statusStyle)}>
-                      {status === "지연" ? `${d.delayDays}일 지연` : status}
-                    </Badge>
+                    {delayed ? (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 border-red-200 bg-red-50 font-normal text-red-700"
+                      >
+                        지연 {m.delayedTaskCount}건
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+                      >
+                        정상
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-2.5 flex items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn("h-full rounded-full", barColor)}
-                        style={{ width: `${d.progress}%` }}
+                        style={{ width: `${Math.min(100, m.progressRate)}%` }}
                       />
                     </div>
-                    <span className="shrink-0 text-muted-foreground text-xs">
-                      실제 {d.progress}% / 목표 {d.expectedProgress}%
-                    </span>
+                    <span className="shrink-0 text-muted-foreground text-xs">{m.progressRate}%</span>
                   </div>
                 </div>
               );

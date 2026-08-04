@@ -17,6 +17,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
 import { CountUp } from "@/app/components/common/CountUp";
 import { CommunicationRiskCard } from "@/app/components/common/CommunicationRiskCard";
+import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
 import { ImpactAnalysisCard } from "@/app/components/common/ImpactAnalysisCard";
 import {
   MANAGED_RISKS,
@@ -69,6 +70,7 @@ export function RiskManagement({
   hideImpactAnalysis = false,
   showCommunicationRisk = false,
   hideManagedRisks = false,
+  showTeamProgress = false,
 }: {
   project: ProjectSummary;
   /** true면 "프로젝트 조정 여부 평가" 카드를 숨긴다. 기본값 false로 PM 화면은 기존과 동일하게 동작한다. */
@@ -77,6 +79,8 @@ export function RiskManagement({
   showCommunicationRisk?: boolean;
   /** true면 관리 리스크 목록 섹션(KPI + 목록 + 상세 패널)을 숨긴다. 기본값 false. */
   hideManagedRisks?: boolean;
+  /** true면 "팀원 진행 상황" 카드를 보여준다(PM 전용). 기본값 false. */
+  showTeamProgress?: boolean;
 }) {
   const [risks, setRisks] = useState<ManagedRisk[]>(MANAGED_RISKS);
   const [selectedId, setSelectedId] = useState<string>(MANAGED_RISKS[0]?.id ?? "");
@@ -289,6 +293,9 @@ export function RiskManagement({
       </div>
         </>
       )}
+
+      {/* 팀원 진행 상황 (백엔드 /progress/members) — PM 전용 */}
+      {showTeamProgress && <TeamProgressDelayCard projectId={project.id} />}
 
       {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) — 페이지별로 showCommunicationRisk prop으로 노출 제어 */}
       {showCommunicationRisk && <CommunicationRiskCard projectId={project.id} />}

@@ -446,6 +446,56 @@ export interface ProjectScheduleResult {
   warnings: string[];
 }
 
+export type TaskProgressStatus =
+  | "TODO"
+  | "IN_PROGRESS"
+  | "REVIEW"
+  | "COMPLETED"
+  | "DELAYED";
+
+export interface MemberProgress {
+  employeeNumber: string;
+  name: string;
+  progressRate: number;
+  totalTaskCount: number;
+  completedTaskCount: number;
+  delayedTaskCount: number;
+  totalEstimatedHours: number;
+}
+
+export interface TeamProgressResponse {
+  members: MemberProgress[];
+}
+
+export interface ProjectProgressResponse {
+  employeeNumber: string;
+  progressRate: number;
+  totalTaskCount: number;
+  assignedTaskCount: number;
+  completedTaskCount: number;
+  delayedTaskCount: number;
+  totalEstimatedHours: number;
+  completedEstimatedHours: number;
+}
+
+export interface TaskAssignmentResponse {
+  wbsId: number;
+  taskCode: string;
+  taskName: string;
+  description: string;
+  employeeNumber: string | null;
+  status: TaskProgressStatus;
+  progressRate: number;
+  startDate: string | null;
+  dueDate: string | null;
+  estimatedHours: number;
+}
+
+export interface UpdateTaskProgressBody {
+  status: TaskProgressStatus;
+  progressRate: number;
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -906,6 +956,42 @@ export const projectRepository = {
     return apiFetch<ProjectScheduleResult>(
       `/projects/${encodeURIComponent(String(projectId))}/schedules`,
       { auth: true },
+    );
+  },
+
+  // PM: 팀원별 진행 상황(진행률·완료/지연 태스크 수)
+  getTeamProgress(projectId: string | number) {
+    return apiFetch<TeamProgressResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/progress/members`,
+      { auth: true },
+    );
+  },
+
+  // 프로젝트 전체 진행률
+  getProjectProgress(projectId: string | number) {
+    return apiFetch<ProjectProgressResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/progress`,
+      { auth: true },
+    );
+  },
+
+  // 직원: 내게 배정된 업무 목록
+  getMyTasks(projectId: string | number) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/me`,
+      { auth: true },
+    );
+  },
+
+  // 직원/PM: 태스크 진행률·상태 갱신
+  updateTaskProgress(
+    projectId: string | number,
+    wbsId: string | number,
+    body: UpdateTaskProgressBody,
+  ) {
+    return apiFetch<TaskAssignmentResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/progress`,
+      { method: "PATCH", body: JSON.stringify(body), auth: true },
     );
   },
 

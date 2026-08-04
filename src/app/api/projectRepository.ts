@@ -375,6 +375,82 @@ export interface AssignmentRecommendationResponse {
   llmStatus: string | null;
 }
 
+export type TaskProgressStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "COMPLETED" | "DELAYED";
+
+export interface TaskAssignmentResponse {
+  assignmentId: number;
+  projectId: number;
+  wbsId: number;
+  taskCode: string;
+  taskName: string;
+  description: string;
+  employeeNumber: string;
+  status: TaskProgressStatus;
+  progressRate: number;
+  startDate: string | null;
+  dueDate: string | null;
+  estimatedHours: number;
+  milestone: boolean;
+  bufferDays: number;
+  overdue: boolean;
+  assignedAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateTaskProgressRequestBody {
+  status: TaskProgressStatus;
+  progressRate: number;
+}
+
+export interface ProjectProgressResponse {
+  projectId: number;
+  employeeNumber: string | null;
+  progressRate: number;
+  totalTaskCount: number;
+  assignedTaskCount: number;
+  completedTaskCount: number;
+  delayedTaskCount: number;
+  totalEstimatedHours: number;
+  completedEstimatedHours: number;
+}
+
+export interface TeamMemberSkill {
+  skillCode: string;
+  proficiencyLevel: number;
+  experienceMonths: number;
+}
+
+/** 회사 전체 등록된 직원 (프로젝트에 아직 안 붙어있을 수도 있음). */
+export interface TeamMemberResponse {
+  employeeNumber: string;
+  name: string;
+  email: string;
+  capabilityRegistered: boolean;
+  roles: string[];
+  skills: TeamMemberSkill[];
+}
+
+/** 특정 프로젝트에 실제로 등록된 팀원. */
+export interface ProjectMemberResponse {
+  projectMemberId: number;
+  projectId: number;
+  employeeNumber: string;
+  name: string;
+  email: string;
+  availableHoursPerWeek: number;
+  selectedBy: string;
+  joinedAt: string;
+  roles: string[];
+  skills: TeamMemberSkill[];
+}
+
+export interface SaveProjectMembersRequestBody {
+  members: {
+    employeeNumber: string;
+    availableHoursPerWeek: number | null;
+  }[];
+}
+
 
 
 export interface SaveFinalWbsTask {
@@ -941,6 +1017,67 @@ export const projectRepository = {
     );
   },
 
+  getMyTasks(projectId: string | number) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/me`,
+      { auth: true },
+    );
+  },
+
+  getDueSoonTasks(projectId: string | number, days = 3) {
+    return apiFetch<TaskAssignmentResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/due-soon?days=${days}`,
+      { auth: true },
+    );
+  },
+
+  getMyProgress(projectId: string | number) {
+    return apiFetch<ProjectProgressResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/progress/me`,
+      { auth: true },
+    );
+  },
+
+  updateTaskProgress(
+    projectId: string | number,
+    wbsId: string | number,
+    input: UpdateTaskProgressRequestBody,
+  ) {
+    return apiFetch<TaskAssignmentResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/progress`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  /** 회사 전체 등록된 직원 목록 (PM 전용). */
+  getAllTeamMembers() {
+    return apiFetch<TeamMemberResponse[]>(`/users/team-members`, { auth: true });
+  },
+
+  /** 특정 프로젝트에 지금 등록된 팀원 목록. */
+  getProjectMembers(projectId: string | number) {
+    return apiFetch<ProjectMemberResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/team-members`,
+      { auth: true },
+    );
+  },
+
+  /** 프로젝트 팀원 명단을 통째로 교체 저장 (PM 전용). */
+  saveProjectMembers(projectId: string | number, input: SaveProjectMembersRequestBody) {
+    return apiFetch<ProjectMemberResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/team-members/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
   generateSchedule(projectId: string | number) {
     return apiFetch<AgentRequestResult>(
       `/projects/${encodeURIComponent(String(projectId))}/schedules/generate`,
@@ -1039,4 +1176,4 @@ export const projectRepository = {
     });
   },
 
-};
+};;

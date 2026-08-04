@@ -49,24 +49,12 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
   const [loading, setLoading] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
 
-  // WBS·일정에서 영향 업무 수·남은 일정을 자동으로 채운다(사용자가 아직 안 건드린 0 값만).
+  // 남은 일정만 프로젝트 종료일에서 자동 반영한다(변경과 무관한 객관값). 사용자가 안 건드린 0 값만.
+  // "영향 업무 수"는 변경 건별로 다르므로 자동으로 채우지 않는다.
   useEffect(() => {
     let cancelled = false;
 
     void (async () => {
-      try {
-        const wbs = await projectRepository.getWbs(projectId);
-        const taskCount = (wbs.finalTasks ?? []).filter(
-          (t) => t.confirmed && Number(t.taskId) > 0,
-        ).length;
-        if (!cancelled && taskCount > 0) {
-          setForm((p) => (p.affectedTaskCount === 0 ? { ...p, affectedTaskCount: taskCount } : p));
-          setAutoFilled(true);
-        }
-      } catch {
-        /* WBS 없거나 조회 실패 시 자동 채우기 생략 */
-      }
-
       try {
         const schedule = await projectRepository.getSchedules(projectId);
         const end = new Date(`${schedule.targetEndDate}T00:00:00`).getTime();
@@ -127,7 +115,7 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
             <p className="mb-3 text-muted-foreground text-xs">
               변경 정보 입력
               {autoFilled && (
-                <span className="ml-1 text-blue-600">· 업무 수·남은 일정은 WBS·일정에서 자동 반영(수정 가능)</span>
+                <span className="ml-1 text-blue-600">· 남은 일정은 프로젝트 종료일에서 자동 반영(수정 가능)</span>
               )}
             </p>
 

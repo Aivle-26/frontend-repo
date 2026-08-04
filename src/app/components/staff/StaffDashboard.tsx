@@ -18,7 +18,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/app/components/ui/utils";
 import type { Task, TaskColumn } from "@/app/data/demoData";
-import { useTasks } from "@/app/state/taskStore";
+import { useTasks, loadTasks } from "@/app/state/taskStore";
 import { CountUp } from "@/app/components/common/CountUp";
 import {
   projectRepository,
@@ -41,13 +41,26 @@ function priorityVariant(p: string) {
 
 interface StaffDashboardProps {
   projectId: string;
+  projectName: string;
   onOpenTask: (taskId: string) => void;
 }
 
-export function StaffDashboard({ projectId, onOpenTask }: StaffDashboardProps) {
-  // 업무 보드는 taskStore(메모리 기반 실시간 데이터)를 그대로 쓴다.
+export function StaffDashboard({ projectId, projectName, onOpenTask }: StaffDashboardProps) {
+  // 업무 보드는 taskStore(실제 백엔드 API 연동)를 그대로 쓴다.
   // 업무 상세 화면에서 "완료 처리"를 누르면 즉시 여기에도 반영된다.
   const tasks = useTasks();
+  const [tasksLoading, setTasksLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    setTasksLoading(true);
+    void loadTasks(projectId, projectName).finally(() => {
+      if (!ignore) setTasksLoading(false);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [projectId, projectName]);
 
   const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
   const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
@@ -122,7 +135,15 @@ export function StaffDashboard({ projectId, onOpenTask }: StaffDashboardProps) {
           <CardDescription>업무 카드를 클릭하면 상세 화면으로 이동합니다.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {tasksLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          )}
+          {!tasksLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {COLUMNS.map((col) => {
               const items = tasks.filter((t) => t.column === col.key);
               return (
@@ -144,7 +165,8 @@ export function StaffDashboard({ projectId, onOpenTask }: StaffDashboardProps) {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

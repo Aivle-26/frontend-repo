@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   Bot,
   CheckCircle2,
   ChevronLeft,
@@ -7,8 +8,6 @@ import {
   CircleDashed,
   ClipboardList,
   Loader2,
-  RefreshCw,
-  Save,
   Sparkles,
   Target,
   TriangleAlert,
@@ -20,36 +19,15 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Calendar as DatePickerCalendar } from "@/app/components/ui/calendar";
-import { Textarea } from "@/app/components/ui/textarea";
 import { cn } from "@/app/components/ui/utils";
-import { projectMembers, type ProjectSummary, type TeamMember } from "@/app/data/demoData";
-
-/* ==================================================================== */
-/* 데이터 모델                                                           */
-/* ==================================================================== */
-
-interface ScrumSubmission {
-  submitted: boolean;
-  submittedAt?: string;
-  done: string[];
-  todo: string[];
-  blockers: string[];
-}
-
-/**
- * 주간 종합본. 백엔드 aiserver `WeeklyReportResponse`(reporting 도메인)와
- * 대응되도록 구성해, 추후 실제 API 연동 시 그대로 매핑할 수 있게 한다.
- *  - executiveSummary ← progress_summary
- *  - achievements     ← completed_work[]
- *  - blockers         ← risk_summary[]
- *  - nextWeek         ← next_week_plan[]
- */
-interface WeeklyReport {
-  executiveSummary: string;
-  achievements: string;
-  blockers: string;
-  nextWeek: string;
-}
+import {
+  ApiError,
+  projectRepository,
+  type WeeklyScrumReportResponse,
+  type WeeklyScrumSubmissionItem,
+  type WeeklyScrumWorkflowStatus,
+} from "@/app/api/projectRepository";
+import type { ProjectSummary } from "@/app/data/demoData";
 
 /* ==================================================================== */
 /* 주차(Week) 계산                                                       */
@@ -57,8 +35,8 @@ interface WeeklyReport {
 
 function startOfWeek(base: Date): Date {
   const date = new Date(base);
-  const day = date.getDay(); // 0(일)~6(토)
-  const diff = day === 0 ? -6 : 1 - day; // 월요일 시작
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + diff);
   date.setHours(0, 0, 0, 0);
   return date;
@@ -87,18 +65,19 @@ function weekRangeLabel(offset: number): string {
   return `${fmt(monday)} ~ ${fmt(sunday)}`;
 }
 
-/** week_start(ISO) — 실제 API 요청 시 사용할 수 있는 키. */
+/** week_start(ISO) — 로컬 타임존 기준 YYYY-MM-DD */
 function weekStartKey(offset: number): string {
   const monday = addWeeks(startOfWeek(new Date()), offset);
-  return monday.toISOString().slice(0, 10);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, "0");
+  const d = String(monday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-/** 두 월요일 사이의 주(week) 차이 */
 function weeksBetweenMondays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / (7 * 24 * 60 * 60 * 1000));
 }
 
-/** 해당 주차(offset)의 월~일 7일을 Date 배열로 */
 function weekDaysOf(offset: number): Date[] {
   const monday = addWeeks(startOfWeek(new Date()), offset);
   return Array.from({ length: 7 }, (_, i) => {
@@ -108,63 +87,59 @@ function weekDaysOf(offset: number): Date[] {
   });
 }
 
-/** 프로젝트 마감일 문자열("YYYY-MM-DD" 등)을 Date로 파싱 (실패 시 null) */
 function parseDueDate(value: string): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/* ==================================================================== */
-/* 데모 스크럼 데이터 (백엔드 스크럼 제출 API 연동 시 교체)              */
-/* ==================================================================== */
+/** 줄바꿈 텍스트를 항목 리스트로 (앞의 "- " 제거) */
+function linesOf(text: string | null | undefined): string[] {
+  return (text ?? "")
+    .split("\n")
+    .map((s) => s.replace(/^[-*·]\s*/, "").trim())
+    .filter(Boolean);
+}
 
-const DONE_POOL = [
-  "로그인/권한 모듈 리팩터링 완료",
-  "요구사항 정의서 v2 리뷰 반영",
-  "WBS 4번 작업(API 설계) 초안 작성",
-  "결제 연동 테스트 케이스 12건 작성",
-  "대시보드 위젯 3종 퍼블리싱",
-  "데이터 이관 스크립트 1차 검증",
-  "회의록 기반 액션 아이템 정리",
-  "부하 테스트 시나리오 설계",
-];
-const TODO_POOL = [
-  "리스크 대응책 문서화",
-  "통합 테스트 환경 세팅",
-  "요구사항 추적표 업데이트",
-  "관리자 화면 접근성(WCAG) 점검",
-  "배포 파이프라인 캐시 최적화",
-  "API 응답 스키마 확정",
-];
-const BLOCKER_POOL = [
-  "레거시 ERP 데이터 이관 범위 미확정으로 설계 지연",
-  "외부 인증 연동 키 발급 대기",
-  "성능 테스트 서버 리소스 부족",
-  "요구사항 상충(결제 단계 수)으로 대기",
-];
+interface MemberRow {
+  employeeNumber: string;
+  name: string;
+  role: string;
+  submission: WeeklyScrumSubmissionItem | null;
+}
 
-/** memberId + weekOffset 기반 결정적(seed) 데모 데이터 생성. */
-function buildSubmission(member: TeamMember, offset: number): ScrumSubmission {
-  const seed =
-    Math.abs(
-      [...member.id].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) + offset * 7,
-    );
-  const submitted = seed % 5 !== 0; // 약 80% 제출
-  if (!submitted) {
-    return { submitted: false, done: [], todo: [], blockers: [] };
+/* 백엔드 WorkflowStatus → 화면 표기 */
+function statusMeta(status: WeeklyScrumWorkflowStatus): {
+  label: string;
+  className: string;
+  processing: boolean;
+} {
+  switch (status) {
+    case "PM_REVIEWING":
+      return {
+        label: "PM 검토 필요",
+        className: "border-amber-200 bg-amber-50 text-amber-700",
+        processing: false,
+      };
+    case "FINALIZED":
+      return {
+        label: "확정됨",
+        className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+        processing: false,
+      };
+    case "FAILED":
+      return {
+        label: "실패",
+        className: "border-red-200 bg-red-50 text-red-700",
+        processing: false,
+      };
+    default:
+      return {
+        label: "분석 중",
+        className: "border-blue-200 bg-blue-50 text-blue-700",
+        processing: true,
+      };
   }
-  const pick = <T,>(pool: T[], count: number, salt: number): T[] =>
-    Array.from({ length: count }, (_, i) => pool[(seed + salt + i * 3) % pool.length]);
-
-  const hasBlocker = seed % 3 === 0;
-  return {
-    submitted: true,
-    submittedAt: `${(seed % 5) + 1}일 전`,
-    done: pick(DONE_POOL, 2 + (seed % 2), 1),
-    todo: pick(TODO_POOL, 2, 4),
-    blockers: hasBlocker ? pick(BLOCKER_POOL, 1, 2) : [],
-  };
 }
 
 /* ==================================================================== */
@@ -172,15 +147,17 @@ function buildSubmission(member: TeamMember, offset: number): ScrumSubmission {
 /* ==================================================================== */
 
 export function WeeklyScrum({ project }: { project: ProjectSummary }) {
-  const members = useMemo(() => projectMembers(project.id), [project.id]);
-
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>(
-    members[0]?.id ?? "",
-  );
-  const [report, setReport] = useState<WeeklyReport | null>(null);
+  const weekStart = useMemo(() => weekStartKey(weekOffset), [weekOffset]);
+
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(true);
+  const [subsError, setSubsError] = useState("");
+  const [selectedEmp, setSelectedEmp] = useState<string>("");
+
+  const [analysis, setAnalysis] = useState<WeeklyScrumReportResponse | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
 
   // 주차 선택 달력용 값
   const thisMonday = useMemo(() => startOfWeek(new Date()), []);
@@ -190,102 +167,133 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   );
   const weekDays = useMemo(() => weekDaysOf(weekOffset), [weekOffset]);
   const dueDate = useMemo(() => parseDueDate(project.dueDate), [project.dueDate]);
-
-  // 항상 펼쳐진 달력이라 보이는 월을 직접 제어한다. 주차를 옮기면 그 주의 월로 따라감.
   const [calendarMonth, setCalendarMonth] = useState<Date>(selectedMonday);
   useEffect(() => {
     setCalendarMonth(selectedMonday);
   }, [selectedMonday]);
 
-  // 주차가 바뀌면 종합본은 해당 주차 기준으로 다시 생성해야 하므로 초기화
-  const submissions = useMemo(() => {
-    const map = new Map<string, ScrumSubmission>();
-    members.forEach((member) => map.set(member.id, buildSubmission(member, weekOffset)));
-    return map;
-  }, [members, weekOffset]);
+  // 제출 현황 + 팀원 이름 로드
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSubs(true);
+    setSubsError("");
+    Promise.all([
+      projectRepository.getWeeklyScrums(project.id, weekStart),
+      projectRepository.getAllTeamMembers(),
+      projectRepository
+        .getMissingWeeklyScrumMembers(project.id, weekStart)
+        .catch(() => null),
+    ])
+      .then(([subs, allMembers, missing]) => {
+        if (cancelled) return;
+        const nameMap = new Map(allMembers.map((m) => [m.employeeNumber, m]));
+        const subByEmp = new Map(subs.map((s) => [s.employeeNumber, s]));
+        const empNumbers = new Set<string>([
+          ...subs.map((s) => s.employeeNumber),
+          ...(missing?.missingEmployeeNumbers ?? []),
+        ]);
+        const rows: MemberRow[] = [...empNumbers].map((emp) => {
+          const info = nameMap.get(emp);
+          return {
+            employeeNumber: emp,
+            name: info?.name ?? emp,
+            role: info?.roles?.[0] ?? "",
+            submission: subByEmp.get(emp) ?? null,
+          };
+        });
+        rows.sort((a, b) => a.name.localeCompare(b.name));
+        setMembers(rows);
+        setSelectedEmp((prev) =>
+          prev && rows.some((r) => r.employeeNumber === prev)
+            ? prev
+            : rows[0]?.employeeNumber ?? "",
+        );
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setSubsError(
+            caught instanceof ApiError
+              ? caught.message
+              : "제출 현황을 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSubs(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, weekStart]);
 
-  const submittedMembers = members.filter((m) => submissions.get(m.id)?.submitted);
-  const selectedMember =
-    members.find((m) => m.id === selectedMemberId) ?? members[0] ?? null;
-  const selectedSubmission = selectedMember
-    ? submissions.get(selectedMember.id)
-    : undefined;
+  // 기존 분석 결과 로드 (주차 변경 시)
+  useEffect(() => {
+    let cancelled = false;
+    setAnalysisError("");
+    projectRepository
+      .getWeeklyScrumAnalysis(project.id, weekStart)
+      .then((res) => {
+        if (!cancelled) setAnalysis(res);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        if (caught instanceof ApiError && caught.status === 404) {
+          setAnalysis(null);
+        } else {
+          setAnalysisError(
+            caught instanceof Error ? caught.message : "분석을 불러오지 못했습니다.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, weekStart]);
+
+  const submittedCount = members.filter((m) => m.submission).length;
+  const selected = members.find((m) => m.employeeNumber === selectedEmp) ?? null;
 
   const changeWeek = (nextOffset: number) => {
     setWeekOffset(nextOffset);
-    setReport(null); // 다른 주차의 종합본은 새로 생성
+    setAnalysis(null);
   };
 
-  // 달력에서 특정 날짜를 고르면 그 날짜가 속한 주로 이동
   const pickDate = (day: Date | undefined) => {
     if (!day) return;
     changeWeek(weeksBetweenMondays(thisMonday, startOfWeek(day)));
   };
 
-  /**
-   * [🤖 주간 종합본 AI 생성]
-   * 현재는 제출된 스크럼을 취합해 초안을 합성한다(UI 확인용).
-   * 백엔드/aiserver 주간 보고서 생성 API가 프론트로 노출되면
-   * 이 핸들러의 합성 로직을 `POST /api/reports/weekly/generate` 호출로 교체하면 된다.
-   */
-  const generateReport = async () => {
+  const runAnalyze = async () => {
     if (generating) return;
-    if (submittedMembers.length === 0) {
-      toast.error("제출된 스크럼이 없어 종합본을 생성할 수 없습니다.");
+    if (submittedCount === 0) {
+      toast.error("제출된 스크럼이 없어 AI 분석을 실행할 수 없습니다.");
       return;
     }
     setGenerating(true);
+    setAnalysisError("");
     try {
-      await new Promise((resolve) => window.setTimeout(resolve, 1000));
-
-      const allDone = submittedMembers.flatMap((m) =>
-        (submissions.get(m.id)?.done ?? []).map((d) => `- (${m.name}) ${d}`),
-      );
-      const allBlockers = submittedMembers.flatMap((m) =>
-        (submissions.get(m.id)?.blockers ?? []).map((b) => `- (${m.name}) ${b}`),
-      );
-      const allTodo = submittedMembers.flatMap((m) =>
-        (submissions.get(m.id)?.todo ?? []).map((t) => `- (${m.name}) ${t}`),
-      );
-
-      setReport({
-        executiveSummary:
-          `${weekLabel(weekOffset)} (${weekRangeLabel(weekOffset)}) · ${project.name}\n` +
-          `팀원 ${members.length}명 중 ${submittedMembers.length}명 제출.\n` +
-          `핵심 성과 ${allDone.length}건, 블로커 ${allBlockers.length}건, 다음 주 예정 ${allTodo.length}건을 종합했습니다.`,
-        achievements: allDone.join("\n") || "- 집계된 성과가 없습니다.",
-        blockers:
-          allBlockers.length > 0
-            ? allBlockers.map((b) => `${b}\n   ↳ 대응책: `).join("\n")
-            : "- 보고된 블로커가 없습니다.",
-        nextWeek: allTodo.join("\n") || "- 예정 과제가 없습니다.",
+      const res = await projectRepository.analyzeWeeklyScrum(project.id, weekStart, {
+        enableLlm: true,
       });
-      toast.success("주간 종합본 초안을 생성했습니다.");
+      setAnalysis(res);
+      toast.success("AI 주간 분석을 생성했습니다.");
+    } catch (caught) {
+      const msg =
+        caught instanceof ApiError ? caught.message : "AI 분석 생성에 실패했습니다.";
+      setAnalysisError(msg);
+      toast.error(msg);
     } finally {
       setGenerating(false);
     }
   };
 
-  const saveReport = async () => {
-    if (!report) return;
-    setSaving(true);
-    try {
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-      toast.success("주간 종합본을 저장했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const patchReport = (key: keyof WeeklyReport, value: string) =>
-    setReport((prev) => (prev ? { ...prev, [key]: value } : prev));
+  const meta = analysis ? statusMeta(analysis.status) : null;
 
   return (
     <div className="space-y-4">
       {/* 헤더: 주차 선택 (항상 펼쳐진 달력) */}
       <Card>
         <CardContent className="space-y-4 py-4">
-          {/* 상단: 타이틀 + 주차 이동 */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -294,7 +302,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               <div className="leading-tight">
                 <h2 className="text-foreground text-lg">위클리 스크럼</h2>
                 <p className="text-muted-foreground text-sm">
-                  팀원 제출 스크럼을 모아보고 주차별 종합본을 생성·관리합니다.
+                  팀원 제출 스크럼을 모아보고 주차별 AI 종합 분석을 생성·관리합니다.
                 </p>
               </div>
             </div>
@@ -309,9 +317,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                 <ChevronLeft className="size-4" />
               </Button>
               <div className="min-w-44 rounded-lg border border-border px-3 py-1.5 text-center">
-                <div className="text-foreground text-sm">
-                  {weekLabel(weekOffset)}
-                </div>
+                <div className="text-foreground text-sm">{weekLabel(weekOffset)}</div>
                 <div className="text-muted-foreground text-xs">
                   {weekRangeLabel(weekOffset)}
                 </div>
@@ -327,7 +333,6 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
             </div>
           </div>
 
-          {/* 하단: 항상 펼쳐진 달력 + 범례 */}
           <div className="flex flex-col gap-4 border-t pt-3 sm:flex-row sm:items-start">
             <DatePickerCalendar
               mode="single"
@@ -361,17 +366,25 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
         </CardContent>
       </Card>
 
-      {/* 본문: 2단 분할 (좌: 제출 목록/상세, 우: 종합본) */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         {/* 좌측: 팀원 제출 목록 + 상세 */}
         <div className="space-y-4">
-          <SubmissionSummaryBar
-            total={members.length}
-            submitted={submittedMembers.length}
-          />
+          <SubmissionSummaryBar total={members.length} submitted={submittedCount} />
 
           <div className="space-y-2">
-            {members.length === 0 ? (
+            {loadingSubs ? (
+              <Card>
+                <CardContent className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-sm">
+                  <Loader2 className="size-4 animate-spin" /> 제출 현황 불러오는 중…
+                </CardContent>
+              </Card>
+            ) : subsError ? (
+              <Card>
+                <CardContent className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
+                  <AlertCircle className="size-4 text-red-500" /> {subsError}
+                </CardContent>
+              </Card>
+            ) : members.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-muted-foreground text-sm">
                   이 프로젝트에 배정된 팀원이 없습니다.
@@ -379,13 +392,13 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               </Card>
             ) : (
               members.map((member) => {
-                const submission = submissions.get(member.id);
-                const active = member.id === selectedMember?.id;
+                const active = member.employeeNumber === selected?.employeeNumber;
+                const sub = member.submission;
                 return (
                   <button
-                    key={member.id}
+                    key={member.employeeNumber}
                     type="button"
-                    onClick={() => setSelectedMemberId(member.id)}
+                    onClick={() => setSelectedEmp(member.employeeNumber)}
                     className={cn(
                       "w-full rounded-xl border bg-card p-3 text-left transition-all",
                       active
@@ -404,14 +417,16 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                           <span className="truncate text-foreground text-sm">
                             {member.name}
                           </span>
-                          <span className="text-muted-foreground text-xs">
-                            {member.role}
-                          </span>
+                          {member.role && (
+                            <span className="text-muted-foreground text-xs">
+                              {member.role}
+                            </span>
+                          )}
                         </div>
-                        {submission?.submitted ? (
+                        {sub ? (
                           <span className="text-muted-foreground text-xs">
-                            제출 {submission.submittedAt} · 완료 {submission.done.length} ·
-                            블로커 {submission.blockers.length}
+                            완료 {linesOf(sub.completedWork).length} · 블로커{" "}
+                            {linesOf(sub.blockers).length}
                           </span>
                         ) : (
                           <span className="text-muted-foreground text-xs">
@@ -419,7 +434,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                           </span>
                         )}
                       </div>
-                      {submission?.submitted ? (
+                      {sub ? (
                         <Badge className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
                           <CheckCircle2 className="size-3.5" /> 제출 완료
                         </Badge>
@@ -438,42 +453,41 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
             )}
           </div>
 
-          {/* 선택한 팀원 상세 (Done / Todo / Blockers) */}
-          {selectedMember && (
+          {selected && (
             <Card>
               <CardContent className="space-y-4 pt-5">
                 <div className="flex items-center gap-2">
                   <Avatar className="size-8">
                     <AvatarFallback className="text-xs">
-                      {selectedMember.name.slice(0, 1)}
+                      {selected.name.slice(0, 1)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="leading-tight">
-                    <div className="text-foreground text-sm">{selectedMember.name}</div>
+                    <div className="text-foreground text-sm">{selected.name}</div>
                     <div className="text-muted-foreground text-xs">
-                      {selectedMember.role} · {weekLabel(weekOffset)}
+                      {selected.role} · {weekLabel(weekOffset)}
                     </div>
                   </div>
                 </div>
 
-                {selectedSubmission?.submitted ? (
+                {selected.submission ? (
                   <div className="space-y-3">
                     <ScrumSection
                       icon={<CheckCircle2 className="size-4 text-emerald-600" />}
                       title="Done (완료)"
-                      items={selectedSubmission.done}
+                      items={linesOf(selected.submission.completedWork)}
                       tone="emerald"
                     />
                     <ScrumSection
                       icon={<Target className="size-4 text-blue-600" />}
                       title="Todo (예정)"
-                      items={selectedSubmission.todo}
+                      items={linesOf(selected.submission.plannedWork)}
                       tone="blue"
                     />
                     <ScrumSection
                       icon={<TriangleAlert className="size-4 text-red-600" />}
                       title="Blockers (장애 요소)"
-                      items={selectedSubmission.blockers}
+                      items={linesOf(selected.submission.blockers)}
                       tone="red"
                       emptyText="보고된 블로커가 없습니다."
                     />
@@ -488,7 +502,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
           )}
         </div>
 
-        {/* 우측: 주차별 종합본 */}
+        {/* 우측: 주차별 AI 종합 분석 */}
         <div>
           <Card className="xl:sticky xl:top-4">
             <CardContent className="space-y-4 pt-5">
@@ -498,85 +512,103 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                     <Bot className="size-4" />
                   </div>
                   <div className="leading-tight">
-                    <div className="text-foreground text-sm">주간 종합본</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-foreground text-sm">AI 주간 종합 분석</span>
+                      {meta && (
+                        <Badge
+                          variant="outline"
+                          className={cn("font-normal", meta.className)}
+                        >
+                          {meta.label}
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-muted-foreground text-xs">
-                      {weekLabel(weekOffset)} · 제출 {submittedMembers.length}/{members.length}
+                      {weekLabel(weekOffset)} · 제출 {submittedCount}/{members.length}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {report && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={saveReport}
-                      disabled={saving || generating}
-                    >
-                      {saving ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      저장
-                    </Button>
+                <Button size="sm" onClick={() => void runAnalyze()} disabled={generating}>
+                  {generating ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" /> 분석 중…
+                    </>
+                  ) : analysis ? (
+                    <>
+                      <Sparkles className="size-3.5" /> AI 분석 다시 실행
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-3.5" /> AI 주간 분석 생성
+                    </>
                   )}
-                  <Button size="sm" onClick={generateReport} disabled={generating}>
-                    {generating ? (
-                      <>
-                        <Loader2 className="size-3.5 animate-spin" /> 생성 중…
-                      </>
-                    ) : report ? (
-                      <>
-                        <RefreshCw className="size-3.5" /> 다시 생성
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-3.5" /> 주간 종합본 AI 생성
-                      </>
-                    )}
-                  </Button>
-                </div>
+                </Button>
               </div>
 
-              {report ? (
-                <div className="space-y-4">
-                  <ReportField
-                    label="주간 전체 요약 (Executive Summary)"
-                    value={report.executiveSummary}
-                    onChange={(v) => patchReport("executiveSummary", v)}
-                    rows={4}
-                  />
-                  <ReportField
-                    label="팀별 · 개인별 핵심 성과 종합"
-                    value={report.achievements}
-                    onChange={(v) => patchReport("achievements", v)}
-                    rows={6}
-                  />
-                  <ReportField
-                    label="주요 블로커(위험 요소) 및 대응책"
-                    value={report.blockers}
-                    onChange={(v) => patchReport("blockers", v)}
-                    rows={5}
-                  />
-                  <ReportField
-                    label="다음 주 주요 예정 과제"
-                    value={report.nextWeek}
-                    onChange={(v) => patchReport("nextWeek", v)}
-                    rows={5}
-                  />
+              {generating ? (
+                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
+                  <Loader2 className="size-6 animate-spin text-blue-600" />
+                  <p className="text-foreground text-sm">AI가 주간 스크럼을 분석하고 있습니다…</p>
+                  <p className="text-muted-foreground text-xs">
+                    요약 → 검토 → 다음 액션 추천 순으로 처리됩니다.
+                  </p>
+                </div>
+              ) : analysisError ? (
+                <div className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-4 text-muted-foreground text-sm">
+                  <AlertCircle className="size-4 text-red-500" /> {analysisError}
+                </div>
+              ) : analysis ? (
+                <div className="space-y-3">
+                  {analysis.status === "FAILED" && analysis.failure && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-red-700 text-sm">
+                      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                      <div>
+                        <div className="font-medium">분석 실패</div>
+                        <div className="text-xs">{analysis.failure.message}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {analysis.status === "FINALIZED" && analysis.finalReport ? (
+                    <div className="rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="mb-2 text-muted-foreground text-xs">최종 확정 보고서</div>
+                      <p className="whitespace-pre-line text-foreground text-sm leading-relaxed">
+                        {analysis.finalReport}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-border p-4 text-sm">
+                      <p className="text-foreground">
+                        AI 분석이 생성되었습니다.{" "}
+                        {analysis.status === "PM_REVIEWING"
+                          ? "PM 검토가 필요합니다."
+                          : "처리 중입니다."}
+                      </p>
+                      <p className="mt-1 text-muted-foreground text-xs">
+                        상세 검토(Finding·Action 승인/수정/거절)와 최종 확정은 다음 단계에서
+                        제공됩니다.
+                      </p>
+                      {analysis.llmStatuses &&
+                        [analysis.llmStatuses.summarize, analysis.llmStatuses.review, analysis.llmStatuses.recommend].some(
+                          (s) => s === "FALLBACK",
+                        ) && (
+                          <p className="mt-2 text-amber-600 text-xs">
+                            일부 단계가 규칙 기반(FALLBACK)으로 처리되었습니다.
+                          </p>
+                        )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
                   <div className="flex size-12 items-center justify-center rounded-full bg-muted">
                     <Bot className="size-6 text-muted-foreground" />
                   </div>
-                  <p className="text-foreground text-sm">
-                    아직 생성된 종합본이 없습니다.
-                  </p>
+                  <p className="text-foreground text-sm">아직 생성된 분석이 없습니다.</p>
                   <p className="max-w-xs text-muted-foreground text-xs">
-                    제출된 팀원 스크럼을 바탕으로 [주간 종합본 AI 생성]을 눌러
-                    이번 주 종합 리포트를 만들어 보세요.
+                    제출된 팀원 스크럼을 바탕으로 [AI 주간 분석 생성]을 눌러 이번 주 종합
+                    분석을 만들어 보세요.
                   </p>
                 </div>
               )}
@@ -592,13 +624,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 /* 하위 컴포넌트                                                         */
 /* ==================================================================== */
 
-function SubmissionSummaryBar({
-  total,
-  submitted,
-}: {
-  total: number;
-  submitted: number;
-}) {
+function SubmissionSummaryBar({ total, submitted }: { total: number; submitted: number }) {
   const pct = total > 0 ? Math.round((submitted / total) * 100) : 0;
   return (
     <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
@@ -658,30 +684,6 @@ function ScrumSection({
       ) : (
         <p className="text-muted-foreground text-xs">{emptyText}</p>
       )}
-    </div>
-  );
-}
-
-function ReportField({
-  label,
-  value,
-  onChange,
-  rows,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  rows: number;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-foreground text-sm font-medium">{label}</label>
-      <Textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        className="resize-y text-sm leading-relaxed"
-      />
     </div>
   );
 }

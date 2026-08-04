@@ -598,6 +598,70 @@ export interface AssignTaskBody {
   dueDate?: string | null;
 }
 
+/* ---------------- 위클리 스크럼 워크플로우 ---------------- */
+
+export interface WeeklyScrumSubmissionItem {
+  id: number;
+  projectId: number;
+  employeeNumber: string;
+  weekStartDate: string;
+  completedWork: string;
+  plannedWork: string;
+  blockers: string | null;
+  details: unknown | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MissingWeeklyScrumMembers {
+  projectId: number;
+  weekStartDate: string;
+  totalMemberCount: number;
+  submittedMemberCount: number;
+  missingEmployeeNumbers: string[];
+}
+
+export interface AnalyzeWeeklyScrumBody {
+  sprintGoal?: string | null;
+  enableLlm?: boolean;
+}
+
+export type WeeklyScrumWorkflowStatus =
+  | "DRAFT_INPUT"
+  | "SUMMARIZED"
+  | "REVIEWED"
+  | "ACTIONS_RECOMMENDED"
+  | "PM_REVIEWING"
+  | "FINALIZED"
+  | "FAILED";
+
+export interface WeeklyScrumLlmStatuses {
+  summarize: string | null;
+  review: string | null;
+  recommend: string | null;
+  finalizeStatus: string | null;
+}
+
+export interface WeeklyScrumReportResponse {
+  id: number | null;
+  projectId: number;
+  weekStartDate: string;
+  weekEndDate: string | null;
+  sprintGoal: string | null;
+  enableLlm: boolean;
+  status: WeeklyScrumWorkflowStatus;
+  summary: unknown | null;
+  review: unknown | null;
+  recommendation: unknown | null;
+  pmReview: unknown | null;
+  finalResult: unknown | null;
+  finalReport: string | null;
+  llmStatuses: WeeklyScrumLlmStatuses | null;
+  failure: { code: string; message: string } | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -1194,6 +1258,52 @@ export const projectRepository = {
     return apiFetch<TaskAssignmentResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/tasks/${encodeURIComponent(String(wbsId))}/assignment`,
       { method: "PUT", body: JSON.stringify(body), auth: true },
+    );
+  },
+
+  /* ---------------- 위클리 스크럼 ---------------- */
+
+  // 해당 주차에 제출된 스크럼 목록
+  getWeeklyScrums(projectId: string | number, weekStartDate: string) {
+    return apiFetch<WeeklyScrumSubmissionItem[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums?weekStartDate=${encodeURIComponent(weekStartDate)}`,
+      { auth: true },
+    );
+  },
+
+  // 해당 주차 미제출 팀원 현황 (PM)
+  getMissingWeeklyScrumMembers(projectId: string | number, weekStartDate: string) {
+    return apiFetch<MissingWeeklyScrumMembers>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/missing-members?weekStartDate=${encodeURIComponent(weekStartDate)}`,
+      { auth: true },
+    );
+  },
+
+  // PM: AI 주간 분석 실행 (summarize→review→recommend 오케스트레이션)
+  analyzeWeeklyScrum(
+    projectId: string | number,
+    weekStartDate: string,
+    body: AnalyzeWeeklyScrumBody = {},
+  ) {
+    return apiFetch<WeeklyScrumReportResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/analysis`,
+      { method: "POST", body: JSON.stringify(body), auth: true },
+    );
+  },
+
+  // PM: 현재 분석 상태·결과 조회 (폴링용)
+  getWeeklyScrumAnalysis(projectId: string | number, weekStartDate: string) {
+    return apiFetch<WeeklyScrumReportResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/analysis`,
+      { auth: true },
+    );
+  },
+
+  // 최종 확정 보고서 조회
+  getWeeklyScrumReport(projectId: string | number, weekStartDate: string) {
+    return apiFetch<WeeklyScrumReportResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/report`,
+      { auth: true },
     );
   },
 

@@ -451,7 +451,10 @@ export function ProjectBoard({
               <DialogHeader>
                 <div className="flex items-center gap-2">
                   {mode === "real" ? (
-                    <RealStatusBadge status={detail.server?.status} />
+                    <RealStatusBadge
+                      status={detail.server?.status}
+                      planningComplete={planningProgress[detail.id]?.planningComplete}
+                    />
                   ) : (
                     <StatusBadge status={detail.status} />
                   )}
@@ -464,7 +467,11 @@ export function ProjectBoard({
                 <div className="grid grid-cols-1 gap-3 py-1 sm:grid-cols-2">
                   <DetailStat
                     label="서버 상태"
-                    value={formatServerProjectStatus(detail.server?.status)}
+                    value={
+                      planningProgress[detail.id]?.planningComplete
+                        ? "진행 중"
+                        : formatServerProjectStatus(detail.server?.status)
+                    }
                   />
                   <DetailStat label="고객사" value={detail.client} />
                   <DetailStat label="프로젝트 기간" value={detail.updatedAt} />
@@ -548,10 +555,15 @@ export function ProjectBoard({
                       disabled={progressLoading[detail.id] === true}
                       onClick={() => {
                         const project = detail;
-                        const stage =
-                          planningProgress[project.id]?.stage ?? "requirements";
+                        const progress = planningProgress[project.id];
                         setDetail(null);
-                        onExtract(project, stage);
+
+                        if (progress?.planningComplete) {
+                          onOpenOperational(project);
+                          return;
+                        }
+
+                        onExtract(project, progress?.stage ?? "requirements");
                       }}
                     >
                       {progressLoading[detail.id] === true ? (
@@ -955,10 +967,22 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   );
 }
 
-function RealStatusBadge({ status }: { status?: string }) {
+function RealStatusBadge({
+  status,
+  planningComplete = false,
+}: {
+  status?: string;
+  planningComplete?: boolean;
+}) {
   return (
-    <Badge variant="outline" className="font-normal">
-      {formatServerProjectStatus(status)}
+    <Badge
+      variant="outline"
+      className={cn(
+        "font-normal",
+        planningComplete && "border-blue-200 bg-blue-50 text-blue-700",
+      )}
+    >
+      {planningComplete ? "진행 중" : formatServerProjectStatus(status)}
     </Badge>
   );
 }
@@ -1003,6 +1027,7 @@ function ProjectCard({
   const isPrep = p.status === "준비" || p.status === "승인대기";
   const stepPct = Math.round((p.wizardStep / WIZARD_STEPS.length) * 100);
   const dday = ddayLabel(p.server?.plannedEndDate);
+  const planningComplete = planningProgress?.planningComplete === true;
 
   return (
     <Card
@@ -1017,7 +1042,10 @@ function ProjectCard({
             <div className="text-muted-foreground text-xs truncate">{p.client}</div>
           </button>
           {mode === "real" ? (
-            <RealStatusBadge status={p.server?.status} />
+            <RealStatusBadge
+              status={p.server?.status}
+              planningComplete={planningComplete}
+            />
           ) : (
             <StatusBadge status={p.status} />
           )}
@@ -1045,6 +1073,12 @@ function ProjectCard({
                 </span>
                 <span className="text-muted-foreground text-xs">
                   {dday.overdue ? "마감 지남" : "마감까지"}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">서버 상태</span>
+                <span className="text-foreground">
+                  {planningComplete
+                    ? "진행 중"
+                    : formatServerProjectStatus(p.server?.status)}
                 </span>
               </div>
             </div>
@@ -1124,9 +1158,13 @@ function ProjectCard({
                 variant="outline"
                 size="sm"
                 disabled={isProgressLoading}
-                onClick={() =>
-                  onOpenReal(planningProgress?.stage ?? "requirements")
-                }
+                onClick={() => {
+                  if (planningComplete) {
+                    onOpen();
+                    return;
+                  }
+                  onOpenReal(planningProgress?.stage ?? "requirements");
+                }}
               >
                 {isProgressLoading ? (
                   <>
@@ -1135,7 +1173,9 @@ function ProjectCard({
                   </>
                 ) : (
                   <>
-                    {planningProgress?.buttonLabel ?? "요구사항 만들러 가기"}
+                    {planningComplete
+                      ? "대시보드 열기"
+                      : planningProgress?.buttonLabel ?? "요구사항 만들러 가기"}
                     <ArrowRight className="size-3.5" />
                   </>
                 )}

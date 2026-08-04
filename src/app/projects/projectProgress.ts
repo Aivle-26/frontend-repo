@@ -13,29 +13,42 @@ export type PlanningStage =
 export interface ProjectPlanningProgress {
   stage: PlanningStage;
   buttonLabel: string;
+  /** 요구사항-WBS-일정-업무 배정까지 모두 끝나 운영 화면을 열 수 있는 상태 */
+  planningComplete: boolean;
 }
 
 const STAGE_META: Record<PlanningStage, ProjectPlanningProgress> = {
   requirements: {
     stage: "requirements",
     buttonLabel: "요구사항 만들러 가기",
+    planningComplete: false,
   },
   wbs: {
     stage: "wbs",
     buttonLabel: "WBS 만들러 가기",
+    planningComplete: false,
   },
   schedule: {
     stage: "schedule",
     buttonLabel: "일정 생성 바로가기",
+    planningComplete: false,
   },
   assign: {
     stage: "assign",
     buttonLabel: "업무 배정하러 가기",
+    planningComplete: false,
   },
   budget: {
     stage: "budget",
     buttonLabel: "예산 설정하러 가기",
+    planningComplete: false,
   },
+};
+
+const DASHBOARD_PROGRESS: ProjectPlanningProgress = {
+  stage: "assign",
+  buttonLabel: "대시보드 열기",
+  planningComplete: true,
 };
 
 function isNotFound(error: unknown): boolean {
@@ -43,16 +56,35 @@ function isNotFound(error: unknown): boolean {
 }
 
 /**
- * 서버에 실제 저장된 데이터 중 가장 뒤까지 완료된 단계를 기준으로
- * 프로젝트 카드의 다음 이동 단계를 결정합니다.
+ * 서버 실데이터를 가장 뒤 단계부터 확인합니다.
  *
- * 하위 단계 API 응답 형식이나 상태가 오래된 경우에도 이미 생성된 WBS/일정을
- * 놓치지 않도록 일정 -> WBS -> 요구사항 순서로 역방향 확인합니다.
+ * - 모든 WBS leaf task가 실제 업무로 배정됨: 계획 완료 → 기존 운영 대시보드
+ * - 일정 존재: 업무 배정
+ * - WBS 존재: 일정 생성
+ * - 확정 요구사항 존재: WBS 생성
+ * - 그 외: 요구사항 작성
  */
 export async function getProjectPlanningProgress(
   projectId: string | number,
 ): Promise<ProjectPlanningProgress> {
-  // 1. 일정 결과가 하나라도 저장되어 있으면 다음 단계는 업무 배정입니다.
+  // 1. 실제 업무 배정 완료 여부
+  // 백엔드 /progress 응답에서 전체 leaf task 수와 배정 task 수가 같으면
+  // 계획 단계가 끝난 것으로 판정합니다.
+  try {
+    const progress = await projectRepository.getProjectProgress(projectId);
+    const totalTaskCount = Number(progress.totalTaskCount ?? 0);
+    const assignedTaskCount = Number(progress.assignedTaskCount ?? 0);
+
+    if (totalTaskCount > 0 && assignedTaskCount >= totalTaskCount) {
+      return DASHBOARD_PROGRESS;
+    }
+  } catch (error) {
+    if (!isNotFound(error)) {
+      console.warn(`프로젝트 ${projectId} 업무 배정 진행도 조회 실패`, error);
+    }
+  }
+
+  // 2. 일정 결과가 저장되어 있으면 다음 단계는 업무 배정입니다.
   try {
     const schedule = await projectRepository.getSchedules(projectId);
     const schedules = Array.isArray(schedule.schedules)
@@ -64,14 +96,11 @@ export async function getProjectPlanningProgress(
     }
   } catch (error) {
     if (!isNotFound(error)) {
-      // 일정 조회 API가 아직 배포되지 않았거나 일시 실패해도
-      // WBS/요구사항 단계 판별은 계속 진행합니다.
       console.warn(`프로젝트 ${projectId} 일정 진행도 조회 실패`, error);
     }
   }
 
-  // 2. AI 제안 또는 최종 WBS 작업이 하나라도 생성되어 있으면
-  //    다음 단계는 일정 생성입니다. finalConfirmed 여부로 막지 않습니다.
+  // 3. AI 제안 또는 최종 WBS 작업이 있으면 일정 생성 단계입니다.
   try {
     const wbs = await projectRepository.getWbs(projectId);
     const aiSuggestionTasks = Array.isArray(wbs.aiSuggestionTasks)
@@ -88,7 +117,7 @@ export async function getProjectPlanningProgress(
     }
   }
 
-  // 3. 확정 요구사항이 있으면 다음 단계는 WBS 생성입니다.
+  // 4. 확정 요구사항이 있으면 WBS 생성 단계입니다.
   try {
     const requirements = await projectRepository.getRequirements(projectId);
     const finalRequirements = Array.isArray(requirements.finalRequirements)

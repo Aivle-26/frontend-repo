@@ -357,6 +357,18 @@ export interface AssignmentRecommendation {
   recommendationReason: string | null;
 }
 
+export interface ProjectProgressResponse {
+  projectId: number;
+  employeeNumber: string | null;
+  progressRate: number;
+  totalTaskCount: number;
+  assignedTaskCount: number;
+  completedTaskCount: number;
+  delayedTaskCount: number;
+  totalEstimatedHours: number;
+  completedEstimatedHours: number;
+}
+
 export interface AssignmentRecommendationResponse {
   projectId: number;
   candidateMode: "ALL" | "SELECTED";
@@ -1108,6 +1120,13 @@ export const projectRepository = {
   getProjectAssignments(projectId: string | number) {
     return apiFetch<TaskAssignmentResponse[]>(
       `/projects/${encodeURIComponent(String(projectId))}/assignments`,
+      { auth: true },
+    );
+  },
+
+  getProjectProgress(projectId: string | number) {
+    return apiFetch<ProjectProgressResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/progress`,
       { auth: true },
     );
   },

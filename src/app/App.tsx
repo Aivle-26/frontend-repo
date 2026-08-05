@@ -545,7 +545,7 @@ function DemoApplication() {
       body = (
         <StaffNoticeBoard
           currentUserName={authSession?.name ?? "나"}
-          onSubmitRequested={() => setStaffMenu("submit")}
+          onSubmitRequested={() => setStaffMenu("weeklyScrum")}
           projectId={selectedProject?.id ?? null}
         />
       );

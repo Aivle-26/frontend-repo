@@ -1470,6 +1470,14 @@ export const projectRepository = {
     );
   },
 
+  // PM/STAFF: 위클리 스크럼 제출 요청 목록 조회 (STAFF는 본인이 받은 것만)
+  getScrumRequests(projectId: string | number) {
+    return apiFetch<ProjectMessageResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/scrum-requests`,
+      { auth: true },
+    );
+  },
+
   uploadProjectDocuments(projectId: string | number, files: File[]) {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));

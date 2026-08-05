@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Megaphone,
   Pin,
@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/app/components/ui/dialog";
 import type { Notice, NoticeCategory } from "@/app/data/demoData";
-import { ApiError } from "@/app/api/projectRepository";
+import { projectRepository, ApiError, type ProjectMessageResponse } from "@/app/api/projectRepository";
 import { useProjectNotices } from "@/app/state/projectNotices";
 import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
@@ -103,6 +103,36 @@ export function StaffNoticeBoard({
 }: StaffNoticeBoardProps) {
   const isCompact = variant === "compact";
   const { notices, createNotice } = useProjectNotices(projectId);
+
+  // 위클리 스크럼 요청은 공지사항이랑 별도 백엔드 API(/scrum-requests)를 쓴다.
+  const [scrumRequests, setScrumRequests] = useState<ProjectMessageResponse[]>([]);
+  const [scrumRequestsLoading, setScrumRequestsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) {
+      setScrumRequests([]);
+      return;
+    }
+    let ignore = false;
+    setScrumRequestsLoading(true);
+    projectRepository
+      .getScrumRequests(projectId)
+      .then((list) => {
+        if (!ignore) setScrumRequests(list);
+      })
+      .catch((caught) => {
+        if (!ignore && !(caught instanceof ApiError && caught.status === 404)) {
+          setScrumRequests([]);
+        }
+      })
+      .finally(() => {
+        if (!ignore) setScrumRequestsLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [projectId]);
+
   // PM 피드백 / 위클리 스크럼은 아래 전용 블록에만 노출하고, 일반 "공지 목록"에는 안 섞는다.
   const generalNotices = useMemo(
     () => notices.filter((n) => n.category !== "PM 피드백" && n.category !== "위클리 스크럼"),
@@ -333,23 +363,36 @@ export function StaffNoticeBoard({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {notices
-                .filter((n) => n.category === "위클리 스크럼")
-                .slice(0, 3)
-                .map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => openNotice(n)}
-                    className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
+              {scrumRequestsLoading && (
+                <p className="py-4 text-center text-muted-foreground text-sm">불러오는 중…</p>
+              )}
+              {!scrumRequestsLoading &&
+                scrumRequests.slice(0, 3).map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-md border border-border p-3"
                   >
                     <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
-                      <span className="text-foreground text-sm">{n.title}</span>
-                      <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
+                      <span className="text-foreground text-sm">
+                        {req.targetWeekStart
+                          ? `${req.targetWeekStart} 주차 위클리 스크럼 제출 요청`
+                          : req.title}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground text-xs">
+                        {req.createdAt.slice(0, 10)}
+                      </span>
                     </div>
-                    <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>
-                  </button>
+                    {req.content && (
+                      <p className="mb-2 line-clamp-1 text-muted-foreground text-xs">
+                        {req.content}
+                      </p>
+                    )}
+                    <Button size="sm" onClick={onSubmitRequested} className="w-full">
+                      제출하러 가기
+                    </Button>
+                  </div>
                 ))}
-              {notices.filter((n) => n.category === "위클리 스크럼").length === 0 && (
+              {!scrumRequestsLoading && scrumRequests.length === 0 && (
                 <p className="py-4 text-center text-muted-foreground text-sm">
                   아직 요청이 없습니다.
                 </p>

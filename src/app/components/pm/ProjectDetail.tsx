@@ -4,21 +4,30 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarClock,
+  CheckCircle2,
+  ChevronDown,
   FileSpreadsheet,
   FileText,
   FileType2,
+  ListTree,
   Loader2,
   Presentation,
   Sparkles,
   TrendingUp,
   UploadCloud,
   Users,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Progress } from "@/app/components/ui/progress";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/app/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +44,10 @@ import {
   projectRepository,
   type ProjectDocumentUploadItem,
   type RequirementsResult,
+  type WbsTask,
+  type ProjectScheduleDetail,
+  type TaskAssignmentResponse,
+  type FinalCostEstimateResponse,
 } from "@/app/api/projectRepository";
 import type { PendingProjectDocument } from "@/app/components/pm/projectDocumentUpload";
 import type { ProjectDoc, ProjectStatus, ProjectSummary } from "@/app/projects/projectTypes";
@@ -128,15 +141,30 @@ export function ProjectDetail({ project: p, onBack, onNavigate }: ProjectDetailP
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
   const [documents, setDocuments] = useState<ProjectDocumentUploadItem[]>([]);
   const [requirements, setRequirements] = useState<RequirementsResult | null>(null);
+  const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
+  const [scheduleRows, setScheduleRows] = useState<ProjectScheduleDetail[]>([]);
+  const [assignments, setAssignments] = useState<TaskAssignmentResponse[]>([]);
+  const [finalBudget, setFinalBudget] = useState<FinalCostEstimateResponse | null>(null);
   const [isLoadingProjectData, setIsLoadingProjectData] = useState(true);
   const [projectDataError, setProjectDataError] = useState("");
 
   const loadProjectData = useCallback(async () => {
     setIsLoadingProjectData(true);
     setProjectDataError("");
-    const [documentResult, requirementResult] = await Promise.allSettled([
+    const [
+      documentResult,
+      requirementResult,
+      wbsResult,
+      scheduleResult,
+      assignmentResult,
+      budgetResult,
+    ] = await Promise.allSettled([
       projectRepository.listProjectDocuments(p.id),
       projectRepository.getRequirements(p.id),
+      projectRepository.getWbs(p.id),
+      projectRepository.getSchedules(p.id),
+      projectRepository.getProjectAssignments(p.id),
+      projectRepository.getFinalCostEstimate(p.id),
     ]);
 
     if (documentResult.status === "fulfilled") {
@@ -151,6 +179,15 @@ export function ProjectDetail({ project: p, onBack, onNavigate }: ProjectDetailP
       setRequirements(null);
     }
 
+    setWbsTasks(
+      wbsResult.status === "fulfilled" ? (wbsResult.value?.finalTasks ?? []) : [],
+    );
+    setScheduleRows(
+      scheduleResult.status === "fulfilled" ? (scheduleResult.value?.schedules ?? []) : [],
+    );
+    setAssignments(assignmentResult.status === "fulfilled" ? assignmentResult.value : []);
+    setFinalBudget(budgetResult.status === "fulfilled" ? budgetResult.value : null);
+
     if (documentResult.status === "rejected" || requirementResult.status === "rejected") {
       setProjectDataError("일부 프로젝트 정보를 불러오지 못했습니다.");
     }
@@ -163,6 +200,49 @@ export function ProjectDetail({ project: p, onBack, onNavigate }: ProjectDetailP
 
   const requirementCount = getRequirementCount(requirements);
   const remainingDays = useMemo(() => getDaysRemaining(p.dueDate), [p.dueDate]);
+
+  const [openStages, setOpenStages] = useState<Set<string>>(new Set());
+  const toggleStage = (key: string) => {
+    setOpenStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const planningStages = [
+    {
+      key: "requirements",
+      label: "요구사항",
+      count: requirements?.finalRequirements?.length ?? 0,
+      icon: <FileText className="size-4" />,
+    },
+    {
+      key: "wbs",
+      label: "WBS",
+      count: wbsTasks.length,
+      icon: <ListTree className="size-4" />,
+    },
+    {
+      key: "schedule",
+      label: "일정",
+      count: scheduleRows.length,
+      icon: <CalendarClock className="size-4" />,
+    },
+    {
+      key: "assign",
+      label: "담당자 배정",
+      count: assignments.length,
+      icon: <Users className="size-4" />,
+    },
+    {
+      key: "budget",
+      label: "예산",
+      count: finalBudget ? 1 : 0,
+      icon: <Wallet className="size-4" />,
+    },
+  ] as const;
 
   const uploadDocuments = async () => {
     if (isUploadingDocuments) return;
@@ -254,6 +334,81 @@ export function ProjectDetail({ project: p, onBack, onNavigate }: ProjectDetailP
           raw
         />
       </div>
+
+      {/* 계획 5단계 결과 확인 (세로 진행도 + 토글로 펼쳐서 확인, 조회 전용) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle2 className="size-4" /> 계획 단계 결과 확인
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingProjectData ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="size-4 animate-spin" /> 불러오는 중입니다.
+            </div>
+          ) : (
+            <div className="flex gap-4">
+              {/* 세로 진행도 라인 */}
+              <div className="flex flex-col items-center pt-2.5">
+                {planningStages.map((stage, i) => (
+                  <div key={stage.key} className="flex flex-col items-center">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <CheckCircle2 className="size-3.5" />
+                    </span>
+                    {i < planningStages.length - 1 && (
+                      <span className="my-1 h-10 w-0.5 bg-emerald-200" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* 단계별 토글 */}
+              <div className="flex-1 space-y-2.5">
+                {planningStages.map((stage) => {
+                  const open = openStages.has(stage.key);
+                  return (
+                    <Collapsible key={stage.key} open={open} onOpenChange={() => toggleStage(stage.key)}>
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-left hover:bg-muted/50"
+                        >
+                          <span className="flex items-center gap-2 text-foreground text-sm">
+                            {stage.icon}
+                            {stage.label}
+                            <Badge variant="outline" className="font-normal">
+                              {stage.count}건
+                            </Badge>
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "size-4 text-muted-foreground transition-transform",
+                              open && "rotate-180",
+                            )}
+                          />
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="mt-1.5 rounded-lg border border-border bg-muted/20 p-3">
+                          <PlanningStagePreview
+                            stageKey={stage.key}
+                            requirements={requirements}
+                            wbsTasks={wbsTasks}
+                            scheduleRows={scheduleRows}
+                            assignments={assignments}
+                            finalBudget={finalBudget}
+                          />
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
@@ -362,4 +517,121 @@ function KpiCard({ icon, label, value, raw }: { icon: React.ReactNode; label: st
   return (
     <Card><CardContent className="pt-5"><div className="flex items-center justify-between"><span className="text-muted-foreground text-sm">{label}</span><span>{icon}</span></div><div className="mt-2 text-foreground text-2xl">{raw ? value : <CountUp value={value} />}</div></CardContent></Card>
   );
+}
+
+/** 계획 단계별 AI 생성 결과를 조회 전용으로 요약해서 보여준다 (수정 불가, 확인만). */
+function PlanningStagePreview({
+  stageKey,
+  requirements,
+  wbsTasks,
+  scheduleRows,
+  assignments,
+  finalBudget,
+}: {
+  stageKey: "requirements" | "wbs" | "schedule" | "assign" | "budget";
+  requirements: RequirementsResult | null;
+  wbsTasks: WbsTask[];
+  scheduleRows: ProjectScheduleDetail[];
+  assignments: TaskAssignmentResponse[];
+  finalBudget: FinalCostEstimateResponse | null;
+}) {
+  if (stageKey === "requirements") {
+    const list = requirements?.finalRequirements ?? [];
+    if (list.length === 0) return <EmptyStage text="확정된 요구사항이 없습니다." />;
+    return (
+      <ul className="space-y-2">
+        {list.slice(0, 5).map((r) => (
+          <li key={r.requirementId} className="flex items-start gap-2 text-sm">
+            <Badge variant="outline" className="shrink-0 font-normal">{r.type}</Badge>
+            <span className="text-foreground">{r.title}</span>
+          </li>
+        ))}
+        {list.length > 5 && (
+          <li className="text-muted-foreground text-xs">외 {list.length - 5}건 더 있어요.</li>
+        )}
+      </ul>
+    );
+  }
+
+  if (stageKey === "wbs") {
+    if (wbsTasks.length === 0) return <EmptyStage text="확정된 WBS가 없습니다." />;
+    return (
+      <ul className="space-y-2">
+        {wbsTasks.slice(0, 5).map((t) => (
+          <li key={t.externalTaskId} className="flex items-start gap-2 text-sm">
+            <Badge variant="outline" className="shrink-0 font-normal">{t.phase}</Badge>
+            <span className="text-foreground">{t.taskName}</span>
+          </li>
+        ))}
+        {wbsTasks.length > 5 && (
+          <li className="text-muted-foreground text-xs">외 {wbsTasks.length - 5}건 더 있어요.</li>
+        )}
+      </ul>
+    );
+  }
+
+  if (stageKey === "schedule") {
+    if (scheduleRows.length === 0) return <EmptyStage text="생성된 일정이 없습니다." />;
+    return (
+      <ul className="space-y-2">
+        {scheduleRows.slice(0, 5).map((s) => (
+          <li key={s.scheduleId} className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-foreground">{s.wbsName}</span>
+            <span className="shrink-0 text-muted-foreground text-xs">
+              {s.recommended.startDate} ~ {s.recommended.endDate}
+            </span>
+          </li>
+        ))}
+        {scheduleRows.length > 5 && (
+          <li className="text-muted-foreground text-xs">외 {scheduleRows.length - 5}건 더 있어요.</li>
+        )}
+      </ul>
+    );
+  }
+
+  if (stageKey === "assign") {
+    if (assignments.length === 0) return <EmptyStage text="배정된 담당자가 없습니다." />;
+    return (
+      <ul className="space-y-2">
+        {assignments.slice(0, 5).map((a) => (
+          <li key={a.assignmentId} className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-foreground">{a.taskName}</span>
+            <span className="shrink-0 text-muted-foreground text-xs">{a.employeeNumber}</span>
+          </li>
+        ))}
+        {assignments.length > 5 && (
+          <li className="text-muted-foreground text-xs">외 {assignments.length - 5}건 더 있어요.</li>
+        )}
+      </ul>
+    );
+  }
+
+  // budget
+  if (!finalBudget) return <EmptyStage text="확정된 예산이 없습니다." />;
+  return (
+    <div className="space-y-1.5 text-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground">최종 예상 금액</span>
+        <span className="text-foreground">
+          {Math.round(finalBudget.estimate.totalAmount).toLocaleString("ko-KR")}원
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground">공급가액</span>
+        <span className="text-foreground">
+          {Math.round(finalBudget.estimate.supplyAmount).toLocaleString("ko-KR")}원
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground">인건비</span>
+        <span className="text-foreground">
+          {Math.round(finalBudget.costSummary.laborCost).toLocaleString("ko-KR")}원
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyStage({ text }: { text: string }) {
+  return <p className="text-muted-foreground text-sm">{text}</p>;
 }

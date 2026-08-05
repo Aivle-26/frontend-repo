@@ -680,17 +680,17 @@ function ScheduleGantt({
               style={{
                 left: `${todayPct}%`,
                 width: "14px",
-                backgroundColor: "rgba(244, 63, 94, 0.08)",
+                backgroundColor: "rgba(100, 116, 139, 0.10)",
               }}
             />
             {/* 점선 기준선 (배지 아래부터) */}
             <div
               className="absolute bottom-0 top-7 -translate-x-1/2 border-l-2 border-dashed"
-              style={{ left: `${todayPct}%`, borderColor: "rgba(244, 63, 94, 0.65)" }}
+              style={{ left: `${todayPct}%`, borderColor: "rgba(100, 116, 139, 0.7)" }}
             />
             {/* "오늘" 배지 */}
             <div
-              className="absolute top-0 -translate-x-1/2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm"
+              className="absolute top-0 -translate-x-1/2 rounded-full bg-slate-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm"
               style={{ left: `${todayPct}%` }}
             >
               오늘

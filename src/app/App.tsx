@@ -459,6 +459,7 @@ function DemoApplication() {
           authorName={authSession.name || "PM"}
           excludeCategories={["PM 피드백"]}
           showKpis={false}
+          projectId={selectedProject?.id ?? null}
         />
       );
     } else if (pmWizard) {
@@ -541,6 +542,7 @@ function DemoApplication() {
         <StaffNoticeBoard
           currentUserName={authSession?.name ?? "나"}
           onSubmitRequested={() => setStaffMenu("submit")}
+          projectId={selectedProject?.id ?? null}
         />
       );
     } else if (staffMenu === "documents") {

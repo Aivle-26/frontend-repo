@@ -37,7 +37,8 @@ import {
   DialogFooter,
 } from "@/app/components/ui/dialog";
 import type { Notice, NoticeCategory } from "@/app/data/demoData";
-import { addNotice, useNotices } from "@/app/state/staffNoticeStore";
+import { ApiError } from "@/app/api/projectRepository";
+import { useProjectNotices } from "@/app/state/projectNotices";
 import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
 
@@ -87,6 +88,8 @@ interface StaffNoticeBoardProps {
   currentUserName?: string;
   /** 위클리 스크럼 공지에서 "제출하기"를 눌렀을 때 호출됩니다. [산출물 제출] 화면으로 이동시키는 용도. */
   onSubmitRequested?: () => void;
+  /** 공지 API 대상 프로젝트 id. */
+  projectId?: string | number | null;
 }
 
 export function StaffNoticeBoard({
@@ -96,9 +99,10 @@ export function StaffNoticeBoard({
   limit = 4,
   currentUserName = "나",
   onSubmitRequested,
+  projectId = null,
 }: StaffNoticeBoardProps) {
   const isCompact = variant === "compact";
-  const notices = useNotices();
+  const { notices, createNotice } = useProjectNotices(projectId);
   // PM 피드백 / 위클리 스크럼은 아래 전용 블록에만 노출하고, 일반 "공지 목록"에는 안 섞는다.
   const generalNotices = useMemo(
     () => notices.filter((n) => n.category !== "PM 피드백" && n.category !== "위클리 스크럼"),
@@ -130,7 +134,9 @@ export function StaffNoticeBoard({
       pinned: false,
     });
 
-  const submitNotice = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitNotice = async () => {
     if (!form.title.trim()) {
       toast.error("제목을 입력하세요.");
       return;
@@ -140,26 +146,34 @@ export function StaffNoticeBoard({
       .map((line) => line.trim())
       .filter(Boolean);
 
-    addNotice({
-      category: form.category,
-      priority: form.priority,
-      pinned: form.pinned,
-      title: form.title.trim(),
-      author: authorName,
-      date: todayStr(),
-      summary: form.summary.trim() || form.title.trim(),
-      content: content.length > 0 ? content : [form.summary.trim() || form.title.trim()],
-    });
-
-    setCreateOpen(false);
-    resetForm();
-    toast.success(
-      form.category === "PM 피드백"
-        ? "PM 피드백을 등록해 직원에게 전달했어요."
-        : form.category === "위클리 스크럼"
-          ? "위클리 스크럼 제출 요청을 등록했어요."
-          : "공지를 등록했어요.",
-    );
+    setSubmitting(true);
+    try {
+      await createNotice({
+        category: form.category,
+        priority: form.priority,
+        pinned: form.pinned,
+        title: form.title.trim(),
+        author: authorName,
+        date: todayStr(),
+        summary: form.summary.trim() || form.title.trim(),
+        content: content.length > 0 ? content : [form.summary.trim() || form.title.trim()],
+      });
+      setCreateOpen(false);
+      resetForm();
+      toast.success(
+        form.category === "PM 피드백"
+          ? "PM 피드백을 등록해 직원에게 전달했어요."
+          : form.category === "위클리 스크럼"
+            ? "위클리 스크럼 제출 요청을 등록했어요."
+            : "공지를 등록했어요.",
+      );
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError ? caught.message : "공지 등록에 실패했습니다.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const unreadCount = notices.filter((n) => !readIds.has(n.id)).length;
@@ -504,7 +518,9 @@ export function StaffNoticeBoard({
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               취소
             </Button>
-            <Button onClick={submitNotice}>등록</Button>
+            <Button onClick={() => void submitNotice()} disabled={submitting}>
+              {submitting ? "등록 중…" : "등록"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

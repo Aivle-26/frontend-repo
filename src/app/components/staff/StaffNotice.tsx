@@ -40,7 +40,8 @@ import {
   DialogFooter,
 } from "@/app/components/ui/dialog";
 import type { Notice, NoticeCategory } from "@/app/data/demoData";
-import { addNotice, useNotices } from "@/app/state/noticeStore";
+import { ApiError } from "@/app/api/projectRepository";
+import { useProjectNotices } from "@/app/state/projectNotices";
 import { PmFeedbackChat } from "@/app/components/staff/PmFeedbackChat";
 import { type Priority } from "@/app/data/demoData";
 import { CountUp } from "@/app/components/common/CountUp";
@@ -95,6 +96,8 @@ interface StaffNoticeProps {
   currentUserName?: string;
   /** full 화면 상단 KPI 카드 표시 여부. */
   showKpis?: boolean;
+  /** 공지 API 대상 프로젝트 id. */
+  projectId?: string | number | null;
 }
 
 export function StaffNotice({
@@ -105,9 +108,10 @@ export function StaffNotice({
   limit = 4,
   currentUserName = "나",
   showKpis = true,
+  projectId = null,
 }: StaffNoticeProps) {
   const isCompact = variant === "compact";
-  const allNotices = useNotices();
+  const { notices: allNotices, createNotice } = useProjectNotices(projectId);
   const notices = useMemo(
     () => allNotices.filter((n) => !excludeCategories.includes(n.category)),
     [allNotices, excludeCategories],
@@ -141,7 +145,9 @@ export function StaffNotice({
       pinned: false,
     });
 
-  const submitNotice = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitNotice = async () => {
     if (!form.title.trim()) {
       toast.error("제목을 입력하세요.");
       return;
@@ -151,26 +157,34 @@ export function StaffNotice({
       .map((line) => line.trim())
       .filter(Boolean);
 
-    addNotice({
-      category: form.category,
-      priority: form.priority,
-      pinned: form.pinned,
-      title: form.title.trim(),
-      author: authorName,
-      date: todayStr(),
-      summary: form.summary.trim() || form.title.trim(),
-      content: content.length > 0 ? content : [form.summary.trim() || form.title.trim()],
-    });
-
-    setCreateOpen(false);
-    resetForm();
-    toast.success(
-      form.category === "PM 피드백"
-        ? "PM 피드백을 등록해 직원에게 전달했어요."
-        : form.category === "위클리 스크럼"
-          ? "위클리 스크럼 제출 요청을 등록했어요."
-          : "공지를 등록했어요.",
-    );
+    setSubmitting(true);
+    try {
+      await createNotice({
+        category: form.category,
+        priority: form.priority,
+        pinned: form.pinned,
+        title: form.title.trim(),
+        author: authorName,
+        date: todayStr(),
+        summary: form.summary.trim() || form.title.trim(),
+        content: content.length > 0 ? content : [form.summary.trim() || form.title.trim()],
+      });
+      setCreateOpen(false);
+      resetForm();
+      toast.success(
+        form.category === "PM 피드백"
+          ? "PM 피드백을 등록해 직원에게 전달했어요."
+          : form.category === "위클리 스크럼"
+            ? "위클리 스크럼 제출 요청을 등록했어요."
+            : "공지를 등록했어요.",
+      );
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError ? caught.message : "공지 등록에 실패했습니다.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const unreadCount = notices.filter((n) => !readIds.has(n.id)).length;
@@ -506,7 +520,9 @@ export function StaffNotice({
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               취소
             </Button>
-            <Button onClick={submitNotice}>등록</Button>
+            <Button onClick={() => void submitNotice()} disabled={submitting}>
+              {submitting ? "등록 중…" : "등록"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

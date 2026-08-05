@@ -739,6 +739,29 @@ export interface SaveWeeklyScrumReviewBody {
   actions: WeeklyScrumActionDecision[];
 }
 
+/* ---------------- 프로젝트 메시지(공지/피드백) ---------------- */
+
+export type ProjectMessageType = "NOTICE" | "FEEDBACK" | "SCRUM_REQUEST";
+
+/** GET/POST /projects/{id}/notices 응답 (ProjectMessageResponse). */
+export interface ProjectMessageResponse {
+  id: number;
+  projectId: number;
+  type: ProjectMessageType;
+  senderEmployeeNumber: string;
+  recipientEmployeeNumber: string | null;
+  title: string;
+  content: string;
+  targetWeekStart: string | null;
+  createdAt: string;
+}
+
+/** POST /projects/{id}/notices 본문 (CreateNoticeRequest). */
+export interface CreateNoticeBody {
+  title: string;
+  content: string;
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -1385,6 +1408,24 @@ export const projectRepository = {
     return apiFetch<WeeklyScrumReportResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/weekly-scrums/${encodeURIComponent(weekStartDate)}/report`,
       { auth: true },
+    );
+  },
+
+  /* ---------------- 공지사항 ---------------- */
+
+  // PM/STAFF: 프로젝트 공지 목록 조회
+  getProjectNotices(projectId: string | number) {
+    return apiFetch<ProjectMessageResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/notices`,
+      { auth: true },
+    );
+  },
+
+  // PM: 공지 등록
+  createProjectNotice(projectId: string | number, body: CreateNoticeBody) {
+    return apiFetch<ProjectMessageResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/notices`,
+      { method: "POST", body: JSON.stringify(body), auth: true, expectedStatuses: [201] },
     );
   },
 

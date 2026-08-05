@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarClock,
+  ChevronDown,
   ChevronRight,
   Flag,
   Loader2,
@@ -29,6 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/app/components/ui/collapsible";
 import { cn } from "@/app/components/ui/utils";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 
@@ -97,6 +103,7 @@ export function PmSchedule({
   const [appliedVersion, setAppliedVersion] = useState<
     "expected" | "recommended" | "conservative" | null
   >(null);
+  const [wbsListOpen, setWbsListOpen] = useState(false);
 
 
   useEffect(() => {
@@ -400,43 +407,66 @@ export function PmSchedule({
 
             <ScheduleGantt schedule={schedule} rows={scheduleRows} version={selectedVersion} />
 
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>WBS</TableHead>
-                    <TableHead>{VERSION_LABEL[selectedVersion]} 시작</TableHead>
-                    <TableHead>{VERSION_LABEL[selectedVersion]} 종료</TableHead>
-                    <TableHead className="text-right">예상일수</TableHead>
-                    <TableHead className="text-right">버퍼</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {scheduleRows.map((row) => (
-                    <TableRow key={row.scheduleId}>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-1.5">
-                          {row.milestone && <Flag className="size-3.5 text-blue-600" />}
-                          <span className="text-foreground">{row.wbsName}</span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(row[selectedVersion].startDate)}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(row[selectedVersion].endDate)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row[selectedVersion].estimatedDays}일
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {row.bufferDays}일
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <Collapsible open={wbsListOpen} onOpenChange={setWbsListOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left hover:bg-muted/50"
+                >
+                  <span className="flex items-center gap-2 text-foreground text-sm">
+                    <ChevronDown
+                      className={cn(
+                        "size-4 text-muted-foreground transition-transform",
+                        wbsListOpen && "rotate-180",
+                      )}
+                    />
+                    WBS별 상세 일정
+                    <Badge variant="outline" className="font-normal">
+                      {scheduleRows.length}건
+                    </Badge>
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-2 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>WBS</TableHead>
+                        <TableHead>{VERSION_LABEL[selectedVersion]} 시작</TableHead>
+                        <TableHead>{VERSION_LABEL[selectedVersion]} 종료</TableHead>
+                        <TableHead className="text-right">예상일수</TableHead>
+                        <TableHead className="text-right">버퍼</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {scheduleRows.map((row) => (
+                        <TableRow key={row.scheduleId}>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5">
+                              {row.milestone && <Flag className="size-3.5 text-blue-600" />}
+                              <span className="text-foreground">{row.wbsName}</span>
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(row[selectedVersion].startDate)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(row[selectedVersion].endDate)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row[selectedVersion].estimatedDays}일
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {row.bufferDays}일
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
               <span className="flex items-center gap-1.5 text-muted-foreground text-xs">

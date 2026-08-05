@@ -762,6 +762,13 @@ export interface CreateNoticeBody {
   content: string;
 }
 
+/** POST /projects/{id}/scrum-requests 본문 (CreateScrumRequestsRequest). */
+export interface CreateScrumRequestsBody {
+  weekStartDate: string;
+  recipientEmployeeNumbers: string[];
+  message?: string;
+}
+
 interface ApiRequestInit extends RequestInit {
   auth?: boolean;
   expectedStatuses?: number[];
@@ -1425,6 +1432,14 @@ export const projectRepository = {
   createProjectNotice(projectId: string | number, body: CreateNoticeBody) {
     return apiFetch<ProjectMessageResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/notices`,
+      { method: "POST", body: JSON.stringify(body), auth: true, expectedStatuses: [201] },
+    );
+  },
+
+  // PM: 위클리 스크럼 제출 요청 보내기
+  createScrumRequests(projectId: string | number, body: CreateScrumRequestsBody) {
+    return apiFetch<ProjectMessageResponse[]>(
+      `/projects/${encodeURIComponent(String(projectId))}/scrum-requests`,
       { method: "POST", body: JSON.stringify(body), auth: true, expectedStatuses: [201] },
     );
   },

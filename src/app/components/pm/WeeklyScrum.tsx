@@ -19,6 +19,11 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Calendar as DatePickerCalendar } from "@/app/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/app/components/ui/popover";
 import { cn } from "@/app/components/ui/utils";
 import {
   ApiError,
@@ -173,6 +178,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   const weekDays = useMemo(() => weekDaysOf(weekOffset), [weekOffset]);
   const dueDate = useMemo(() => parseDueDate(project.dueDate), [project.dueDate]);
   const [calendarMonth, setCalendarMonth] = useState<Date>(selectedMonday);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   useEffect(() => {
     setCalendarMonth(selectedMonday);
   }, [selectedMonday]);
@@ -287,6 +293,22 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
     changeWeek(weeksBetweenMondays(thisMonday, startOfWeek(day)));
   };
 
+  const [requestingFor, setRequestingFor] = useState<string | null>(null);
+  const handleRequestSubmission = async (employeeNumber: string, name: string) => {
+    setRequestingFor(employeeNumber);
+    try {
+      await projectRepository.createScrumRequests(project.id, {
+        weekStartDate: weekStart,
+        recipientEmployeeNumbers: [employeeNumber],
+      });
+      toast.success(`${name}님에게 제출 요청을 보냈어요.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : "제출 요청에 실패했습니다.");
+    } finally {
+      setRequestingFor(null);
+    }
+  };
+
   const runAnalyze = async () => {
     if (generating) return;
     if (submittedCount === 0) {
@@ -315,77 +337,76 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
   return (
     <div className="space-y-4">
-      {/* 헤더: 주차 선택 (항상 펼쳐진 달력) */}
+      {/* 헤더: 주차 선택 (클릭하면 달력 팝업) */}
       <Card>
-        <CardContent className="space-y-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <ClipboardList className="size-5" />
-              </div>
-              <div className="leading-tight">
-                <h2 className="text-foreground text-lg">위클리 스크럼</h2>
-                <p className="text-muted-foreground text-sm">
-                  팀원 제출 스크럼을 모아보고 주차별 AI 종합 분석을 생성·관리합니다.
-                </p>
-              </div>
-            </div>
+        <CardContent className="py-3">
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="이전 주"
+              onClick={() => changeWeek(weekOffset - 1)}
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="이전 주"
-                onClick={() => changeWeek(weekOffset - 1)}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <div className="min-w-44 rounded-lg border border-border px-3 py-1.5 text-center">
-                <div className="text-foreground text-sm">{weekLabel(weekOffset)}</div>
-                <div className="text-muted-foreground text-xs">
-                  {weekRangeLabel(weekOffset)}
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="min-w-44 rounded-lg border border-border px-3 py-1.5 text-center hover:bg-muted/50"
+                >
+                  <div className="text-foreground text-sm">{weekLabel(weekOffset)}</div>
+                  <div className="text-muted-foreground text-xs">
+                    {weekRangeLabel(weekOffset)}
+                  </div>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-3" align="center">
+                <div className="flex flex-col gap-3">
+                  <DatePickerCalendar
+                    mode="single"
+                    selected={selectedMonday}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    onSelect={(date) => {
+                      pickDate(date);
+                      setCalendarOpen(false);
+                    }}
+                    modifiers={{
+                      week: weekDays,
+                      ...(dueDate ? { due: dueDate } : {}),
+                    }}
+                    modifiersClassNames={{
+                      week: "bg-primary/10",
+                      due: "border border-red-400 text-red-600 font-semibold",
+                    }}
+                    className="rounded-lg border border-border"
+                  />
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-primary/20" />
+                      선택 주간
+                    </span>
+                    {dueDate && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block size-2.5 rounded-full border border-red-400" />
+                        프로젝트 마감일 · {project.dueDate}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="다음 주"
-                onClick={() => changeWeek(weekOffset + 1)}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          </div>
+              </PopoverContent>
+            </Popover>
 
-          <div className="flex flex-col gap-4 border-t pt-3 sm:flex-row sm:items-start">
-            <DatePickerCalendar
-              mode="single"
-              selected={selectedMonday}
-              month={calendarMonth}
-              onMonthChange={setCalendarMonth}
-              onSelect={pickDate}
-              modifiers={{
-                week: weekDays,
-                ...(dueDate ? { due: dueDate } : {}),
-              }}
-              modifiersClassNames={{
-                week: "bg-primary/10",
-                due: "border border-red-400 text-red-600 font-semibold",
-              }}
-              className="rounded-lg border border-border"
-            />
-            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:flex-col sm:items-start sm:gap-2 sm:pt-2">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-sm bg-primary/20" />
-                선택 주간
-              </span>
-              {dueDate && (
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block size-2.5 rounded-sm border border-red-400" />
-                  프로젝트 마감일 · {project.dueDate}
-                </span>
-              )}
-            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="다음 주"
+              onClick={() => changeWeek(weekOffset + 1)}
+            >
+              <ChevronRight className="size-4" />
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -463,12 +484,26 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                           <CheckCircle2 className="size-3.5" /> 제출 완료
                         </Badge>
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 border-amber-200 bg-amber-50 text-amber-700"
-                        >
-                          <CircleDashed className="size-3.5" /> 미제출
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={requestingFor === member.employeeNumber}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleRequestSubmission(member.employeeNumber, member.name);
+                            }}
+                          >
+                            {requestingFor === member.employeeNumber ? "요청 중…" : "제출 요청"}
+                          </Button>
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 border-amber-200 bg-amber-50 text-amber-700"
+                          >
+                            <CircleDashed className="size-3.5" /> 미제출
+                          </Badge>
+                        </div>
                       )}
                     </div>
                   </button>

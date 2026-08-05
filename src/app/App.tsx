@@ -80,7 +80,8 @@ const PM_MENU: SidebarItem[] = [
   { key: "weekly", label: "위클리 스크럼", icon: ClipboardList, group: "실행" },
   // [도구]
   { key: "search", label: "통합 질의응답", icon: MessagesSquare, group: "도구" },
-  { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
+  // 사이드바에는 숨겼지만 기능/라우팅은 그대로 살아있음 (pmMenu === "similar")
+  // { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
 const PM_BOTTOM_MENU: SidebarItem[] = [

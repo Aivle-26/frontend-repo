@@ -310,9 +310,9 @@ export function StaffNotice({
         </CardContent>
       </Card>
 
-      {/* PM 피드백 | 위클리 스크럼 관련 PM 요청 */}
+      {/* PM 피드백 | 위클리 스크럼 관련 PM 요청 (위클리 스크럼 요청은 이제 [위클리 스크럼] 화면에서 관리 — PM 화면엔 숨김) */}
       {!isCompact && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className={cn("grid grid-cols-1 gap-4", !canCreate && "lg:grid-cols-2")}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -344,36 +344,38 @@ export function StaffNotice({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarCheck2 className="size-4" /> 위클리 스크럼 요청
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {notices
-                .filter((n) => n.category === "위클리 스크럼")
-                .slice(0, 3)
-                .map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => openNotice(n)}
-                    className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
-                  >
-                    <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
-                      <span className="text-foreground text-sm">{n.title}</span>
-                      <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
-                    </div>
-                    <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>
-                  </button>
-                ))}
-              {notices.filter((n) => n.category === "위클리 스크럼").length === 0 && (
-                <p className="py-4 text-center text-muted-foreground text-sm">
-                  아직 요청이 없습니다.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {!canCreate && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarCheck2 className="size-4" /> 위클리 스크럼 요청
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {notices
+                  .filter((n) => n.category === "위클리 스크럼")
+                  .slice(0, 3)
+                  .map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => openNotice(n)}
+                      className="block w-full rounded-md border border-border p-3 text-left hover:bg-muted/50"
+                    >
+                      <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5">
+                        <span className="text-foreground text-sm">{n.title}</span>
+                        <span className="shrink-0 text-muted-foreground text-xs">{n.date}</span>
+                      </div>
+                      <p className="line-clamp-1 text-muted-foreground text-xs">{n.summary}</p>
+                    </button>
+                  ))}
+                {notices.filter((n) => n.category === "위클리 스크럼").length === 0 && (
+                  <p className="py-4 text-center text-muted-foreground text-sm">
+                    아직 요청이 없습니다.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

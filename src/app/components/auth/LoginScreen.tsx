@@ -18,6 +18,11 @@ import {
   RoleCard,
 } from "@/app/components/auth/authShared";
 import { cn } from "@/app/components/ui/utils";
+import {
+  LEGAL_DOCUMENT_LINKS,
+  LegalDocumentModal,
+  type LegalDocumentType,
+} from "@/app/components/auth/LegalDocumentModal";
 
 interface LoginScreenProps {
   onLogin: (session: LoginVerifyResponse) => void;
@@ -43,6 +48,8 @@ export function LoginScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(initialMessage);
   const [error, setError] = useState("");
+  const [legalDocument, setLegalDocument] =
+    useState<LegalDocumentType | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -76,20 +83,48 @@ export function LoginScreen({
     <AuthShell
       title="로그인"
       subtitle="AI 기반 RFP 프로젝트 관리"
+      mainClassName="py-8 sm:py-10"
+      matchPanelHeight
+      fitViewport
       footer={
-        <p className="text-center text-sm text-slate-500">
-          아직 계정이 없으신가요?{" "}
-          <button
-            type="button"
-            onClick={onSignupClick}
-            className="font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80"
+        <div className="space-y-4">
+          <p className="text-center text-sm text-slate-500">
+            아직 계정이 없으신가요?{" "}
+            <button
+              type="button"
+              onClick={onSignupClick}
+              className="font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80"
+            >
+              회원가입
+            </button>
+          </p>
+
+          <nav
+            aria-label="정책 및 라이선스"
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-medium text-slate-600"
           >
-            회원가입
-          </button>
-        </p>
+            {LEGAL_DOCUMENT_LINKS.map((document, index) => (
+              <div key={document.label} className="flex items-center gap-3">
+                {index > 0 ? (
+                  <span aria-hidden="true" className="text-slate-300">
+                    |
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setLegalDocument(document.type)}
+                  className="transition-colors hover:text-[#2F6FF2] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6FF2]/30"
+                >
+                  {document.label}
+                </button>
+              </div>
+            ))}
+          </nav>
+        </div>
       }
     >
-      <form className="space-y-3.5" onSubmit={handleSubmit}>
+      <>
+        <form className="space-y-3.5" onSubmit={handleSubmit}>
         <FormField label="이메일">
           <Input
             id="email"
@@ -171,7 +206,13 @@ export function LoginScreen({
             {isSubmitting ? "로그인 중..." : "로그인"}
           </PrimaryButton>
         </div>
-      </form>
+        </form>
+
+        <LegalDocumentModal
+          document={legalDocument}
+          onClose={() => setLegalDocument(null)}
+        />
+      </>
     </AuthShell>
   );
 }

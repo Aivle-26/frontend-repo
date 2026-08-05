@@ -299,6 +299,9 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
     <AuthShell
       title="회원가입"
       subtitle="AI 기반 RFP 프로젝트 관리"
+      mainClassName="py-8 sm:py-10"
+      matchPanelHeight
+      fitViewport
       footer={
         <p className="text-center text-sm text-slate-500">
           이미 계정이 있으신가요?{" "}

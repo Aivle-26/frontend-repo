@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import {
   Check,
   FileText,
@@ -188,7 +188,7 @@ function startDemo() {
   scheduleDemoTick();
 }
 
-function LiveExtractDemo() {
+function LiveExtractDemo({ expanded = false }: { expanded?: boolean }) {
   const lastPhase = DEMO_PHASE_MS.length - 1;
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
   // 이 마운트에서 버튼으로 새로 시작한 경우만 카운트업 애니메이션 재생
@@ -218,10 +218,20 @@ function LiveExtractDemo() {
   const progress = started ? (phase / lastPhase) * 100 : 0;
 
   return (
-    <div className="w-full max-w-[380px] shrink-0 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-sm">
+    <div
+      className={cn(
+        "w-full shrink-0 rounded-3xl border border-white/80 bg-white/85 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-sm",
+        expanded ? "max-w-[380px] p-5" : "max-w-[330px] p-3.5",
+      )}
+    >
       {/* 헤더 */}
       <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf1ff]">
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center bg-[#eaf1ff]",
+            expanded ? "size-10 rounded-xl" : "size-8 rounded-lg",
+          )}
+        >
           <FileText className="size-5 text-[#2F6FF2]" />
         </span>
         <div className="min-w-0 flex-1">
@@ -257,7 +267,12 @@ function LiveExtractDemo() {
       </div>
 
       {/* 결과 영역 — 높이 완전 고정으로 시작 전/후 크기 변화 없음 */}
-      <div className="mt-3 flex h-[152px] flex-col justify-center overflow-hidden">
+      <div
+        className={cn(
+          "flex flex-col justify-center overflow-hidden",
+          expanded ? "mt-3 h-[152px]" : "mt-2 h-24",
+        )}
+      >
         {started ? (
           <div className="space-y-1">
             {DEMO_ROWS.map((row, index) => (
@@ -286,7 +301,12 @@ function LiveExtractDemo() {
       </div>
 
       {/* 하단 액션 — 높이를 항상 고정해 완료 시 카드 크기가 변하지 않게 */}
-      <div className="mt-2 flex h-6 items-center justify-end">
+      <div
+        className={cn(
+          "flex items-center justify-end",
+          expanded ? "mt-2 h-6" : "mt-1 h-4",
+        )}
+      >
         {done && (
           <button
             type="button"
@@ -305,25 +325,51 @@ function LiveExtractDemo() {
 let heroRevealed = false;
 
 /** 좌측 브랜드/소개 패널 */
-function LandingPanel() {
+function LandingPanel({ expanded = false }: { expanded?: boolean }) {
   const [revealHero] = useState(() => !heroRevealed);
   useEffect(() => {
     heroRevealed = true;
   }, []);
 
   return (
-    <section className="relative overflow-hidden rounded-[36px] bg-white/70 px-6 py-8 sm:px-8 lg:min-h-[820px] lg:px-10 lg:py-10 xl:px-14 xl:py-12">
+    <section
+      className={cn(
+        "relative overflow-hidden bg-white/70 px-6 sm:px-8 lg:min-h-[570px]",
+        expanded
+          ? "rounded-[36px] py-8 lg:min-h-[826px] lg:px-10 lg:py-8 xl:px-12 xl:py-8"
+          : "rounded-[32px] py-5 lg:px-8 lg:py-5 xl:px-10 xl:py-6",
+      )}
+    >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[36px]">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,251,255,0.92)_0%,rgba(248,251,255,0.82)_42%,rgba(248,251,255,0.56)_100%)]" />
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
-        <div className="text-[1.9rem] font-semibold tracking-tight text-slate-950 sm:text-[2.15rem]">
+        <div
+          className={cn(
+            "font-semibold tracking-tight text-slate-950",
+            expanded
+              ? "text-[1.9rem] sm:text-[2.15rem]"
+              : "text-[1.8rem] sm:text-[1.95rem]",
+          )}
+        >
           <span className="text-[#2F6FF2]">BidWorks</span> AI
         </div>
 
-        <div className="mt-10 max-w-[720px] lg:mt-16">
-          <h1 className="text-[2.85rem] font-bold leading-[1.16] text-[#0f172a] sm:text-[3.5rem] lg:text-[4.2rem]">
+        <div
+          className={cn(
+            "max-w-[720px]",
+            expanded ? "mt-10 lg:mt-12" : "mt-7 lg:mt-7",
+          )}
+        >
+          <h1
+            className={cn(
+              "font-bold text-[#0f172a]",
+              expanded
+                ? "text-[2.85rem] leading-[1.16] sm:text-[3.5rem] lg:text-[4rem]"
+                : "text-[2.5rem] leading-[1.12] sm:text-[2.8rem] lg:text-[3rem]",
+            )}
+          >
             <span className="block">
               {revealHero ? (
                 <RevealChars text={HERO_LINE_1} startDelay={0} />
@@ -339,7 +385,14 @@ function LandingPanel() {
               )}
             </span>
           </h1>
-          <p className="mt-8 max-w-[620px] text-[1.18rem] leading-[1.75] text-slate-700 sm:text-[1.28rem]">
+          <p
+            className={cn(
+              "max-w-[620px] text-slate-700",
+              expanded
+                ? "mt-6 text-[1.18rem] leading-[1.7] sm:text-[1.2rem]"
+                : "mt-4 text-[0.98rem] leading-[1.5] sm:text-base",
+            )}
+          >
             BidWorks AI는 사업 문서를 분석해 요구사항을 체계화하여
             <br />
             PM과 팀의 업무를 효율화합니다.
@@ -351,23 +404,39 @@ function LandingPanel() {
         </div>
 
         {/* 데모 카드(왼쪽) + 기능 한 줄 3개(오른쪽) */}
-        <div className="mt-10 flex flex-col gap-5 lg:mt-14 lg:flex-row lg:items-stretch lg:gap-8">
-          <LiveExtractDemo />
+        <div
+          className={cn(
+            "flex flex-col gap-5 lg:flex-row lg:items-stretch",
+            expanded ? "mt-8 lg:mt-10 lg:gap-8" : "mt-6 lg:mt-7 lg:gap-6",
+          )}
+        >
+          <LiveExtractDemo expanded={expanded} />
 
           {/* 반투명 배경으로 뒤 배경 이미지 위에서도 가독성 확보 */}
           <div className="flex flex-1 flex-col justify-center gap-1 rounded-3xl bg-white/45 p-2.5 backdrop-blur-sm">
             {LANDING_FEATURES.map((feature) => (
               <div
                 key={feature.title}
-                className="group flex cursor-default items-center gap-3 rounded-2xl p-3 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)]"
+                className={cn(
+                  "group flex cursor-default items-center gap-3 rounded-2xl transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)]",
+                  expanded ? "p-3" : "p-2",
+                )}
               >
                 <img
                   src={feature.icon}
                   alt=""
-                  className="size-11 shrink-0 object-contain transition-transform duration-300 ease-out group-hover:scale-110"
+                  className={cn(
+                    "shrink-0 object-contain transition-transform duration-300 ease-out group-hover:scale-110",
+                    expanded ? "size-11" : "size-9",
+                  )}
                 />
                 <div className="min-w-0">
-                  <div className="text-[1.05rem] font-bold text-[#0f172a] transition-colors duration-200 group-hover:text-[#2F6FF2]">
+                  <div
+                    className={cn(
+                      "font-bold text-[#0f172a] transition-colors duration-200 group-hover:text-[#2F6FF2]",
+                      expanded ? "text-[1.05rem]" : "text-[0.92rem]",
+                    )}
+                  >
                     {feature.title}
                   </div>
                   <div className="truncate text-[13px] leading-5 text-slate-500">
@@ -388,23 +457,104 @@ interface AuthShellProps {
   subtitle: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  mainClassName?: string;
+  matchPanelHeight?: boolean;
+  fitViewport?: boolean;
 }
 
 /** 좌측 소개 패널 + 우측 카드 2단 레이아웃 */
-export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
+export function AuthShell({
+  title,
+  subtitle,
+  children,
+  footer,
+  mainClassName,
+  matchPanelHeight = false,
+  fitViewport = false,
+}: AuthShellProps) {
+  const mainRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState({ scale: 1, height: 0 });
+
+  useLayoutEffect(() => {
+    if (!fitViewport) return;
+
+    const updateFit = () => {
+      const main = mainRef.current;
+      const grid = gridRef.current;
+      if (!main || !grid || window.innerWidth < 1024) {
+        setFit({ scale: 1, height: 0 });
+        return;
+      }
+
+      const styles = window.getComputedStyle(main);
+      const verticalPadding =
+        Number.parseFloat(styles.paddingTop) +
+        Number.parseFloat(styles.paddingBottom);
+      const naturalHeight = grid.scrollHeight;
+      const availableHeight = Math.max(0, main.clientHeight - verticalPadding);
+      const scale = Math.min(1, availableHeight / naturalHeight);
+
+      setFit({ scale, height: naturalHeight * scale });
+    };
+
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    if (mainRef.current) observer.observe(mainRef.current);
+    if (gridRef.current) observer.observe(gridRef.current);
+    if (footerRef.current) observer.observe(footerRef.current);
+    window.addEventListener("resize", updateFit);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateFit);
+    };
+  }, [fitViewport]);
+
   return (
     <div
-      className="relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-center bg-no-repeat"
+      className={cn(
+        "relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-center bg-no-repeat",
+        fitViewport && "lg:h-screen lg:min-h-0 lg:overflow-hidden",
+      )}
       style={{ backgroundImage: `url(${loginPageBackground})` }}
     >
       <div className="pointer-events-none absolute inset-0 bg-white/12" />
-      <div className="relative z-10 mx-auto flex w-full max-w-[1560px] flex-1 items-center px-4 py-4 sm:px-6">
-        <div className="grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:gap-16">
-          <LandingPanel />
+      <div
+        ref={mainRef}
+        className={cn(
+          "relative z-10 mx-auto flex w-full max-w-[1560px] flex-1 items-center px-4 py-2 sm:px-6",
+          fitViewport && "lg:min-h-0",
+          mainClassName,
+        )}
+      >
+        <div
+          className="w-full"
+          style={
+            fitViewport && fit.height > 0 ? { height: `${fit.height}px` } : undefined
+          }
+        >
+          <div
+            ref={gridRef}
+            className={cn(
+              "grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:gap-16",
+              matchPanelHeight && "lg:items-stretch",
+            )}
+            style={
+              fitViewport && fit.scale < 1
+                ? {
+                    transform: `scale(${fit.scale})`,
+                    transformOrigin: "center top",
+                  }
+                : undefined
+            }
+          >
+            <LandingPanel expanded={matchPanelHeight} />
 
-          <div className="flex justify-center lg:justify-end">
-            <div className="w-full max-w-[520px] rounded-[28px] border border-white/80 bg-white px-6 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.10)] sm:px-8 sm:py-6">
-              <div className="mx-auto mb-5 flex w-fit items-center gap-3">
+            <div className="flex items-center justify-center lg:justify-end">
+              <div className="w-full max-w-[520px] rounded-[28px] border border-white/80 bg-white px-6 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.10)] sm:px-8 sm:py-5">
+              <div className="mx-auto mb-4 flex w-fit items-center gap-3">
                 <div
                   className="flex size-10 items-center justify-center rounded-xl text-white shadow-[0_12px_32px_rgba(47,111,242,0.28)]"
                   style={{ backgroundColor: LOGIN_BLUE }}
@@ -416,19 +566,20 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
                 </span>
               </div>
 
-              <div className="mb-5 text-center">
+              <div className="mb-4 text-center">
                 <h1 className="text-[1.85rem] font-bold text-slate-950">{title}</h1>
                 <p className="mt-1.5 text-base text-slate-500">{subtitle}</p>
               </div>
 
-              {children}
+                {children}
 
-              {footer ? <div className="mt-6">{footer}</div> : null}
+                {footer ? <div className="mt-4">{footer}</div> : null}
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="relative z-10">
+      <div ref={footerRef} className="relative z-10 shrink-0">
         <SiteFooter />
       </div>
     </div>

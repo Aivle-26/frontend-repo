@@ -102,13 +102,13 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
         getAccessToken(),
       );
 
-      // AI 분석은 입력 수치만 자동으로 채운다. 평가 결과 패널은 "평가하기"를 눌러야 표시된다.
+      // AI 분석은 변경에 따라 달라지는 수치만 채운다. 평가 결과 패널은 "평가하기"를 눌러야 표시된다.
+      // 남은 일정은 변경과 무관한 객관값(종료일 − 오늘)이라 프론트 계산값을 유지하고 덮어쓰지 않는다.
       if (res.llmStatus === "SUCCEEDED") {
         setForm((p) => ({
           ...p,
           affectedTaskCount: res.affectedTaskCount,
           affectedMemberCount: res.affectedMemberCount,
-          remainingDays: res.remainingDays,
           additionalWorkDays: res.additionalWorkDays,
           scopeChanged: res.scopeChanged,
           databaseChanged: res.databaseChanged,

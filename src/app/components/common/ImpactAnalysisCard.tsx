@@ -102,6 +102,7 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
         getAccessToken(),
       );
 
+      // AI 분석은 입력 수치만 자동으로 채운다. 평가 결과 패널은 "평가하기"를 눌러야 표시된다.
       if (res.llmStatus === "SUCCEEDED") {
         setForm((p) => ({
           ...p,
@@ -114,14 +115,12 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
           apiChanged: res.apiChanged,
           uiChanged: res.uiChanged,
         }));
-        setResult(res);
         setAiFilled(true);
-        toast.success("AI가 영향 정보를 자동 입력했습니다. 필요하면 수정 후 평가하세요.");
+        toast.success("AI가 영향 정보를 자동 입력했습니다. 확인 후 평가하기를 누르세요.");
       } else if (res.llmStatus === "SKIPPED_NO_API_KEY") {
         toast.error("AI 분석 키가 설정되지 않았습니다. 수치를 직접 입력해 평가하세요.");
       } else {
-        setResult(res);
-        toast.message("AI 자동 산출이 어려워 규칙 기반 결과로 표시합니다.");
+        toast.message("AI 자동 산출이 어려워 수치를 채우지 못했습니다. 직접 입력해 평가하세요.");
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 분석에 실패했습니다.");

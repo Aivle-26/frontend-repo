@@ -13,6 +13,7 @@ import {
   FileSearch,
   FileText,
   Network,
+  Workflow,
   CalendarClock,
   ClipboardList,
   Wallet,
@@ -32,6 +33,7 @@ import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmAssign } from "@/app/components/pm/PmAssign";
 import { PmBudget } from "@/app/components/pm/PmBudget";
+import { PmOrganizationChart } from "@/app/components/pm/PmOrganizationChart";
 import { PmUiPrototype } from "@/app/components/pm/PmUiPrototype";
 import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
 import { WeeklyScrum } from "@/app/components/pm/WeeklyScrum";
@@ -72,6 +74,7 @@ import { RealApplication } from "@/app/real/RealApplication";
 const PM_MENU: SidebarItem[] = [
   // [개요]
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
+  { key: "orgChart", label: "조직도", icon: Workflow, group: "개요" },
   // [계획]
   { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
   { key: "wbs", label: "WBS", icon: Network, group: "계획" },
@@ -104,6 +107,7 @@ const STAFF_MENU: SidebarItem[] = [
 
 const SCOPED_PM = new Set([
   "upload",
+  "orgChart",
   "requirements",
   "wbs",
   "schedule",
@@ -153,26 +157,35 @@ function DemoApplication() {
 
   // [프로젝트] 탭 카드의 "진행 중" 판정과 다른 화면 상단 배지가 서로 다르게 보이지 않도록,
   // 선택된 프로젝트에 대해서도 같은 기준(getProjectPlanningProgress)으로 기획 완료 여부를 캐싱한다.
+  // ([요구사항] 등 SCOPED 화면의 selectedProjectId랑, [프로젝트] 탭에서 "대시보드 열기"로 들어간
+  //  pmDetail 둘 다 같은 캐시를 같이 쓴다 — 두 화면의 상태 배지가 서로 다르게 보이지 않도록.)
   const [planningCompleteMap, setPlanningCompleteMap] = useState<Record<string, boolean>>({});
   useEffect(() => {
-    if (!selectedProjectId || planningCompleteMap[selectedProjectId] !== undefined) return;
+    const idsToCheck = [selectedProjectId, pmDetail?.id].filter(
+      (id): id is string => !!id && planningCompleteMap[id] === undefined,
+    );
+    if (idsToCheck.length === 0) return;
     let ignore = false;
-    getProjectPlanningProgress(selectedProjectId)
-      .then((progress) => {
-        if (!ignore) {
-          setPlanningCompleteMap((prev) => ({
-            ...prev,
-            [selectedProjectId]: progress.planningComplete,
-          }));
+    Promise.all(
+      idsToCheck.map((id) =>
+        getProjectPlanningProgress(id)
+          .then((progress) => [id, progress.planningComplete] as const)
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      if (ignore) return;
+      setPlanningCompleteMap((prev) => {
+        const next = { ...prev };
+        for (const entry of results) {
+          if (entry) next[entry[0]] = entry[1];
         }
-      })
-      .catch(() => {
-        // 조회 실패 시 원래 상태(예: "준비")를 그대로 보여준다.
+        return next;
       });
+    });
     return () => {
       ignore = true;
     };
-  }, [selectedProjectId, planningCompleteMap]);
+  }, [selectedProjectId, pmDetail?.id, planningCompleteMap]);
 
 
   const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
@@ -355,6 +368,13 @@ function DemoApplication() {
     } else if (pmMenu === "slack") {
       subtitle = "Slack 연동";
       body = <SlackIntegration />;
+    } else if (pmMenu === "orgChart") {
+      subtitle = "조직도";
+      body = selectedProject ? (
+        <PmOrganizationChart key={selectedProject.id} project={selectedProject} />
+      ) : (
+        <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
+      );
     } else if (pmMenu === "requirements") {
       subtitle = "요구사항";
       body = (
@@ -514,6 +534,7 @@ function DemoApplication() {
       body = (
         <ProjectDetail
           project={pmDetail}
+          planningComplete={planningCompleteMap[pmDetail.id]}
           onBack={() => setPmDetail(null)}
           onNavigate={(menu) => {
             setSelectedProjectId(pmDetail.id);

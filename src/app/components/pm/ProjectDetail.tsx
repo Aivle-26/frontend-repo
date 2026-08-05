@@ -48,6 +48,7 @@ import {
   type ProjectScheduleDetail,
   type TaskAssignmentResponse,
   type FinalCostEstimateResponse,
+  type MemberProgress,
 } from "@/app/api/projectRepository";
 import type { PendingProjectDocument } from "@/app/components/pm/projectDocumentUpload";
 import type { ProjectDoc, ProjectStatus, ProjectSummary } from "@/app/projects/projectTypes";
@@ -75,16 +76,6 @@ interface ProjectDetailProps {
   onNavigate: (menu: ProjectDetailMenu) => void;
 }
 
-function getRequirementCount(result: RequirementsResult | null) {
-  if (!result) return null;
-  const finalCount = Array.isArray(result.finalRequirements)
-    ? result.finalRequirements.length
-    : 0;
-  const suggestionCount = Array.isArray(result.aiSuggestions)
-    ? result.aiSuggestions.length
-    : 0;
-  return finalCount > 0 ? finalCount : suggestionCount;
-}
 
 function getDaysRemaining(dueDate: string) {
   if (!dueDate || dueDate === "-") return null;
@@ -149,6 +140,8 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
   const [assignments, setAssignments] = useState<TaskAssignmentResponse[]>([]);
   const [finalBudget, setFinalBudget] = useState<FinalCostEstimateResponse | null>(null);
   const [progressRate, setProgressRate] = useState<number | null>(null);
+  const [progressCounts, setProgressCounts] = useState<{ completed: number; total: number } | null>(null);
+  const [teamWorkload, setTeamWorkload] = useState<MemberProgress[]>([]);
   const [isLoadingProjectData, setIsLoadingProjectData] = useState(true);
   const [projectDataError, setProjectDataError] = useState("");
 
@@ -163,6 +156,7 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
       assignmentResult,
       budgetResult,
       progressResult,
+      workloadResult,
     ] = await Promise.allSettled([
       projectRepository.listProjectDocuments(p.id),
       projectRepository.getRequirements(p.id),
@@ -171,6 +165,7 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
       projectRepository.getProjectAssignments(p.id),
       projectRepository.getFinalCostEstimate(p.id),
       projectRepository.getProjectProgress(p.id),
+      projectRepository.getTeamProgress(p.id),
     ]);
 
     if (documentResult.status === "fulfilled") {
@@ -196,6 +191,15 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
     setProgressRate(
       progressResult.status === "fulfilled" ? Number(progressResult.value.progressRate ?? 0) : null,
     );
+    setProgressCounts(
+      progressResult.status === "fulfilled"
+        ? {
+            completed: Number(progressResult.value.completedTaskCount ?? 0),
+            total: Number(progressResult.value.totalTaskCount ?? 0),
+          }
+        : null,
+    );
+    setTeamWorkload(workloadResult.status === "fulfilled" ? (workloadResult.value.members ?? []) : []);
 
     if (documentResult.status === "rejected" || requirementResult.status === "rejected") {
       setProjectDataError("일부 프로젝트 정보를 불러오지 못했습니다.");
@@ -207,9 +211,36 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
     void loadProjectData();
   }, [loadProjectData]);
 
-  const requirementCount = getRequirementCount(requirements);
   const uiPrototypeCompleted = isProjectUiPrototypeCompleted(p.id);
   const remainingDays = useMemo(() => getDaysRemaining(p.dueDate), [p.dueDate]);
+
+  const timeProgress = useMemo(() => {
+    const startStr = p.server?.plannedStartDate;
+    if (!startStr || !p.dueDate || p.dueDate === "-") return null;
+    const start = new Date(`${startStr}T00:00:00`);
+    const end = new Date(`${p.dueDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const totalMs = end.getTime() - start.getTime();
+    const elapsedMs = today.getTime() - start.getTime();
+    const pct = Math.round((elapsedMs / totalMs) * 100);
+    return {
+      startLabel: startStr,
+      endLabel: p.dueDate,
+      pct: Math.min(100, Math.max(0, pct)),
+    };
+  }, [p.server?.plannedStartDate, p.dueDate]);
+
+  const workloadSummary = useMemo(() => {
+    if (teamWorkload.length === 0) return null;
+    const avg = Math.round(
+      teamWorkload.reduce((sum, m) => sum + m.progressRate, 0) / teamWorkload.length,
+    );
+    const maxRate = Math.max(...teamWorkload.map((m) => m.progressRate));
+    const overloaded = teamWorkload.filter((m) => m.progressRate >= 80).length;
+    return { avg, maxRate, overloaded };
+  }, [teamWorkload]);
 
   const [openStages, setOpenStages] = useState<Set<string>>(new Set());
   const toggleStage = (key: string) => {
@@ -323,7 +354,8 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* 1. 전체 진행률 */}
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
@@ -334,29 +366,97 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
               <>
                 <div className="mt-2 text-foreground text-2xl"><CountUp value={`${progressRate}%`} /></div>
                 <Progress value={progressRate} className="mt-3" />
+                {progressCounts && (
+                  <div className="mt-2 text-muted-foreground text-xs">
+                    WBS {progressCounts.completed} / {progressCounts.total} 완료
+                  </div>
+                )}
               </>
             ) : (
               <div className="mt-2 text-sm text-muted-foreground">진행률 데이터가 제공되지 않았습니다.</div>
             )}
           </CardContent>
         </Card>
+
+        {/* 2. 남은 기간 — 시작일~마감일을 끝점으로 한 진행 위치 시각화 */}
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-sm">마감일</span>
+              <span className="text-muted-foreground text-sm">남은 기간</span>
               <CalendarClock className="size-4 text-muted-foreground" />
             </div>
-            <div className="mt-2 text-foreground text-2xl">{p.dueDate}</div>
-            <div className={cn("mt-1 text-sm", remainingDays !== null && remainingDays < 0 ? "text-destructive" : "text-muted-foreground")}>{formatRemainingDays(remainingDays)}</div>
+            <div className={cn("mt-2 text-2xl", remainingDays !== null && remainingDays < 0 ? "text-destructive" : "text-foreground")}>
+              {formatRemainingDays(remainingDays)}
+            </div>
+            {timeProgress ? (
+              <>
+                <div className="relative mt-4 h-1.5 rounded-full bg-muted">
+                  <div
+                    className="h-1.5 rounded-full bg-blue-500"
+                    style={{ width: `${timeProgress.pct}%` }}
+                  />
+                  <div
+                    className="absolute top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-blue-600 bg-background"
+                    style={{ left: `calc(${timeProgress.pct}% - 6px)` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between text-muted-foreground text-xs">
+                  <span>{timeProgress.startLabel}</span>
+                  <span>{timeProgress.endLabel}</span>
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 text-muted-foreground text-xs">마감일 {p.dueDate}</div>
+            )}
           </CardContent>
         </Card>
-        <KpiCard icon={<AlertTriangle className="size-4 text-destructive" />} label="고위험 항목" value="연동 데이터 없음" raw />
-        <KpiCard
-          icon={<FileText className="size-4 text-muted-foreground" />}
-          label="요구사항"
-          value={isLoadingProjectData ? "조회 중" : requirementCount === null ? "조회 실패" : `${requirementCount}건`}
-          raw
-        />
+
+        {/* 3. 팀 워크로드 — 미니 막대그래프 */}
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">팀 워크로드</span>
+              <Users className="size-4 text-muted-foreground" />
+            </div>
+            {workloadSummary ? (
+              <>
+                <div className="mt-2 text-foreground text-2xl">평균 {workloadSummary.avg}%</div>
+                <div className="mt-4 flex items-end justify-between gap-2" style={{ height: 64 }}>
+                  {teamWorkload.map((m) => {
+                    const isTop = m.progressRate === workloadSummary.maxRate;
+                    return (
+                      <div key={m.employeeNumber} className="flex flex-1 flex-col items-center gap-1">
+                        <span className={cn("text-xs", isTop ? "text-red-600" : "text-muted-foreground")}>
+                          {m.progressRate}%
+                        </span>
+                        <div className="flex w-full flex-1 items-end">
+                          <div
+                            className={cn("w-full rounded-t", isTop ? "bg-red-500" : "bg-blue-500")}
+                            style={{ height: `${Math.max(m.progressRate, 4)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex justify-between gap-2 text-muted-foreground text-xs">
+                  {teamWorkload.map((m) => (
+                    <span key={m.employeeNumber} className="flex-1 truncate text-center">
+                      {m.name}
+                    </span>
+                  ))}
+                </div>
+                {workloadSummary.overloaded > 0 && (
+                  <div className="mt-2 text-red-600 text-xs">과부하 {workloadSummary.overloaded}명</div>
+                )}
+              </>
+            ) : (
+              <div className="mt-2 text-sm text-muted-foreground">
+                {isLoadingProjectData ? "불러오는 중입니다." : "팀 워크로드 데이터가 없습니다."}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* 계획 5단계 결과 확인 (세로 진행도 + 토글로 펼쳐서 확인, 조회 전용) */}
@@ -494,11 +594,7 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
 }
 
 
-function KpiCard({ icon, label, value, raw }: { icon: React.ReactNode; label: string; value: string; raw?: boolean }) {
-  return (
-    <Card><CardContent className="pt-5"><div className="flex items-center justify-between"><span className="text-muted-foreground text-sm">{label}</span><span>{icon}</span></div><div className="mt-2 text-foreground text-2xl">{raw ? value : <CountUp value={value} />}</div></CardContent></Card>
-  );
-}
+
 
 /** 계획 단계별 AI 생성 결과를 조회 전용으로 요약해서 보여준다 (수정 불가, 확인만). */
 function PlanningStagePreview({

@@ -27,6 +27,8 @@ interface TopBarProps {
   roleLabel: string;
   onLogout: () => void;
   actions?: React.ReactNode;
+  /** 타이틀 바로 옆(오른쪽)에 렌더링할 내용 — 대상 프로젝트 선택 바 등. */
+  middleContent?: React.ReactNode;
   projects?: ProjectSummary[];
   selectedProjectId?: string;
   isPm?: boolean;
@@ -42,6 +44,7 @@ export function TopBar({
   roleLabel,
   onLogout,
   actions,
+  middleContent,
   projects = [],
   selectedProjectId,
   isPm = false,
@@ -60,13 +63,16 @@ export function TopBar({
         compactOnMobile && "gap-2 px-3 sm:px-6",
       )}
     >
-      <div className="min-w-0 leading-tight">
-        <div className="truncate text-foreground">{title}</div>
-        {subtitle && (
-          <div className="truncate text-xs text-muted-foreground">
-            {subtitle}
-          </div>
-        )}
+      <div className="flex min-w-0 items-center gap-4">
+        <div className="min-w-0 shrink-0 leading-tight">
+          <div className="truncate text-foreground">{title}</div>
+          {subtitle && (
+            <div className="truncate text-xs text-muted-foreground">
+              {subtitle}
+            </div>
+          )}
+        </div>
+        {middleContent && <div className="min-w-0">{middleContent}</div>}
       </div>
 
       <div className="flex items-center gap-3">

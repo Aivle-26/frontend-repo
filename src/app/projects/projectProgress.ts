@@ -8,20 +8,22 @@ export type PlanningStage =
   | "wbs"
   | "schedule"
   | "assign"
-  | "budget";
+  | "budget"
+  | "uiPrototype";
 
  const BUDGET_COMPLETED_STORAGE_KEY =
    "bidworks:completed-project-budgets";
 
- function readCompletedBudgetProjectIds(): string[] {
+ const UI_PROTOTYPE_COMPLETED_STORAGE_KEY =
+   "bidworks:completed-project-ui-prototypes";
+
+ function readCompletedIds(storageKey: string): string[] {
    if (typeof window === "undefined") {
      return [];
    }
 
    try {
-     const raw = window.localStorage.getItem(
-       BUDGET_COMPLETED_STORAGE_KEY,
-     );
+     const raw = window.localStorage.getItem(storageKey);
 
      if (!raw) {
        return [];
@@ -35,6 +37,10 @@ export type PlanningStage =
    } catch {
      return [];
    }
+ }
+
+ function readCompletedBudgetProjectIds(): string[] {
+   return readCompletedIds(BUDGET_COMPLETED_STORAGE_KEY);
  }
 
  export function isProjectBudgetCompleted(
@@ -65,6 +71,43 @@ export type PlanningStage =
 
    window.dispatchEvent(
      new CustomEvent("project-budget-completed", {
+       detail: {
+         projectId: String(projectId),
+       },
+     }),
+   );
+ }
+
+ /** UI 프로토타입 생성 단계 완료 여부 (아직 이 단계를 뒷받침하는 백엔드가 없어 예산 완료와 같은
+  * localStorage 방식으로 추적한다). */
+ export function isProjectUiPrototypeCompleted(
+   projectId: string | number,
+ ): boolean {
+   return readCompletedIds(UI_PROTOTYPE_COMPLETED_STORAGE_KEY).includes(
+     String(projectId),
+   );
+ }
+
+ export function markProjectUiPrototypeCompleted(
+   projectId: string | number,
+ ): void {
+   if (typeof window === "undefined") {
+     return;
+   }
+
+   const projectIds = new Set(
+     readCompletedIds(UI_PROTOTYPE_COMPLETED_STORAGE_KEY),
+   );
+
+   projectIds.add(String(projectId));
+
+   window.localStorage.setItem(
+     UI_PROTOTYPE_COMPLETED_STORAGE_KEY,
+     JSON.stringify([...projectIds]),
+   );
+
+   window.dispatchEvent(
+     new CustomEvent("project-ui-prototype-completed", {
        detail: {
          projectId: String(projectId),
        },
@@ -105,6 +148,11 @@ const STAGE_META: Record<PlanningStage, ProjectPlanningProgress> = {
     buttonLabel: "예산 설정하러 가기",
     planningComplete: false,
   },
+  uiPrototype: {
+    stage: "uiPrototype",
+    buttonLabel: "UI 프로토타입 만들러 가기",
+    planningComplete: false,
+  },
 };
 
 const DASHBOARD_PROGRESS: ProjectPlanningProgress = {
@@ -138,9 +186,12 @@ export async function getProjectPlanningProgress(
     const assignedTaskCount = Number(progress.assignedTaskCount ?? 0);
 
     if (totalTaskCount > 0 && assignedTaskCount >= totalTaskCount) {
-      return isProjectBudgetCompleted(projectId)
+      if (!isProjectBudgetCompleted(projectId)) {
+        return STAGE_META.budget;
+      }
+      return isProjectUiPrototypeCompleted(projectId)
         ? DASHBOARD_PROGRESS
-        : STAGE_META.budget;
+        : STAGE_META.uiPrototype;
     }
   } catch (error) {
     if (!isNotFound(error)) {

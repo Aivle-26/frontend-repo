@@ -1324,6 +1324,14 @@ export const projectRepository = {
     );
   },
 
+  /** 저장된 최종 확정 예산 조회 (읽기 전용). */
+  getFinalCostEstimate(projectId: string | number) {
+    return apiFetch<FinalCostEstimateResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
+      { auth: true },
+    );
+  },
+
   recommendAssignments(
     projectId: string | number,
     input: AssignmentRecommendationRequestBody = {},

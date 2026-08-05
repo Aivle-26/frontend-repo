@@ -16,11 +16,13 @@ import {
   CalendarClock,
   ClipboardList,
   Wallet,
+  LayoutTemplate,
 } from "lucide-react";
 import { Toaster } from "@/app/components/ui/sonner";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
+import { getProjectPlanningProgress } from "@/app/projects/projectProgress";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
@@ -30,6 +32,7 @@ import { AiDocSearch } from "@/app/components/pm/AiDocSearch";
 import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmAssign } from "@/app/components/pm/PmAssign";
 import { PmBudget } from "@/app/components/pm/PmBudget";
+import { PmUiPrototype } from "@/app/components/pm/PmUiPrototype";
 import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
 import { WeeklyScrum } from "@/app/components/pm/WeeklyScrum";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
@@ -75,6 +78,7 @@ const PM_MENU: SidebarItem[] = [
   { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
   { key: "assign", label: "업무 배정", icon: Users, group: "계획" },
   { key: "budget", label: "예산", icon: Wallet, group: "계획" },
+  { key: "uiPrototype", label: "UI 프로토타입", icon: LayoutTemplate, group: "계획" },
   // [실행]
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
   { key: "weekly", label: "위클리 스크럼", icon: ClipboardList, group: "실행" },
@@ -105,6 +109,7 @@ const SCOPED_PM = new Set([
   "schedule",
   "assign",
   "budget",
+  "uiPrototype",
   "risk",
   "weekly",
   "search",
@@ -145,6 +150,29 @@ function DemoApplication() {
   );
   // 요구사항 페이지 상단 문서 업로드/분석 후 아래 요구사항 목록을 재조회하기 위한 키
   const [requirementsRefreshKey, setRequirementsRefreshKey] = useState(0);
+
+  // [프로젝트] 탭 카드의 "진행 중" 판정과 다른 화면 상단 배지가 서로 다르게 보이지 않도록,
+  // 선택된 프로젝트에 대해서도 같은 기준(getProjectPlanningProgress)으로 기획 완료 여부를 캐싱한다.
+  const [planningCompleteMap, setPlanningCompleteMap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!selectedProjectId || planningCompleteMap[selectedProjectId] !== undefined) return;
+    let ignore = false;
+    getProjectPlanningProgress(selectedProjectId)
+      .then((progress) => {
+        if (!ignore) {
+          setPlanningCompleteMap((prev) => ({
+            ...prev,
+            [selectedProjectId]: progress.planningComplete,
+          }));
+        }
+      })
+      .catch(() => {
+        // 조회 실패 시 원래 상태(예: "준비")를 그대로 보여준다.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [selectedProjectId, planningCompleteMap]);
 
 
   const role: Role | null = authSession ? toFrontendRole(authSession.role) : null;
@@ -431,6 +459,9 @@ function DemoApplication() {
     } else if (pmMenu === "budget") {
       subtitle = "예산";
       body = <PmBudget key={selectedProject?.id} project={selectedProject!} />;
+    } else if (pmMenu === "uiPrototype") {
+      subtitle = "UI 프로토타입";
+      body = <PmUiPrototype key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "weekly") {
       subtitle = "위클리 스크럼";
       body = <WeeklyScrum key={selectedProject?.id} project={selectedProject!} />;
@@ -613,19 +644,18 @@ function DemoApplication() {
     }
   }
 
-    if ((isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum")) {
-    body = (
-      <div className="space-y-4">
-        <ProjectScopeBar
-          projects={projects}
-          value={selectedProjectId}
-          onChange={setSelectedProjectId}
-          rightSlotId={isPm && pmMenu === "weekly" ? "weekly-scrum-week-nav-slot" : undefined}
-        />
-        {body}
-      </div>
-    );
-  }
+  const isScopedScreen =
+    (isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum");
+  const topBarMiddleContent = isScopedScreen ? (
+    <ProjectScopeBar
+      projects={projects}
+      value={selectedProjectId}
+      onChange={setSelectedProjectId}
+      rightSlotId={isPm && pmMenu === "weekly" ? "weekly-scrum-week-nav-slot" : undefined}
+      planningComplete={planningCompleteMap[selectedProjectId]}
+      compact
+    />
+  ) : undefined;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
@@ -643,6 +673,7 @@ function DemoApplication() {
           roleLabel={isPm ? "PM" : "직원"}
           onLogout={handleLogout}
           actions={actions}
+          middleContent={topBarMiddleContent}
           projects={projects}
           selectedProjectId={selectedProjectId}
           isPm={isPm}

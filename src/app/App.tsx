@@ -589,6 +589,7 @@ function DemoApplication() {
       body = (
         <StaffTaskDetail
           taskId={selectedTaskId}
+          projectId={selectedProjectId || "1"}
           currentUserName={authSession?.name ?? ""}
           onBack={() => setSelectedTaskId(null)}
         />
@@ -608,7 +609,7 @@ function DemoApplication() {
     }
   }
 
-    if (isPm && SCOPED_PM.has(pmMenu)) {
+    if ((isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum")) {
     body = (
       <div className="space-y-4">
         <ProjectScopeBar

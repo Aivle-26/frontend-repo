@@ -3,6 +3,10 @@ import {
   ListChecks,
   Send,
   AlertCircle,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  Save,
 } from "lucide-react";
 import {
   Card,
@@ -92,6 +96,67 @@ interface StaffWeeklyScrumProps {
   currentUserName: string;
 }
 
+/** 실제 배정된 업무가 없을 때 보여줄 예시 데이터. */
+const DEMO_TASKS: TaskAssignmentResponse[] = [
+  {
+    assignmentId: -1,
+    projectId: -1,
+    wbsId: -1,
+    taskCode: "1.1",
+    taskName: "WBS 정밀 검토 및 범위 보완",
+    description: "",
+    employeeNumber: "-",
+    status: "COMPLETED",
+    progressRate: 100,
+    startDate: null,
+    dueDate: null,
+    estimatedHours: 16,
+    milestone: false,
+    bufferDays: 0,
+    overdue: false,
+    assignedAt: "",
+    updatedAt: "",
+  },
+  {
+    assignmentId: -2,
+    projectId: -1,
+    wbsId: -2,
+    taskCode: "2.1",
+    taskName: "안전관리 요구사항 작성",
+    description: "",
+    employeeNumber: "-",
+    status: "COMPLETED",
+    progressRate: 100,
+    startDate: null,
+    dueDate: null,
+    estimatedHours: 12,
+    milestone: false,
+    bufferDays: 0,
+    overdue: false,
+    assignedAt: "",
+    updatedAt: "",
+  },
+  {
+    assignmentId: -3,
+    projectId: -1,
+    wbsId: -3,
+    taskCode: "3.1",
+    taskName: "UI/UX 시안 검토 및 피드백",
+    description: "",
+    employeeNumber: "-",
+    status: "IN_PROGRESS",
+    progressRate: 60,
+    startDate: null,
+    dueDate: null,
+    estimatedHours: 20,
+    milestone: false,
+    bufferDays: 0,
+    overdue: false,
+    assignedAt: "",
+    updatedAt: "",
+  },
+];
+
 export function StaffWeeklyScrum({
   projectId,
   projectName,
@@ -104,6 +169,7 @@ export function StaffWeeklyScrum({
   // 이번 주 업무
   const [tasks, setTasks] = useState<TaskAssignmentResponse[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
+  const [isDemoTasks, setIsDemoTasks] = useState(false);
   const [checkedTaskIds, setCheckedTaskIds] = useState<Set<number>>(new Set());
 
   // 기존 제출 내역(선택 주차)
@@ -131,11 +197,18 @@ export function StaffWeeklyScrum({
       .getMyTasks(projectId)
       .then((res) => {
         if (ignore) return;
-        setTasks(res);
-        setCheckedTaskIds(new Set(res.filter((t) => t.status !== "TODO").map((t) => t.wbsId)));
+        const list = res.length > 0 ? res : DEMO_TASKS;
+        setTasks(list);
+        setIsDemoTasks(res.length === 0);
+        setCheckedTaskIds(new Set(list.filter((t) => t.status !== "TODO").map((t) => t.wbsId)));
       })
       .catch(() => {
-        if (!ignore) setTasks([]);
+        if (ignore) return;
+        setTasks(DEMO_TASKS);
+        setIsDemoTasks(true);
+        setCheckedTaskIds(
+          new Set(DEMO_TASKS.filter((t) => t.status !== "TODO").map((t) => t.wbsId)),
+        );
       })
       .finally(() => {
         if (!ignore) setTasksLoading(false);
@@ -264,10 +337,6 @@ export function StaffWeeklyScrum({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">대상 프로젝트</span>
-            <span className="text-foreground">{projectName || "-"}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">선택 주차</span>
             <Select value={weekStart} onValueChange={setWeekStart}>
               <SelectTrigger className="w-64">
@@ -301,9 +370,16 @@ export function StaffWeeklyScrum({
         {/* 이번 주 업무 요약 */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ListChecks className="size-4" /> 이번 주 업무 요약
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <ListChecks className="size-4" /> 이번 주 업무 요약
+              </CardTitle>
+              {!tasksLoading && isDemoTasks && (
+                <Badge variant="outline" className="font-normal">
+                  예시 데이터
+                </Badge>
+              )}
+            </div>
             <CardDescription>내가 배정된 업무의 진행 현황이에요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -317,18 +393,33 @@ export function StaffWeeklyScrum({
 
             {!tasksLoading && (
               <>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg bg-emerald-50 py-3">
-                    <p className="text-emerald-700 text-xs">완료</p>
-                    <p className="text-emerald-700 text-lg">{counts.done}건</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <CheckCircle2 className="size-4" />
+                    </span>
+                    <div>
+                      <p className="text-muted-foreground text-xs">완료</p>
+                      <p className="text-foreground text-lg">{counts.done}건</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-amber-50 py-3">
-                    <p className="text-amber-700 text-xs">진행 중</p>
-                    <p className="text-amber-700 text-lg">{counts.inProgress}건</p>
+                  <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                      <Clock className="size-4" />
+                    </span>
+                    <div>
+                      <p className="text-muted-foreground text-xs">진행 중</p>
+                      <p className="text-foreground text-lg">{counts.inProgress}건</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-red-50 py-3">
-                    <p className="text-red-700 text-xs">지연</p>
-                    <p className="text-red-700 text-lg">{counts.delayed}건</p>
+                  <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+                      <AlertTriangle className="size-4" />
+                    </span>
+                    <div>
+                      <p className="text-muted-foreground text-xs">지연</p>
+                      <p className="text-foreground text-lg">{counts.delayed}건</p>
+                    </div>
                   </div>
                 </div>
 
@@ -461,7 +552,14 @@ export function StaffWeeklyScrum({
                   />
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleSave(false)}
+                    disabled={saving || submitting}
+                  >
+                    <Save className="size-4" /> {saving ? "저장 중…" : "임시 저장"}
+                  </Button>
                   <Button
                     onClick={() => void handleSave(true)}
                     disabled={saving || submitting || !completedWork.trim() || !plannedWork.trim()}

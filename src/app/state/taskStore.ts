@@ -62,6 +62,14 @@ function mapTask(res: TaskAssignmentResponse, projectName: string): Task {
 
 /** 프로젝트를 열 때(StaffDashboard 마운트 시) 호출해서 실제 업무 목록을 불러온다. */
 export async function loadTasks(projectId: string, projectName: string): Promise<void> {
+  // 이미 같은 프로젝트의 예시(더미) 데이터를 보여주고 있다면 다시 불러오지 않는다.
+  // (예시 데이터는 서버에 진짜로 존재하지 않아서, 화면 안에서 "완료 처리" 같은
+  //  로컬 상태 변경을 했더라도 재조회하면 항상 초기 상태로 리셋되어 버리기 때문.)
+  if (currentProjectId === projectId && currentIsDemoData && currentTasks.length > 0) {
+    notify();
+    return;
+  }
+
   currentProjectId = projectId;
   try {
     const list = await projectRepository.getMyTasks(projectId);
@@ -70,13 +78,14 @@ export async function loadTasks(projectId: string, projectName: string): Promise
       currentIsDemoData = false;
     } else {
       // 아직 실제로 배정된 업무가 없다 — 화면이 비어 보이지 않도록 예시 데이터로 채운다.
-      currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+      // 예시 데이터는 원래 갖고 있던 다양한 프로젝트명을 그대로 보여준다(현재 프로젝트로 통일하지 않음).
+      currentTasks = TASKS;
       currentIsDemoData = true;
     }
   } catch (error) {
     console.error("업무 목록을 불러오지 못했습니다.", error);
     toast.error("실제 업무 목록을 불러오지 못해 예시 데이터를 보여드려요.");
-    currentTasks = TASKS.map((t) => ({ ...t, projectName }));
+    currentTasks = TASKS;
     currentIsDemoData = true;
   }
   notify();
@@ -93,6 +102,15 @@ export function getTasks(): Task[] {
 
 async function patchProgress(taskId: string, column: TaskColumn): Promise<void> {
   if (!currentProjectId) return;
+
+  // 예시(더미) 데이터를 보고 있을 때는 실제 백엔드에 존재하지 않는 업무라
+  // API를 호출하면 무조건 실패한다. 화면 상태만 바꿔주고 서버 호출은 건너뛴다.
+  if (currentIsDemoData) {
+    currentTasks = currentTasks.map((t) => (t.id === taskId ? { ...t, column } : t));
+    notify();
+    return;
+  }
+
   const { status, progressRate } = columnToStatus(column);
 
   // 낙관적 업데이트: 응답 기다리지 않고 화면부터 바꾼다.

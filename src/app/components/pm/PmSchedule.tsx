@@ -517,11 +517,12 @@ export function PmSchedule({
  * 채도는 높이고 명도는 낮춰 더 깊은 색으로 표현한다.
  */
 function categoryColor(index: number, total: number): string {
-  const hues = [212, 174, 150, 128, 40, 22, 280, 330];
-  const hue = hues[index % hues.length];
-  const t = total > 1 ? index / (total - 1) : 0; // 0(맨 위) → 1(맨 아래)
-  const saturation = Math.round(58 + t * 28); // 58% → 86% (채도 깊게)
-  const lightness = Math.round(54 - t * 18); // 54% → 36% (아래로 갈수록 어둡게)
+  const t = total > 1 ? index / (total - 1) : 0;
+
+  const hue = 210; // 파스텔 블루
+  const saturation = 45 + t * 20; // 45% -> 65%
+  const lightness = 84 - t * 20;  // 84% -> 64%
+
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 

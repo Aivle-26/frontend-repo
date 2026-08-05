@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
+import { cn } from "@/app/components/ui/utils";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 const POLL_INTERVAL_MS = 3000;
@@ -51,6 +52,28 @@ function formatDate(value?: string | null) {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const VERSION_LABEL = {
+  expected: "예상",
+  recommended: "권장",
+  conservative: "보수적",
+} as const;
+
+/** 두 날짜(포함) 사이의 평일(영업일) 수를 센다. */
+function businessDaysBetween(startIso: string, endIso: string): number {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur.getTime() <= end.getTime()) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+
 export function PmSchedule({
   project,
   onNavigateNext,
@@ -65,6 +88,16 @@ export function PmSchedule({
   const [generating, setGenerating] = useState(false); // 요청 접수 + 결과 폴링 동안 true
   const [error, setError] = useState("");
   const cancelledRef = useRef(false);
+
+  // AI가 제안하는 3가지 일정 버전 중 지금 보고 있는(적용할) 버전
+  const [selectedVersion, setSelectedVersion] = useState<
+    "expected" | "recommended" | "conservative"
+  >("recommended");
+  const [applying, setApplying] = useState(false);
+  const [appliedVersion, setAppliedVersion] = useState<
+    "expected" | "recommended" | "conservative" | null
+  >(null);
+
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -131,6 +164,15 @@ export function PmSchedule({
     [schedule],
   );
 
+  const versionRangeSummary = useMemo(() => {
+    if (scheduleRows.length === 0) return null;
+    const starts = scheduleRows.map((r) => r[selectedVersion].startDate);
+    const ends = scheduleRows.map((r) => r[selectedVersion].endDate);
+    const start = starts.reduce((min, d) => (d < min ? d : min));
+    const end = ends.reduce((max, d) => (d > max ? d : max));
+    return { start, end, businessDays: businessDaysBetween(start, end) };
+  }, [scheduleRows, selectedVersion]);
+
   const generateSchedule = async () => {
     if (!project.server?.plannedStartDate || !project.server?.plannedEndDate) {
       setError("프로젝트 시작일과 종료일을 먼저 저장해야 합니다.");
@@ -184,6 +226,34 @@ export function PmSchedule({
       toast.error(message);
     } finally {
       if (!cancelledRef.current) setGenerating(false);
+    }
+  };
+
+  const handleApplySchedule = async () => {
+    if (!schedule) return;
+    setApplying(true);
+    try {
+      const saved = await projectRepository.saveFinalSchedule(project.id, {
+        projectStartDate: schedule.projectStartDate,
+        targetEndDate: schedule.targetEndDate,
+        schedules: schedule.schedules.map((row) => ({
+          externalScheduleId: row.wbsCode,
+          wbsId: row.wbsId,
+          expected: row.expected,
+          recommended: row.recommended,
+          conservative: row.conservative,
+          predecessorWbsIds: row.predecessorWbsIds,
+          milestone: row.milestone,
+          bufferDays: row.bufferDays,
+        })),
+      });
+      setSchedule(saved);
+      setAppliedVersion(selectedVersion);
+      toast.success(`${VERSION_LABEL[selectedVersion]} 일정을 프로젝트 일정으로 적용했어요.`);
+    } catch (caught) {
+      toast.error(messageOf(caught, "일정 적용에 실패했습니다."));
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -301,15 +371,42 @@ export function PmSchedule({
               </Alert>
             )}
 
-            <ScheduleGantt schedule={schedule} rows={scheduleRows} />
+            {/* AI 일정 추천 — 버전 탭 (예상 / 권장 / 보수적) */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-1">
+                {(["expected", "recommended", "conservative"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setSelectedVersion(v)}
+                    className={cn(
+                      "rounded-md px-4 py-1.5 text-sm transition-colors",
+                      selectedVersion === v
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {VERSION_LABEL[v]}
+                  </button>
+                ))}
+              </div>
+              {versionRangeSummary && (
+                <span className="text-muted-foreground text-sm">
+                  {formatDate(versionRangeSummary.start)} – {formatDate(versionRangeSummary.end)} ·{" "}
+                  {versionRangeSummary.businessDays} 영업일
+                </span>
+              )}
+            </div>
+
+            <ScheduleGantt schedule={schedule} rows={scheduleRows} version={selectedVersion} />
 
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>WBS</TableHead>
-                    <TableHead>추천 시작</TableHead>
-                    <TableHead>추천 종료</TableHead>
+                    <TableHead>{VERSION_LABEL[selectedVersion]} 시작</TableHead>
+                    <TableHead>{VERSION_LABEL[selectedVersion]} 종료</TableHead>
                     <TableHead className="text-right">예상일수</TableHead>
                     <TableHead className="text-right">버퍼</TableHead>
                   </TableRow>
@@ -324,12 +421,14 @@ export function PmSchedule({
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(row.recommended.startDate)}
+                        {formatDate(row[selectedVersion].startDate)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(row.recommended.endDate)}
+                        {formatDate(row[selectedVersion].endDate)}
                       </TableCell>
-                      <TableCell className="text-right">{row.recommended.estimatedDays}일</TableCell>
+                      <TableCell className="text-right">
+                        {row[selectedVersion].estimatedDays}일
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {row.bufferDays}일
                       </TableCell>
@@ -337,6 +436,22 @@ export function PmSchedule({
                   ))}
                 </TableBody>
               </Table>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+              <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                <span className="inline-block size-2 rotate-45 rounded-[1px] bg-blue-600" />{" "}
+                마일스톤 · {VERSION_LABEL[selectedVersion]} 일정이 선택되었습니다.
+                {appliedVersion && (
+                  <span className="ml-1 text-emerald-600">
+                    ({VERSION_LABEL[appliedVersion]} 일정 적용됨)
+                  </span>
+                )}
+              </span>
+              <Button onClick={() => void handleApplySchedule()} disabled={applying}>
+                {applying ? <Loader2 className="size-4 animate-spin" /> : null}
+                이 일정 적용
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -371,15 +486,17 @@ export function PmSchedule({
 function ScheduleGantt({
   schedule,
   rows,
+  version,
 }: {
   schedule: ProjectScheduleResult;
   rows: ProjectScheduleDetail[];
+  version: "expected" | "recommended" | "conservative";
 }) {
   const toTime = (value: string) => new Date(`${value}T00:00:00`).getTime();
   const shortLabel = (ms: number) =>
     new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(ms));
 
-  const ends = rows.map((r) => toTime(r.recommended.endDate));
+  const ends = rows.map((r) => toTime(r[version].endDate));
   // 타임라인 시작 = 프로젝트 시작일에 고정. 막대가 프로젝트 시작일에 정렬된다.
   const rangeStart = toTime(schedule.projectStartDate);
   const rangeEnd = Math.max(toTime(schedule.targetEndDate), ...ends);
@@ -435,13 +552,13 @@ function ScheduleGantt({
 
       {/* 각 일정 막대 */}
       {rows.map((row) => {
-        const startPct = pct(toTime(row.recommended.startDate));
-        const endPct = pct(toTime(row.recommended.endDate));
+        const startPct = pct(toTime(row[version].startDate));
+        const endPct = pct(toTime(row[version].endDate));
         const left = Math.max(0, startPct);
         const width = Math.max(Math.min(endPct, 100) - left, 1.2);
-        const title = `${shortLabel(toTime(row.recommended.startDate))} ~ ${shortLabel(
-          toTime(row.recommended.endDate),
-        )} (${row.recommended.estimatedDays}일)`;
+        const title = `${shortLabel(toTime(row[version].startDate))} ~ ${shortLabel(
+          toTime(row[version].endDate),
+        )} (${row[version].estimatedDays}일)`;
         return (
           <div key={row.scheduleId} className="flex items-center">
             <div className={`${NAME_COL} flex items-center gap-1.5`}>
@@ -470,7 +587,7 @@ function ScheduleGantt({
                   title={title}
                 >
                   <span className="whitespace-nowrap text-[10px] text-white">
-                    {row.recommended.estimatedDays}일
+                    {row[version].estimatedDays}일
                   </span>
                 </div>
               )}

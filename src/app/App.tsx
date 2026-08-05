@@ -620,6 +620,7 @@ function DemoApplication() {
           projects={projects}
           value={selectedProjectId}
           onChange={setSelectedProjectId}
+          rightSlotId={isPm && pmMenu === "weekly" ? "weekly-scrum-week-nav-slot" : undefined}
         />
         {body}
       </div>

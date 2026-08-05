@@ -28,10 +28,12 @@ interface ProjectScopeBarProps {
   projects: ProjectSummary[];
   value: string;
   onChange: (id: string) => void;
+  /** 넘기면 오른쪽 안내 문구 대신 이 id를 가진 빈 슬롯을 렌더링한다 (다른 화면에서 포탈로 내용을 꽂아 넣을 수 있음). */
+  rightSlotId?: string;
 }
 
 /** 프로젝트 단위 화면(요구사항·리스크·문서 등) 상단에 붙는 대상 프로젝트 선택 바 */
-export function ProjectScopeBar({ projects, value, onChange }: ProjectScopeBarProps) {
+export function ProjectScopeBar({ projects, value, onChange, rightSlotId }: ProjectScopeBarProps) {
   const selected = projects.find((p) => p.id === value) ?? null;
 
   return (
@@ -59,9 +61,13 @@ export function ProjectScopeBar({ projects, value, onChange }: ProjectScopeBarPr
           <span className="text-muted-foreground text-xs">{selected.client}</span>
         </>
       )}
-      <span className="ml-auto text-muted-foreground text-xs">
-        이 화면은 선택한 프로젝트 기준으로 표시됩니다.
-      </span>
+      {rightSlotId ? (
+        <div id={rightSlotId} className="ml-auto flex items-center gap-2" />
+      ) : (
+        <span className="ml-auto text-muted-foreground text-xs">
+          이 화면은 선택한 프로젝트 기준으로 표시됩니다.
+        </span>
+      )}
     </div>
   );
 }

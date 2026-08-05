@@ -531,6 +531,21 @@ export interface ProjectScheduleResult {
   warnings: string[];
 }
 
+export interface SaveFinalScheduleBody {
+  projectStartDate: string;
+  targetEndDate: string;
+  schedules: {
+    externalScheduleId: string;
+    wbsId: number;
+    expected: ProjectScheduleDateRange;
+    recommended: ProjectScheduleDateRange;
+    conservative: ProjectScheduleDateRange;
+    predecessorWbsIds: number[];
+    milestone: boolean;
+    bufferDays: number;
+  }[];
+}
+
 export interface MemberProgress {
   employeeNumber: string;
   name: string;
@@ -1317,6 +1332,17 @@ export const projectRepository = {
     return apiFetch<ProjectScheduleResult>(
       `/projects/${encodeURIComponent(String(projectId))}/schedules`,
       { auth: true },
+    );
+  },
+
+  saveFinalSchedule(projectId: string | number, body: SaveFinalScheduleBody) {
+    return apiFetch<ProjectScheduleResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/schedules/final`,
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+        auth: true,
+      },
     );
   },
 

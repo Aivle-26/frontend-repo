@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   Bot,
@@ -179,6 +180,12 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   const dueDate = useMemo(() => parseDueDate(project.dueDate), [project.dueDate]);
   const [calendarMonth, setCalendarMonth] = useState<Date>(selectedMonday);
   const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // 상단 "대상 프로젝트" 바 안에 있는 슬롯(App.tsx가 렌더링)을 찾아서 주차 선택 UI를 그 안에 그려 넣는다.
+  const [navSlotEl, setNavSlotEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setNavSlotEl(document.getElementById("weekly-scrum-week-nav-slot"));
+  }, []);
   useEffect(() => {
     setCalendarMonth(selectedMonday);
   }, [selectedMonday]);
@@ -337,10 +344,9 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
   return (
     <div className="space-y-4">
-      {/* 헤더: 주차 선택 (클릭하면 달력 팝업) */}
-      <Card>
-        <CardContent className="py-3">
-          <div className="flex items-center justify-center gap-2">
+      {(() => {
+        const nav = (
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
@@ -408,8 +414,19 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               <ChevronRight className="size-4" />
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        );
+
+        // 상단 "대상 프로젝트" 바에 있는 슬롯에 이 주차 선택 UI를 그대로 꽂아 넣는다.
+        // 슬롯이 아직 안 잡혔으면(마운트 타이밍 등) 예전처럼 카드로 인라인 표시한다.
+        if (navSlotEl) {
+          return createPortal(nav, navSlotEl);
+        }
+        return (
+          <Card>
+            <CardContent className="flex items-center justify-center py-3">{nav}</CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         {/* 좌측: 팀원 제출 목록 + 상세 */}
@@ -489,6 +506,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                             type="button"
                             size="sm"
                             variant="outline"
+                            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
                             disabled={requestingFor === member.employeeNumber}
                             onClick={(e) => {
                               e.stopPropagation();

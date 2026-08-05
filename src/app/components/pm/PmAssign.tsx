@@ -292,6 +292,15 @@ export function PmAssign({
 
     const assignments = [...fromRecs, ...fromUnassigned];
 
+    // 방어적 중복 제거: 같은 wbsId가 두 번 이상 들어가면 백엔드가 저장 자체를 거부한다.
+    // (추천 결과에 같은 WBS가 여러 필요 역할로 중복 등장하는 경우가 있어 여기서 한 번 더 걸러낸다.)
+    const seenWbsIds = new Set<number>();
+    const dedupedAssignments = assignments.filter((a) => {
+      if (seenWbsIds.has(a.wbsId)) return false;
+      seenWbsIds.add(a.wbsId);
+      return true;
+    });
+
     if (unresolvable.length > 0) {
       toast.error(
         `담당 가능한 팀원이 없는 작업이 있어요: ${unresolvable.slice(0, 3).join(", ")}${unresolvable.length > 3 ? ` 외 ${unresolvable.length - 3}건` : ""}. 프로젝트 팀원을 먼저 추가해 주세요.`,
@@ -299,17 +308,19 @@ export function PmAssign({
       return;
     }
 
-    if (assignments.length === 0) {
+    if (dedupedAssignments.length === 0) {
       toast.error("배정할 담당자를 먼저 선택하세요.");
       return;
     }
 
     setSavingAssignments(true);
     projectRepository
-      .saveFinalAssignments(project.id, { assignments })
+      .saveFinalAssignments(project.id, { assignments: dedupedAssignments })
       .then(() => {
         toast.success("담당자 배정을 저장했어요.");
         loadRecommendations();
+        loadWorkload();
+        setProgressRefreshKey((k) => k + 1);
       })
       .catch((caught) => {
         toast.error(
@@ -363,19 +374,18 @@ export function PmAssign({
   const [workloadMembers, setWorkloadMembers] = useState<MemberProgress[]>([]);
   const [workloadLoading, setWorkloadLoading] = useState(true);
   const [workloadError, setWorkloadError] = useState("");
+  // 배정 저장 성공 후 "팀원 진행 현황" 카드를 강제로 다시 불러오기 위한 리마운트 키
+  const [progressRefreshKey, setProgressRefreshKey] = useState(0);
 
-  useEffect(() => {
-    let ignore = false;
+  const loadWorkload = () => {
     setWorkloadLoading(true);
     setWorkloadError("");
     projectRepository
       .getTeamProgress(project.id)
       .then((res) => {
-        if (ignore) return;
         setWorkloadMembers(res.members ?? []);
       })
       .catch((caught) => {
-        if (ignore) return;
         if (caught instanceof ApiError && caught.status === 404) {
           setWorkloadMembers([]);
         } else {
@@ -383,11 +393,13 @@ export function PmAssign({
         }
       })
       .finally(() => {
-        if (!ignore) setWorkloadLoading(false);
+        setWorkloadLoading(false);
       });
-    return () => {
-      ignore = true;
-    };
+  };
+
+  useEffect(() => {
+    loadWorkload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
   const maxWorkloadHours = Math.max(1, ...workloadMembers.map((m) => m.totalEstimatedHours));
@@ -826,7 +838,7 @@ export function PmAssign({
 
       {/* 팀원 진행 현황 (완료율 + 일정 대비 지연) | 팀 워크로드 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <TeamProgressDelayCard projectId={project.id} />
+        <TeamProgressDelayCard key={progressRefreshKey} projectId={project.id} />
 
         {/* 팀 워크로드 */}
         <Card>

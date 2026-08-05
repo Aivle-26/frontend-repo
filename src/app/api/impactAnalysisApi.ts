@@ -43,6 +43,30 @@ export interface ImpactAnalysisInput {
   databaseChanged: boolean;
   apiChanged: boolean;
   uiChanged: boolean;
+  /**
+   * true("AI 분석"): 백엔드가 확정 WBS를 모아 AI로 수치를 자동 산출.
+   * false("평가하기"): 위 수동 수치로 규칙 계산. 생략 시 백엔드가 AI 경로를 기본으로 한다.
+   */
+  useLlm?: boolean;
+}
+
+/** AI 서버 영향 유형. */
+export type ImpactType = "DIRECT" | "INDIRECT" | "NONE";
+
+/** AI 서버 LLM 처리 상태. */
+export type LlmStatus =
+  | "SUCCEEDED"
+  | "SKIPPED_NO_API_KEY"
+  | "FALLBACK"
+  | "DISABLED";
+
+/** AI가 식별한 영향 태스크. */
+export interface AffectedTask {
+  taskId: number;
+  taskName: string;
+  impactType: ImpactType;
+  additionalWorkDays: number;
+  reason: string;
 }
 
 /** 백엔드 ImpactAnalysisResponse (camelCase). */
@@ -58,6 +82,19 @@ export interface ImpactAnalysisResult {
   technicalImpactScore: number;
   riskFactors: string[];
   recommendedActions: string[];
+
+  // --- AI 산출 결과 (llmStatus=SUCCEEDED일 때 AI 자동 산출값) ---
+  llmStatus: LlmStatus;
+  aiSummary: string | null;
+  affectedTaskCount: number;
+  affectedMemberCount: number;
+  remainingDays: number;
+  additionalWorkDays: number;
+  scopeChanged: boolean;
+  databaseChanged: boolean;
+  apiChanged: boolean;
+  uiChanged: boolean;
+  affectedTasks: AffectedTask[];
 }
 
 export class ImpactAnalysisApiError extends Error {

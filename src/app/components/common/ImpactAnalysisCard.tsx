@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Lightbulb,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -47,7 +48,9 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
   const [form, setForm] = useState<ImpactAnalysisInput>(EMPTY_FORM);
   const [result, setResult] = useState<ImpactAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [aiFilled, setAiFilled] = useState(false);
 
   // 남은 일정만 프로젝트 종료일에서 자동 반영한다(변경과 무관한 객관값). 사용자가 안 건드린 0 값만.
   // "영향 업무 수"는 변경 건별로 다르므로 자동으로 채우지 않는다.
@@ -85,6 +88,48 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
     setForm((prev) => ({ ...prev, [key]: checked }));
   };
 
+  // "AI 분석": 제목+설명만으로 백엔드가 확정 WBS를 모아 AI로 수치를 자동 산출 → 폼에 채운다.
+  const handleAiAnalyze = useCallback(async () => {
+    if (!form.changeTitle.trim() || !form.changeDescription.trim()) {
+      toast.error("변경 제목과 설명을 입력하세요.");
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const res = await impactAnalysisApi.analyze(
+        projectId,
+        { ...form, useLlm: true },
+        getAccessToken(),
+      );
+
+      if (res.llmStatus === "SUCCEEDED") {
+        setForm((p) => ({
+          ...p,
+          affectedTaskCount: res.affectedTaskCount,
+          affectedMemberCount: res.affectedMemberCount,
+          remainingDays: res.remainingDays,
+          additionalWorkDays: res.additionalWorkDays,
+          scopeChanged: res.scopeChanged,
+          databaseChanged: res.databaseChanged,
+          apiChanged: res.apiChanged,
+          uiChanged: res.uiChanged,
+        }));
+        setResult(res);
+        setAiFilled(true);
+        toast.success("AI가 영향 정보를 자동 입력했습니다. 필요하면 수정 후 평가하세요.");
+      } else if (res.llmStatus === "SKIPPED_NO_API_KEY") {
+        toast.error("AI 분석 키가 설정되지 않았습니다. 수치를 직접 입력해 평가하세요.");
+      } else {
+        setResult(res);
+        toast.message("AI 자동 산출이 어려워 규칙 기반 결과로 표시합니다.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI 분석에 실패했습니다.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [form, projectId]);
+
   const handleAnalyze = useCallback(async () => {
     if (!form.changeTitle.trim() || !form.changeDescription.trim()) {
       toast.error("변경 제목과 설명을 입력하세요.");
@@ -92,7 +137,11 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
     }
     setLoading(true);
     try {
-      const res = await impactAnalysisApi.analyze(projectId, form, getAccessToken());
+      const res = await impactAnalysisApi.analyze(
+        projectId,
+        { ...form, useLlm: false },
+        getAccessToken(),
+      );
       setResult(res);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "영향도 평가에 실패했습니다.");
@@ -144,11 +193,36 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <NumberField label="영향 업무 수" value={form.affectedTaskCount} onChange={setNumber("affectedTaskCount")} />
-                <NumberField label="영향 팀원 수" value={form.affectedMemberCount} onChange={setNumber("affectedMemberCount")} />
-                <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} />
-                <NumberField label="추가 작업(일)" value={form.additionalWorkDays} onChange={setNumber("additionalWorkDays")} />
+              {/* 제목+설명만으로 AI가 아래 수치를 자동 산출한다. */}
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => void handleAiAnalyze()}
+                disabled={analyzing || loading}
+              >
+                {analyzing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                AI 분석
+              </Button>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-muted-foreground text-xs">영향 수치</span>
+                  {aiFilled && (
+                    <span className="flex items-center gap-1 text-blue-600 text-xs">
+                      <Sparkles className="size-3" /> AI 자동 입력됨 · 수정 가능
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <NumberField label="영향 업무 수" value={form.affectedTaskCount} onChange={setNumber("affectedTaskCount")} />
+                  <NumberField label="영향 팀원 수" value={form.affectedMemberCount} onChange={setNumber("affectedMemberCount")} />
+                  <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} />
+                  <NumberField label="추가 작업(일)" value={form.additionalWorkDays} onChange={setNumber("additionalWorkDays")} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -158,7 +232,7 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
                 <ToggleField label="UI 변경" checked={form.uiChanged} onChange={toggle("uiChanged")} />
               </div>
 
-              <Button className="w-full" onClick={() => void handleAnalyze()} disabled={loading}>
+              <Button className="w-full" onClick={() => void handleAnalyze()} disabled={loading || analyzing}>
                 {loading ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
@@ -205,12 +279,48 @@ function ResultView({ result }: { result: ImpactAnalysisResult }) {
         </Badge>
       </div>
 
+      {result.aiSummary && (
+        <div className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-blue-600" />
+          <p className="text-foreground text-sm leading-snug">{result.aiSummary}</p>
+        </div>
+      )}
+
       <div className="space-y-2.5">
         <ScoreBar label="일정 (35%)" value={result.scheduleImpactScore} />
         <ScoreBar label="범위 (30%)" value={result.scopeImpactScore} />
         <ScoreBar label="자원 (20%)" value={result.resourceImpactScore} />
         <ScoreBar label="기술 (15%)" value={result.technicalImpactScore} />
       </div>
+
+      {result.affectedTasks.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-sm text-foreground">
+            영향 업무 ({result.affectedTasks.length})
+          </p>
+          <ul className="space-y-1.5">
+            {result.affectedTasks.map((task) => (
+              <li
+                key={task.taskId}
+                className="rounded-md border border-border px-2.5 py-1.5 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="font-normal text-xs">
+                    {task.impactType === "DIRECT" ? "직접" : "간접"}
+                  </Badge>
+                  <span className="text-foreground">{task.taskName}</span>
+                  <span className="ml-auto text-muted-foreground text-xs">
+                    +{task.additionalWorkDays}일
+                  </span>
+                </div>
+                <p className="mt-0.5 text-muted-foreground text-xs leading-snug">
+                  {task.reason}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {result.riskFactors.length > 0 && (
         <div>

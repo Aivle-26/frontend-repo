@@ -584,19 +584,10 @@ function ScheduleGantt({
 
   return (
     <div className="relative space-y-1.5">
-      {/* today 라벨 (날짜보다 한 줄 위) */}
+      {/* 상단 여백 (today 배지 자리) */}
       <div className="flex">
         <div className={NAME_COL} />
-        <div className="relative h-4 flex-1">
-          {todayPct != null && (
-            <span
-              className="absolute z-30 -translate-x-1/2 font-medium text-slate-500 text-xs"
-              style={{ left: `${todayPct}%` }}
-            >
-              today
-            </span>
-          )}
-        </div>
+        <div className="h-5 flex-1" />
       </div>
       {/* 날짜 축 */}
       <div className="flex items-end">
@@ -678,15 +669,32 @@ function ScheduleGantt({
         );
       })}
 
-      {/* today 기준선: 차트 전체를 관통하는 하나의 연속 실선 */}
+      {/* today 표시: 옅은 컬럼 하이라이트 + 점선 기준선 + "오늘" 배지 */}
       {todayPct != null && (
         <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-20 flex">
           <div className={NAME_COL} />
           <div className="relative flex-1">
+            {/* 오늘 열 하이라이트 밴드 */}
             <div
-              className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full"
-              style={{ left: `${todayPct}%`, backgroundColor: "rgb(100 116 139 / 0.55)" }}
+              className="absolute bottom-0 top-7 -translate-x-1/2 rounded"
+              style={{
+                left: `${todayPct}%`,
+                width: "14px",
+                backgroundColor: "rgba(244, 63, 94, 0.08)",
+              }}
             />
+            {/* 점선 기준선 (배지 아래부터) */}
+            <div
+              className="absolute bottom-0 top-7 -translate-x-1/2 border-l-2 border-dashed"
+              style={{ left: `${todayPct}%`, borderColor: "rgba(244, 63, 94, 0.65)" }}
+            />
+            {/* "오늘" 배지 */}
+            <div
+              className="absolute top-0 -translate-x-1/2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm"
+              style={{ left: `${todayPct}%` }}
+            >
+              오늘
+            </div>
           </div>
         </div>
       )}

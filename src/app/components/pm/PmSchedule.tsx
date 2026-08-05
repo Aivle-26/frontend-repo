@@ -512,6 +512,19 @@ export function PmSchedule({
   );
 }
 
+/**
+ * 카테고리(단계)별 막대 색상. 단계 순서(index)가 커질수록(아래로 내려갈수록)
+ * 채도는 높이고 명도는 낮춰 더 깊은 색으로 표현한다.
+ */
+function categoryColor(index: number, total: number): string {
+  const hues = [212, 174, 150, 128, 40, 22, 280, 330];
+  const hue = hues[index % hues.length];
+  const t = total > 1 ? index / (total - 1) : 0; // 0(맨 위) → 1(맨 아래)
+  const saturation = Math.round(58 + t * 28); // 58% → 86% (채도 깊게)
+  const lightness = Math.round(54 - t * 18); // 54% → 36% (아래로 갈수록 어둡게)
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
 /** 추천 일정을 간트 차트(막대 타임라인)로 표시한다. */
 function ScheduleGantt({
   schedule,
@@ -548,6 +561,26 @@ function ScheduleGantt({
 
   const NAME_COL = "w-40 shrink-0 pr-3";
 
+  // 카테고리(단계) 매핑: 각 행이 속한 최상위 PHASE의 순번을 찾아 색을 정한다.
+  const byId = new Map(rows.map((r) => [r.wbsId, r]));
+  const phaseRows = rows
+    .filter((r) => r.itemType === "PHASE")
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+  const phaseIndexById = new Map(phaseRows.map((r, i) => [r.wbsId, i]));
+  const phaseCount = phaseRows.length;
+
+  const phaseIndexOf = (row: ProjectScheduleDetail): number => {
+    let cur: ProjectScheduleDetail | undefined = row;
+    let guard = 0;
+    while (cur && guard < 50) {
+      guard += 1;
+      if (cur.itemType === "PHASE") return phaseIndexById.get(cur.wbsId) ?? 0;
+      if (cur.parentWbsId == null) break;
+      cur = byId.get(cur.parentWbsId);
+    }
+    return 0;
+  };
+
   return (
     <div className="space-y-1.5">
       {/* today 라벨 (날짜보다 한 줄 위) */}
@@ -580,8 +613,39 @@ function ScheduleGantt({
         </div>
       </div>
 
-      {/* 각 일정 막대 */}
+      {/* 각 일정 행 */}
       {rows.map((row) => {
+        const catIndex = phaseIndexOf(row);
+        const barColor = categoryColor(catIndex, phaseCount);
+
+        // 단계(카테고리) 행: 막대 없이 그룹 헤더로만 표시한다.
+        if (row.itemType === "PHASE") {
+          return (
+            <div key={row.scheduleId} className="flex items-center pt-2.5">
+              <div className={`${NAME_COL} flex items-center gap-1.5`}>
+                <span
+                  className="size-2.5 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: barColor }}
+                />
+                <span
+                  className="truncate text-foreground text-sm font-semibold"
+                  title={row.wbsName}
+                >
+                  {row.wbsName}
+                </span>
+              </div>
+              <div className="relative h-5 flex-1 border-b border-dashed border-border/60">
+                {todayPct != null && (
+                  <div
+                    className="absolute inset-y-0 z-10 w-px -translate-x-1/2 bg-amber-400/70"
+                    style={{ left: `${todayPct}%` }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        }
+
         const startPct = pct(toTime(row[version].startDate));
         const endPct = pct(toTime(row[version].endDate));
         const left = Math.max(0, startPct);
@@ -591,7 +655,7 @@ function ScheduleGantt({
         )} (${row[version].estimatedDays}일)`;
         return (
           <div key={row.scheduleId} className="flex items-center">
-            <div className={`${NAME_COL} flex items-center gap-1.5`}>
+            <div className={`${NAME_COL} flex items-center gap-1.5 pl-3`}>
               {row.milestone && <Flag className="size-3.5 shrink-0 text-blue-600" />}
               <span className="truncate text-foreground text-sm" title={row.wbsName}>
                 {row.wbsName}
@@ -606,14 +670,14 @@ function ScheduleGantt({
               )}
               {row.milestone ? (
                 <div
-                  className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] bg-blue-600"
-                  style={{ left: `${left}%` }}
+                  className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
+                  style={{ left: `${left}%`, backgroundColor: barColor }}
                   title={title}
                 />
               ) : (
                 <div
-                  className="absolute inset-y-1 flex items-center justify-end overflow-hidden rounded bg-blue-500/90 pr-1.5"
-                  style={{ left: `${left}%`, width: `${width}%` }}
+                  className="absolute inset-y-1 flex items-center justify-end overflow-hidden rounded pr-1.5"
+                  style={{ left: `${left}%`, width: `${width}%`, backgroundColor: barColor }}
                   title={title}
                 >
                   <span className="whitespace-nowrap text-[10px] text-white">

@@ -517,12 +517,12 @@ export function PmSchedule({
  * 채도는 높이고 명도는 낮춰 더 깊은 색으로 표현한다.
  */
 function categoryColor(index: number, total: number): string {
+  // 카테고리별로 다른 파스텔 색상. 아래로 갈수록(index↑) 채도만 살짝 올려 톤을 맞춘다.
+  const hues = [210, 190, 162, 138, 45, 22, 275, 330];
+  const hue = hues[index % hues.length];
   const t = total > 1 ? index / (total - 1) : 0;
-
-  const hue = 210; // 파스텔 블루
-  const saturation = 45 + t * 20; // 45% -> 65%
-  const lightness = 84 - t * 20;  // 84% -> 64%
-
+  const saturation = Math.round(52 + t * 16); // 52% → 68% (파스텔 유지)
+  const lightness = Math.round(85 - t * 13); // 85% → 72% (부드러운 톤)
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
@@ -583,14 +583,14 @@ function ScheduleGantt({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="relative space-y-1.5">
       {/* today 라벨 (날짜보다 한 줄 위) */}
       <div className="flex">
         <div className={NAME_COL} />
         <div className="relative h-4 flex-1">
           {todayPct != null && (
             <span
-              className="absolute -translate-x-1/2 font-medium text-amber-600 text-xs"
+              className="absolute z-30 -translate-x-1/2 font-medium text-slate-500 text-xs"
               style={{ left: `${todayPct}%` }}
             >
               today
@@ -635,14 +635,7 @@ function ScheduleGantt({
                   {row.wbsName}
                 </span>
               </div>
-              <div className="relative h-5 flex-1 border-b border-dashed border-border/60">
-                {todayPct != null && (
-                  <div
-                    className="absolute inset-y-0 z-10 w-px -translate-x-1/2 bg-amber-400/70"
-                    style={{ left: `${todayPct}%` }}
-                  />
-                )}
-              </div>
+              <div className="relative h-5 flex-1 border-b border-dashed border-border/60" />
             </div>
           );
         }
@@ -663,12 +656,6 @@ function ScheduleGantt({
               </span>
             </div>
             <div className="relative h-7 flex-1 rounded bg-muted/40">
-              {todayPct != null && (
-                <div
-                  className="absolute inset-y-0 z-10 w-[3px] -translate-x-1/2 rounded bg-amber-500"
-                  style={{ left: `${todayPct}%` }}
-                />
-              )}
               {row.milestone ? (
                 <div
                   className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
@@ -681,7 +668,7 @@ function ScheduleGantt({
                   style={{ left: `${left}%`, width: `${width}%`, backgroundColor: barColor }}
                   title={title}
                 >
-                  <span className="whitespace-nowrap text-[10px] text-white">
+                  <span className="whitespace-nowrap text-[10px] text-slate-700">
                     {row[version].estimatedDays}일
                   </span>
                 </div>
@@ -690,6 +677,19 @@ function ScheduleGantt({
           </div>
         );
       })}
+
+      {/* today 기준선: 차트 전체를 관통하는 하나의 연속 실선 */}
+      {todayPct != null && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-20 flex">
+          <div className={NAME_COL} />
+          <div className="relative flex-1">
+            <div
+              className="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full"
+              style={{ left: `${todayPct}%`, backgroundColor: "rgb(100 116 139 / 0.55)" }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

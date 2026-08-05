@@ -165,6 +165,8 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >([]);
+  // AI가 아예 추천 항목을 만들지 못한 확정 리프 WBS (그래도 최종 저장 땐 반드시 포함해야 함)
+  const [unassignedIds, setUnassignedIds] = useState<number[]>([]);
   // 자동 호출 방지: 진입 시 추천을 돌리지 않고, 버튼을 눌러야 실행한다.
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
@@ -181,10 +183,16 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .then((res) => {
         setAssignRecs(res.assignments ?? []);
         setCandidates(res.candidates ?? []);
+        setUnassignedIds(res.unassignedWbsIds ?? []);
         const defaults: Record<number, string> = {};
         for (const a of res.assignments ?? []) {
           if (a.recommendedMembers[0]) {
             defaults[a.wbsId] = a.recommendedMembers[0].employeeNumber;
+          }
+        }
+        for (const wbsId of res.unassignedWbsIds ?? []) {
+          if (res.candidates?.[0]) {
+            defaults[wbsId] = res.candidates[0].employeeNumber;
           }
         }
         setSelectedMember(defaults);
@@ -205,6 +213,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   useEffect(() => {
     setAssignRecs([]);
     setCandidates([]);
+    setUnassignedIds([]);
     setSelectedMember({});
     setHasRecommended(false);
     setAssignError("");
@@ -212,12 +221,21 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
   }, [project.id]);
 
   const handleSaveAssignments = () => {
+    const unresolvable: string[] = [];
+
     // 선택된 담당자가 있는 작업만 저장한다. (AI 추천 후보가 아니어도 배정 가능)
-    const assignments = assignRecs
+    // 백엔드는 확정된 리프 WBS 전부가 정확히 한 번씩 포함되길 요구하므로,
+    // AI 추천이 없는 작업은 전체 팀원 후보(candidates) 중 첫 번째로라도 채운다.
+    const fromRecs = assignRecs
       .map((rec) => {
         const employeeNumber =
-          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber;
-        if (!employeeNumber) return null;
+          selectedMember[rec.wbsId] ??
+          rec.recommendedMembers[0]?.employeeNumber ??
+          candidates[0]?.employeeNumber;
+        if (!employeeNumber) {
+          unresolvable.push(rec.wbsName);
+          return null;
+        }
         const recMember = rec.recommendedMembers.find(
           (m) => m.employeeNumber === employeeNumber,
         );
@@ -228,6 +246,27 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
         };
       })
       .filter((a): a is NonNullable<typeof a> => a !== null);
+
+    // AI가 추천 항목 자체를 못 만든 WBS(unassignedWbsIds) — 시간 정보가 없어 1시간으로 채운다.
+    const fromUnassigned = unassignedIds
+      .map((wbsId) => {
+        const employeeNumber = selectedMember[wbsId] ?? candidates[0]?.employeeNumber;
+        if (!employeeNumber) {
+          unresolvable.push(`WBS #${wbsId}`);
+          return null;
+        }
+        return { wbsId, employeeNumber, assignedHours: 1 };
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
+
+    const assignments = [...fromRecs, ...fromUnassigned];
+
+    if (unresolvable.length > 0) {
+      toast.error(
+        `담당 가능한 팀원이 없는 작업이 있어요: ${unresolvable.slice(0, 3).join(", ")}${unresolvable.length > 3 ? ` 외 ${unresolvable.length - 3}건` : ""}. 프로젝트 팀원을 먼저 추가해 주세요.`,
+      );
+      return;
+    }
 
     if (assignments.length === 0) {
       toast.error("배정할 담당자를 먼저 선택하세요.");
@@ -549,6 +588,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
               {!assignLoading && !assignError && hasRecommended && (
                 <Badge variant="outline" className="font-normal">
                   AI 추천 {assignRecs.length}건
+                  {unassignedIds.length > 0 && ` · 미추천 ${unassignedIds.length}건`}
                 </Badge>
               )}
               <Button
@@ -620,6 +660,7 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
                     const selected =
                       selectedMember[rec.wbsId] ??
                       rec.recommendedMembers[0]?.employeeNumber ??
+                      candidates[0]?.employeeNumber ??
                       "";
                     const recMember = rec.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,
@@ -686,7 +727,50 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
                       </TableRow>
                     );
                   })}
-                  {assignRecs.length === 0 && (
+                  {unassignedIds.map((wbsId) => {
+                    const selected = selectedMember[wbsId] ?? candidates[0]?.employeeNumber ?? "";
+                    return (
+                      <TableRow key={`unassigned-${wbsId}`}>
+                        <TableCell>
+                          <div className="text-foreground">WBS #{wbsId}</div>
+                          <div className="text-muted-foreground text-xs">
+                            AI가 추천을 만들지 못했어요 — 직접 선택해 주세요
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-muted-foreground">-</span>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={selected || undefined}
+                            onValueChange={(v) =>
+                              setSelectedMember((prev) => ({ ...prev, [wbsId]: v }))
+                            }
+                          >
+                            <SelectTrigger className="w-56">
+                              <SelectValue placeholder="담당자 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {candidates.map((m) => (
+                                <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
+                                  {m.name}
+                                </SelectItem>
+                              ))}
+                              {candidates.length === 0 && (
+                                <div className="px-2 py-1.5 text-muted-foreground text-xs">
+                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-muted-foreground">-</span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {assignRecs.length === 0 && unassignedIds.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                         추천할 업무가 없습니다. WBS를 먼저 확정해 주세요.

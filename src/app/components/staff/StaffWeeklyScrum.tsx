@@ -65,7 +65,12 @@ function toMonday(d: Date): Date {
 }
 
 function fmtISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // toISOString()은 UTC로 변환하는데, 한국(UTC+9)에서는 자정 근처 날짜가
+  // 하루 전날로 밀려버려서 "월요일이 아니다" 오류가 났다. 로컬 날짜를 그대로 쓴다.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function fmtShort(d: Date): string {
@@ -323,7 +328,7 @@ export function StaffWeeklyScrum({
         buildRequestBody(),
       );
       setExisting(saved);
-      toast.success(isFinal ? "위클리 스크럼을 제출했어요." : "임시 저장했어요.");
+      toast.success(isFinal ? "제출되었습니다." : "임시 저장되었습니다.");
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "저장에 실패했습니다.");
     } finally {
@@ -520,7 +525,7 @@ export function StaffWeeklyScrum({
 
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1 text-foreground text-sm">
-                    완료한 일 (Done) <span className="text-red-500">*</span>
+                    이번 주 한 일 (Done) <span className="text-red-500">*</span>
                   </label>
                   <Textarea
                     value={completedWork}

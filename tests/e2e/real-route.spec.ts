@@ -40,6 +40,20 @@ const realRequirement = {
   updatedAt: "2026-07-29T00:00:00",
 };
 
+const organizationChartArtifact = {
+  artifactId: 901,
+  projectId: realProject.projectId,
+  artifactType: "ORGANIZATION_CHART",
+  artifactName: "조직도",
+  version: "1.0",
+  approvalStatus: "PENDING",
+  contentType: "image/jpeg",
+  fileSize: 4,
+  generatedAt: "2026-08-05T10:00:00",
+  previewUrl: `/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+  downloadUrl: `/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+};
+
 const demoProjectNames = [
   "신제품 출시 프로젝트",
   "브랜드 리뉴얼 프로젝트",
@@ -60,6 +74,98 @@ test("keeps the existing root route and activates real mode for direct paths", a
   await page.reload();
   await expect(page.locator('[data-app-mode="real"]')).toBeVisible();
   await expect(page.locator("#email")).toBeVisible();
+});
+
+test("generates and previews the required organization chart for PM", async ({
+  page,
+}) => {
+  let generated = false;
+  let generateCalls = 0;
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: generated ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(
+          generated
+            ? organizationChartArtifact
+            : {
+                code: "ORGANIZATION_CHART_NOT_GENERATED",
+                message: "not generated",
+              },
+        ),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/generate`,
+    async (route) => {
+      generateCalls += 1;
+      generated = true;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(organizationChartArtifact),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      });
+    },
+  );
+
+  await login(page);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  await expect(page.getByText("필수 산출물", { exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "조직도 필수 산출물" }))
+    .toBeDisabled();
+  await page.getByRole("button", { name: "조직도 생성", exact: true }).click();
+
+  await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
+  await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
+  expect(generateCalls).toBe(1);
+});
+
+test("allows STAFF to preview and download without a generate action", async ({
+  page,
+}) => {
+  await mockLogin(page, "STAFF");
+  await mockProjectList(page, [realProject]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(organizationChartArtifact),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      });
+    },
+  );
+
+  await login(page);
+
+  await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
+  await expect(page.getByRole("button", { name: "조직도 생성" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "재생성" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "다운로드" })).toBeVisible();
 });
 
 test("shows an honest project empty state without demo projects", async ({
@@ -718,6 +824,19 @@ async function mockProjectList(
   page: Page,
   projects: Array<typeof realProject>,
 ) {
+  await page.route(
+    "**/api/projects/*/artifacts/organization-chart/latest",
+    async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "ORGANIZATION_CHART_NOT_GENERATED",
+          message: "not generated",
+        }),
+      });
+    },
+  );
   await page.route("**/api/projects/*/requirements/readjustments", async (route) => {
     await route.fulfill({
       status: 200,
@@ -737,7 +856,7 @@ async function mockProjectList(
   });
 }
 
-async function mockLogin(page: Page) {
+async function mockLogin(page: Page, role: "PM" | "STAFF" = "PM") {
   await page.route("**/api/users/login", async (route: Route) => {
     const now = Date.now();
     await route.fulfill({
@@ -746,9 +865,9 @@ async function mockLogin(page: Page) {
       body: JSON.stringify({
         success: true,
         message: "ok",
-        employeeNumber: "PM-REAL",
-        name: "Real Route PM",
-        role: "PM",
+        employeeNumber: role === "PM" ? "PM-REAL" : "STAFF-REAL",
+        name: role === "PM" ? "Real Route PM" : "Real Route Staff",
+        role,
         accessToken: "real-route-access-token",
         refreshToken: "real-route-refresh-token",
         accessTokenExpiresAt: now + 3_600_000,

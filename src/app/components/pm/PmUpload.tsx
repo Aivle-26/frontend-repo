@@ -41,6 +41,7 @@ import {
 } from "@/app/api/projectRepository";
 import { RequirementEvidenceViewer } from "./RequirementEvidenceViewer";
 import { RequirementChangeReview } from "./RequirementChangeReview";
+import { OrganizationChartArtifactCard } from "@/app/components/common/OrganizationChartArtifactCard";
 import {
   PROJECT_DOCUMENT_ACCEPT,
   validateProjectDocumentFiles,
@@ -472,6 +473,13 @@ export function PmUpload({
 
   return (
     <div className="space-y-6">
+      {mode === "real" ? (
+        <OrganizationChartArtifactCard
+          projectId={project.id}
+          canGenerate
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>프로젝트 문서 업로드</CardTitle>

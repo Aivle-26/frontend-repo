@@ -138,6 +138,25 @@ export interface ProjectDocumentUploadResponse {
   documents: ProjectDocumentUploadItem[];
 }
 
+export interface OrganizationChartArtifact {
+  artifactId: number;
+  projectId: number;
+  artifactType: "ORGANIZATION_CHART";
+  artifactName: string;
+  version: string;
+  approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  contentType: "image/jpeg";
+  fileSize: number;
+  generatedAt: string;
+  previewUrl: string;
+  downloadUrl: string;
+}
+
+export interface OrganizationChartDownload {
+  blob: Blob;
+  fileName: string;
+}
+
 export interface AnalyzeProjectRequirementsRequest {
   documentIds: number[];
 }
@@ -180,6 +199,46 @@ export interface RequirementsResult {
   projectId: number;
   aiSuggestions: RequirementResponse[];
   finalRequirements: RequirementResponse[];
+}
+
+export type RequirementChangeReviewStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED";
+
+export interface RequirementChangeProposal {
+  requirementId: number | null;
+  sourceDocumentId: number | null;
+  functionName: string;
+  requirementText: string;
+  category: RequirementType | string;
+  priority: RequirementPriority | string;
+  acceptanceCriteria: string | null;
+  dueDate: string | null;
+  deliverableName: string | null;
+  securityCondition: string | null;
+  sourceDocument: string | null;
+  sourceExcerpt: string | null;
+  evidences: unknown[];
+}
+
+export interface RequirementChangeCandidate {
+  candidateId: number;
+  existingRequirementId: number | null;
+  changeType: "ADDED" | "MODIFIED" | "REMOVED" | "UNCHANGED";
+  reviewStatus: RequirementChangeReviewStatus;
+  changeReason: string | null;
+  existingRequirement: RequirementChangeProposal | null;
+  proposedRequirement: RequirementChangeProposal | null;
+  evidences: unknown[];
+  applied: boolean;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface RequirementReadjustmentResult {
+  projectId: number;
+  changeCandidates: RequirementChangeCandidate[];
 }
 
 export interface SaveFinalRequirement {
@@ -1004,6 +1063,56 @@ async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> 
   return payload as T;
 }
 
+async function apiFetchBlob(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<Blob> {
+  const {
+    auth = false,
+    retryOnUnauthorized = true,
+    headers,
+    ...requestInit
+  } = init;
+  const requestHeaders = new Headers(headers);
+
+  if (auth) {
+    const session = readSession();
+    if (session?.accessToken) {
+      requestHeaders.set("Authorization", `Bearer ${session.accessToken}`);
+    }
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...requestInit,
+    headers: requestHeaders,
+  });
+
+  if (!response.ok) {
+    if (auth && response.status === 401 && retryOnUnauthorized) {
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        return apiFetchBlob(path, {
+          ...init,
+          retryOnUnauthorized: false,
+        });
+      }
+    }
+
+    const payload = await parseResponse(response);
+    if (auth && response.status === 401) {
+      clearSession();
+      emitAuthExpired();
+    }
+    throw new ApiError(
+      response.status,
+      getErrorMessage(payload, response.statusText),
+      payload,
+    );
+  }
+
+  return response.blob();
+}
+
 export function toFrontendRole(role?: string): Role {
   return role?.trim().toLowerCase() === "pm" ? "pm" : "staff";
 }
@@ -1444,6 +1553,43 @@ export const projectRepository = {
     );
   },
 
+  generateOrganizationChart(projectId: string | number) {
+    return apiFetch<OrganizationChartArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/generate`,
+      {
+        method: "POST",
+        auth: true,
+        expectedStatuses: [201],
+      },
+    );
+  },
+
+  getLatestOrganizationChart(projectId: string | number) {
+    return apiFetch<OrganizationChartArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/latest`,
+      { auth: true },
+    );
+  },
+
+  getOrganizationChartBlob(projectId: string | number) {
+    return apiFetchBlob(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/latest/download`,
+      { auth: true },
+    );
+  },
+
+  async downloadOrganizationChart(
+    projectId: string | number,
+    version: string,
+  ): Promise<OrganizationChartDownload> {
+    const blob = await this.getOrganizationChartBlob(projectId);
+    const safeVersion = version.replace(/[^0-9.]/g, "") || "latest";
+    return {
+      blob,
+      fileName: `organization-chart-v${safeVersion}.jpg`,
+    };
+  },
+
   listProjectDocuments(projectId: string | number) {
     return apiFetch<ProjectDocumentUploadResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/documents`,
@@ -1462,6 +1608,59 @@ export const projectRepository = {
         body: JSON.stringify(input),
         auth: true,
         expectedStatuses: [200],
+      },
+    );
+  },
+
+  readjustProjectRequirements(
+    projectId: string | number,
+    input: AnalyzeProjectRequirementsRequest,
+  ) {
+    return apiFetch<RequirementReadjustmentResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjust`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  listRequirementReadjustments(projectId: string | number) {
+    return apiFetch<RequirementReadjustmentResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments`,
+      { auth: true },
+    );
+  },
+
+  reviewRequirementChange(
+    projectId: string | number,
+    candidateId: string | number,
+    input: {
+      reviewStatus: RequirementChangeReviewStatus;
+      proposedRequirement?: RequirementChangeProposal | null;
+    },
+  ) {
+    return apiFetch<RequirementChangeCandidate>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/${encodeURIComponent(String(candidateId))}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+        auth: true,
+      },
+    );
+  },
+
+  applyRequirementChanges(
+    projectId: string | number,
+    candidateIds: number[],
+  ) {
+    return apiFetch<RequirementsResult>(
+      `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds }),
+        auth: true,
       },
     );
   },

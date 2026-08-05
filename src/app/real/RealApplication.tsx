@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CircleOff, FolderKanban, LayoutDashboard } from "lucide-react";
+import { FolderKanban, LayoutDashboard } from "lucide-react";
 import {
   projectRepository,
   toFrontendRole,
@@ -8,6 +8,7 @@ import {
 } from "@/app/api/projectRepository";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
+import { OrganizationChartArtifactCard } from "@/app/components/common/OrganizationChartArtifactCard";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
@@ -19,7 +20,6 @@ import {
 } from "@/app/components/pm/ProjectListNotice";
 import { ProjectBoard } from "@/app/components/pm/ProjectBoard";
 import { PmUpload } from "@/app/components/pm/PmUpload";
-import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Button } from "@/app/components/ui/button";
 import { Toaster } from "@/app/components/ui/sonner";
 import { mapApiProject } from "@/app/projects/projectMapping";
@@ -42,9 +42,9 @@ const REAL_PM_MENU: SidebarItem[] = [
 
 const REAL_STAFF_MENU: SidebarItem[] = [
   {
-    key: "availability",
-    label: "연결 상태",
-    icon: CircleOff,
+    key: "project-data",
+    label: "프로젝트 산출물",
+    icon: FolderKanban,
     group: "개요",
   },
 ];
@@ -92,7 +92,7 @@ export function RealApplication() {
   }, []);
 
   useEffect(() => {
-    if (role !== "pm") {
+    if (!role) {
       setProjects([]);
       setSelectedProjectId("");
       setProjectLoadStatus("idle");
@@ -139,7 +139,9 @@ export function RealApplication() {
   const handleLogin = (session: LoginVerifyResponse) => {
     const location = readRealLocation();
     setAuthSession(session);
-    setActiveMenu(location.menu);
+    setActiveMenu(
+      toFrontendRole(session.role) === "pm" ? location.menu : "project-data",
+    );
     setSelectedProjectId(location.projectId);
   };
 
@@ -208,14 +210,21 @@ export function RealApplication() {
   const selectedProject =
     projects.find((project) => project.id === selectedProjectId) ?? projects[0];
 
-  let title = "실데이터 연결 상태";
-  let body: React.ReactNode = (
-    <Alert>
-      <AlertDescription>
-        STAFF 업무 API는 현재 실데이터 전용 화면에 연결되어 있지 않습니다.
-        서버 데이터가 연결되기 전까지 업무 예시를 대신 표시하지 않습니다.
-      </AlertDescription>
-    </Alert>
+  let title = "프로젝트 산출물";
+  let body: React.ReactNode = selectedProject ? (
+    <div className="space-y-4">
+      <ProjectScopeBar
+        projects={projects}
+        value={selectedProjectId}
+        onChange={openProjectData}
+      />
+      <OrganizationChartArtifactCard
+        projectId={selectedProject.id}
+        canGenerate={false}
+      />
+    </div>
+  ) : (
+    <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
   );
 
   if (isPm && activeMenu === "project-data") {
@@ -280,12 +289,11 @@ export function RealApplication() {
     >
       <Sidebar
         items={isPm ? REAL_PM_MENU : REAL_STAFF_MENU}
-        active={isPm ? activeMenu : "availability"}
+        active={isPm ? activeMenu : "project-data"}
         showIntegrations={false}
         hideOnMobile
         onSelect={(key) => {
-          if (!isPm) return;
-          if (key === "projects") {
+          if (key === "projects" && isPm) {
             openProjects();
           } else if (key === "project-data" && selectedProject) {
             openProjectData(selectedProject.id);
@@ -336,7 +344,26 @@ function RealMobileNavigation({
   onProjects: () => void;
   onProjectData: () => void;
 }) {
-  if (!isPm) return null;
+  if (!isPm) {
+    return (
+      <nav
+        aria-label="실데이터 화면"
+        className="border-b border-border bg-card p-2 md:hidden"
+      >
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="w-full"
+          disabled={!hasSelectedProject}
+          onClick={onProjectData}
+        >
+          <FolderKanban className="size-4" />
+          프로젝트 산출물
+        </Button>
+      </nav>
+    );
+  }
 
   return (
     <nav

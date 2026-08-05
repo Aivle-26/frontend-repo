@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { Sparkles, AlertCircle, Save } from "lucide-react";
+import { Sparkles, AlertCircle, Save, ChevronDown } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
+import { cn } from "@/app/components/ui/utils";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -123,6 +124,28 @@ export function PmBudget({ project }: PmBudgetProps) {
   );
 
   const totalMm = wbsRows.reduce((sum, r) => sum + r.mm, 0);
+  const wbsByRole = useMemo(() => {
+    const map = new Map<string, typeof wbsRows>();
+    for (const row of wbsRows) {
+      const list = map.get(row.role) ?? [];
+      list.push(row);
+      map.set(row.role, list);
+    }
+    return Array.from(map.entries()).map(([role, rows]) => ({
+      role,
+      rows,
+      totalMm: rows.reduce((sum, r) => sum + r.mm, 0),
+    }));
+  }, [wbsRows]);
+  const [openRoles, setOpenRoles] = useState<Set<string>>(new Set());
+  const toggleRole = (role: string) => {
+    setOpenRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role);
+      else next.add(role);
+      return next;
+    });
+  };
   const unsavedCount = wbsRows.filter((r) => r.taskId == null).length;
 
   const buildRequestBody = useCallback((): CostEstimateRequestBody | null => {
@@ -319,31 +342,53 @@ export function PmBudget({ project }: PmBudgetProps) {
           )}
           {!wbsLoading && !wbsError && (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>WBS</TableHead>
-                    <TableHead>필요 역할</TableHead>
-                    <TableHead className="text-right">예상 MM</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {wbsRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.role}</TableCell>
-                      <TableCell className="text-right">{row.mm.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {wbsRows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                        아직 생성된 WBS가 없습니다.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+              <div className="space-y-2">
+                {wbsByRole.map(({ role, rows, totalMm: roleMm }) => {
+                  const open = openRoles.has(role);
+                  return (
+                    <div key={role} className="rounded-lg border border-border">
+                      <button
+                        type="button"
+                        onClick={() => toggleRole(role)}
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ChevronDown
+                            className={cn(
+                              "size-4 text-muted-foreground transition-transform",
+                              open && "rotate-180",
+                            )}
+                          />
+                          <span className="text-foreground text-sm">{role}</span>
+                          <Badge variant="outline" className="font-normal">
+                            {rows.length}건
+                          </Badge>
+                        </span>
+                        <span className="text-muted-foreground text-sm">
+                          {roleMm.toFixed(2)} MM
+                        </span>
+                      </button>
+                      {open && (
+                        <Table>
+                          <TableBody>
+                            {rows.map((row) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="pl-9">{row.name}</TableCell>
+                                <TableCell className="text-right">{row.mm.toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  );
+                })}
+                {wbsRows.length === 0 && (
+                  <p className="py-8 text-center text-muted-foreground text-sm">
+                    아직 생성된 WBS가 없습니다.
+                  </p>
+                )}
+              </div>
               <Button
                 className="w-full"
                 onClick={() => void runEstimate()}

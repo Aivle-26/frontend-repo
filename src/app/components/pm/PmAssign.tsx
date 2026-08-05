@@ -8,6 +8,7 @@ import {
   CalendarClock,
   AlertCircle,
   ChevronDown,
+  ChevronRight,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -78,7 +79,27 @@ function priorityVariant(p: string) {
 
 const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 
-export function PmAssign({ project }: { project: ProjectSummary }) {
+/**
+ * "담당자 추천" 결과를 프로젝트별로 메모리에 기억해둔다.
+ * 다른 화면(WBS/일정/예산 등)에 갔다가 돌아와도 다시 추천 버튼을 누를 필요 없게
+ * 하기 위한 것으로, 로그아웃하거나 페이지를 새로고침하면 사라진다(의도된 동작).
+ */
+interface AssignRecommendationCache {
+  assignRecs: AssignmentRecommendation[];
+  candidates: { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[];
+  unassignedIds: number[];
+  selectedMember: Record<number, string>;
+  hasRecommended: boolean;
+}
+const assignRecommendationCache = new Map<string, AssignRecommendationCache>();
+
+export function PmAssign({
+  project,
+  onNavigateNext,
+}: {
+  project: ProjectSummary;
+  onNavigateNext?: () => void;
+}) {
   const requirements = projectRequirements(project);
 
   // 프로젝트 팀원 관리
@@ -160,19 +181,39 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .finally(() => setSavingMembers(false));
   };
 
-  const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>([]);
+  const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>(
+    () => assignRecommendationCache.get(project.id)?.assignRecs ?? [],
+  );
   // 추천 응답의 candidates = 배정 가능한 전체 후보 명단(드롭다운에 사용)
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
-  >([]);
+  >(() => assignRecommendationCache.get(project.id)?.candidates ?? []);
   // AI가 아예 추천 항목을 만들지 못한 확정 리프 WBS (그래도 최종 저장 땐 반드시 포함해야 함)
-  const [unassignedIds, setUnassignedIds] = useState<number[]>([]);
+  const [unassignedIds, setUnassignedIds] = useState<number[]>(
+    () => assignRecommendationCache.get(project.id)?.unassignedIds ?? [],
+  );
   // 자동 호출 방지: 진입 시 추천을 돌리지 않고, 버튼을 눌러야 실행한다.
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
-  const [hasRecommended, setHasRecommended] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
+  const [hasRecommended, setHasRecommended] = useState(
+    () => assignRecommendationCache.get(project.id)?.hasRecommended ?? false,
+  );
+  const [selectedMember, setSelectedMember] = useState<Record<number, string>>(
+    () => assignRecommendationCache.get(project.id)?.selectedMember ?? {},
+  );
   const [savingAssignments, setSavingAssignments] = useState(false);
+
+  // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 그대로 저장해둔다.
+  useEffect(() => {
+    if (!hasRecommended) return;
+    assignRecommendationCache.set(project.id, {
+      assignRecs,
+      candidates,
+      unassignedIds,
+      selectedMember,
+      hasRecommended,
+    });
+  }, [project.id, assignRecs, candidates, unassignedIds, selectedMember, hasRecommended]);
 
   const loadRecommendations = () => {
     setAssignLoading(true);
@@ -209,16 +250,6 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
       .finally(() => setAssignLoading(false));
   };
 
-  // 프로젝트가 바뀌면 이전 추천 결과를 비우고, 다시 버튼으로 실행하도록 초기화한다.
-  useEffect(() => {
-    setAssignRecs([]);
-    setCandidates([]);
-    setUnassignedIds([]);
-    setSelectedMember({});
-    setHasRecommended(false);
-    setAssignError("");
-    setAssignLoading(false);
-  }, [project.id]);
 
   const handleSaveAssignments = () => {
     const unresolvable: string[] = [];
@@ -863,6 +894,14 @@ export function PmAssign({ project }: { project: ProjectSummary }) {
           </CardContent>
         </Card>
       </div>
+
+      {onNavigateNext && (
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onNavigateNext}>
+            예산 화면으로 이동 <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

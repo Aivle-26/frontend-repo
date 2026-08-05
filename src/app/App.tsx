@@ -73,7 +73,7 @@ const PM_MENU: SidebarItem[] = [
   { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
   { key: "wbs", label: "WBS", icon: Network, group: "계획" },
   { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
-  { key: "assign", label: "업무 (배정)", icon: Users, group: "계획" },
+  { key: "assign", label: "업무 배정", icon: Users, group: "계획" },
   { key: "budget", label: "예산", icon: Wallet, group: "계획" },
   // [실행]
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
@@ -406,6 +406,7 @@ function DemoApplication() {
         <PmWbs
           key={selectedProject?.id}
           project={selectedProject!}
+          onNavigateNext={() => setPmMenu("schedule")}
         />
       );
     } else if (pmMenu === "schedule") {
@@ -414,14 +415,16 @@ function DemoApplication() {
         <PmSchedule
           key={selectedProject?.id}
           project={selectedProject!}
+          onNavigateNext={() => setPmMenu("assign")}
         />
       );
     } else if (pmMenu === "assign") {
-      subtitle = "업무 (배정)";
+      subtitle = "업무 배정";
       body = (
         <PmAssign
           key={selectedProject?.id}
           project={selectedProject!}
+          onNavigateNext={() => setPmMenu("budget")}
         />
       );
     } else if (pmMenu === "budget") {

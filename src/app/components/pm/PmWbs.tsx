@@ -72,7 +72,13 @@ function getTaskLevel(task: WbsTask, taskByExternalId: Map<string, WbsTask>) {
   return level;
 }
 
-export function PmWbs({ project }: { project: ProjectSummary }) {
+export function PmWbs({
+  project,
+  onNavigateNext,
+}: {
+  project: ProjectSummary;
+  onNavigateNext?: () => void;
+}) {
   const [result, setResult] = useState<WbsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -409,6 +415,14 @@ export function PmWbs({ project }: { project: ProjectSummary }) {
             </Button>
           </div>
         </>
+      )}
+
+      {onNavigateNext && (
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onNavigateNext}>
+            일정 화면으로 이동 <ChevronRight className="size-4" />
+          </Button>
+        </div>
       )}
     </div>
   );

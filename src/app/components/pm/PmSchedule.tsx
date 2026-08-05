@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarClock,
+  ChevronRight,
   Flag,
   Loader2,
   RefreshCw,
@@ -50,7 +51,13 @@ function formatDate(value?: string | null) {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function PmSchedule({ project }: { project: ProjectSummary }) {
+export function PmSchedule({
+  project,
+  onNavigateNext,
+}: {
+  project: ProjectSummary;
+  onNavigateNext?: () => void;
+}) {
   const [wbs, setWbs] = useState<WbsResult | null>(null);
   const [schedule, setSchedule] = useState<ProjectScheduleResult | null>(null);
   const [loadingWbs, setLoadingWbs] = useState(true);
@@ -347,6 +354,14 @@ export function PmSchedule({ project }: { project: ProjectSummary }) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {onNavigateNext && (
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onNavigateNext}>
+            업무 배정 화면으로 이동 <ChevronRight className="size-4" />
+          </Button>
+        </div>
       )}
     </div>
   );

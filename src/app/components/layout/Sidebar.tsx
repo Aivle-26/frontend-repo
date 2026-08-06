@@ -33,9 +33,9 @@ const MIN_SIDEBAR_WIDTH = 190;
 const MAX_SIDEBAR_WIDTH = 380;
 
 const ACTIVE_ITEM_CLASS =
-  "bg-emerald-200/85 font-medium text-emerald-950 shadow-sm ring-1 ring-emerald-300/80 dark:bg-emerald-800/75 dark:text-emerald-50 dark:ring-emerald-700/80";
+  "bg-emerald-200/85 font-medium text-emerald-950 shadow-sm ring-1 ring-emerald-300/80 dark:bg-violet-600/25 dark:text-violet-50 dark:ring-violet-500/45";
 const INACTIVE_ITEM_CLASS =
-  "text-emerald-900/70 hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-emerald-100/70 dark:hover:bg-emerald-900/65 dark:hover:text-emerald-50";
+  "text-emerald-900/70 hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50";
 
 export function Sidebar({
   items,
@@ -115,17 +115,17 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "relative flex shrink-0 flex-col border-r border-emerald-200/80 bg-gradient-to-b from-emerald-50 via-teal-50/90 to-cyan-50/70 text-emerald-950 shadow-[4px_0_24px_-18px_rgba(5,150,105,0.75)] dark:border-emerald-800/70 dark:from-emerald-950 dark:via-teal-950/95 dark:to-slate-950 dark:text-emerald-50",
+        "relative flex shrink-0 flex-col border-r border-emerald-200/80 bg-gradient-to-b from-emerald-50 via-teal-50/90 to-cyan-50/70 text-emerald-950 shadow-[4px_0_24px_-18px_rgba(5,150,105,0.75)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50",
         hideOnMobile && "hidden md:flex",
       )}
       style={{ width: `${sidebarWidth}px` }}
     >
-      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-emerald-200/70 px-5 dark:border-emerald-800/70">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-emerald-200/70 px-5 dark:border-violet-900/60">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20 dark:from-violet-500 dark:to-purple-700 dark:shadow-purple-950/45">
           <Sparkles className="size-5" />
         </div>
         <div className="min-w-0 whitespace-nowrap leading-tight">
-          <div className="truncate font-semibold tracking-tight text-emerald-950 dark:text-emerald-50">
+          <div className="truncate font-semibold tracking-tight text-emerald-950 dark:text-violet-50">
             BidWorks AI
           </div>
         </div>
@@ -136,14 +136,14 @@ export function Sidebar({
           <section
             key={group.label}
             aria-label={group.label}
-            className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-emerald-800/70 dark:bg-emerald-950/45"
+            className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35"
           >
             <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
               <span
-                className="size-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/40"
+                className="size-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/40 dark:bg-violet-400 dark:shadow-violet-500/35"
                 aria-hidden="true"
               />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-emerald-200/80">
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-violet-300/80">
                 {group.label}
               </span>
             </div>
@@ -166,7 +166,7 @@ export function Sidebar({
                   >
                     <span
                       className={cn(
-                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity",
+                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity dark:bg-violet-500",
                         isActive ? "opacity-100" : "opacity-0",
                       )}
                       aria-hidden="true"
@@ -175,8 +175,8 @@ export function Sidebar({
                       className={cn(
                         "size-4 shrink-0 transition-colors",
                         isActive
-                          ? "text-emerald-700 dark:text-emerald-300"
-                          : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-emerald-300/55 dark:group-hover:text-emerald-200",
+                          ? "text-emerald-700 dark:text-violet-300"
+                          : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                       )}
                     />
                     <span className="truncate">{item.label}</span>
@@ -191,7 +191,7 @@ export function Sidebar({
           <div className="space-y-0.5 pt-1">
             <div
               role="separator"
-              className="mx-2 my-2 border-t border-emerald-200/70 dark:border-emerald-800/70"
+              className="mx-2 my-2 border-t border-emerald-200/70 dark:border-violet-900/60"
               aria-hidden="true"
             />
             {bottomItems.map((item) => {
@@ -211,7 +211,7 @@ export function Sidebar({
                 >
                   <span
                     className={cn(
-                      "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity",
+                      "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity dark:bg-violet-500",
                       isActive ? "opacity-100" : "opacity-0",
                     )}
                     aria-hidden="true"
@@ -220,8 +220,8 @@ export function Sidebar({
                     className={cn(
                       "size-4 shrink-0 transition-colors",
                       isActive
-                        ? "text-emerald-700 dark:text-emerald-300"
-                        : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-emerald-300/55 dark:group-hover:text-emerald-200",
+                        ? "text-emerald-700 dark:text-violet-300"
+                        : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                     )}
                   />
                   <span className="truncate">{item.label}</span>
@@ -233,14 +233,14 @@ export function Sidebar({
       </nav>
 
       {showIntegrations ? (
-        <div className="overflow-hidden border-t border-emerald-200/70 p-3 dark:border-emerald-800/70">
-          <section className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-emerald-800/70 dark:bg-emerald-950/45">
+        <div className="overflow-hidden border-t border-emerald-200/70 p-3 dark:border-violet-900/60">
+          <section className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35">
             <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
               <span
-                className="size-1.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/40"
+                className="size-1.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/40 dark:bg-purple-400 dark:shadow-purple-500/35"
                 aria-hidden="true"
               />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-emerald-200/80">
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-violet-300/80">
                 연동 서비스
               </span>
             </div>
@@ -249,7 +249,7 @@ export function Sidebar({
               href={SLACK_URL}
               target="_blank"
               rel="noreferrer noopener"
-              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-emerald-900/70 transition-all hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-emerald-100/70 dark:hover:bg-emerald-900/65 dark:hover:text-emerald-50"
+              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-emerald-900/70 transition-all hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50"
             >
               <SlackIcon className="shrink-0 text-base" />
               <span className="truncate">Slack 바로가기</span>
@@ -266,7 +266,7 @@ export function Sidebar({
         title="드래그하여 너비 조절 · 더블클릭하여 초기화"
         onPointerDown={startResize}
         onDoubleClick={resetSidebarWidth}
-        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-emerald-400/35 active:bg-emerald-500/55"
+        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-emerald-400/35 active:bg-emerald-500/55 dark:hover:bg-violet-500/30 dark:active:bg-violet-500/50"
       />
     </aside>
   );

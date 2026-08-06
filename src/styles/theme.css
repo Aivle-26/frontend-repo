@@ -45,41 +45,41 @@
 }
 
 .dark {
-  /* Toss Dark — 딥네이비 + 비비드 블루 (Draft B) */
-  --background: #0f1115;
-  --foreground: #f4f6fa;
-  --card: #181a20;
-  --card-foreground: #f4f6fa;
-  --popover: #181a20;
-  --popover-foreground: #f4f6fa;
-  --primary: #4e92ff;
-  --primary-foreground: #0b1018;
-  --secondary: #1b2942;
-  --secondary-foreground: #82b4ff;
-  --muted: #20242c;
-  --muted-foreground: #8b95a1;
-  --accent: #1b2942;
-  --accent-foreground: #82b4ff;
-  --destructive: #ff6b75;
-  --destructive-foreground: #0b1018;
-  --border: #262a33;
-  --input: #262a33;
-  --ring: #4e92ff;
+  /* Black + Purple Dark — 블랙 기반에 퍼플 포인트 */
+  --background: #08060c;
+  --foreground: #f7f3ff;
+  --card: #120d1a;
+  --card-foreground: #f7f3ff;
+  --popover: #171021;
+  --popover-foreground: #f7f3ff;
+  --primary: #a855f7;
+  --primary-foreground: #ffffff;
+  --secondary: #241535;
+  --secondary-foreground: #d8b4fe;
+  --muted: #1b1424;
+  --muted-foreground: #a99bb8;
+  --accent: #2e1748;
+  --accent-foreground: #e9d5ff;
+  --destructive: #fb7185;
+  --destructive-foreground: #ffffff;
+  --border: #332340;
+  --input: #332340;
+  --ring: #a855f7;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #181a20;
-  --sidebar-foreground: #f4f6fa;
-  --sidebar-primary: #4e92ff;
-  --sidebar-primary-foreground: #0b1018;
-  --sidebar-accent: #1b2942;
-  --sidebar-accent-foreground: #82b4ff;
-  --sidebar-border: #262a33;
-  --sidebar-ring: #4e92ff;
+  --chart-1: oklch(0.627 0.265 303.9);
+  --chart-2: oklch(0.72 0.19 293.5);
+  --chart-3: oklch(0.67 0.23 328.4);
+  --chart-4: oklch(0.72 0.16 255.1);
+  --chart-5: oklch(0.78 0.16 75.2);
+  --sidebar: #0b0810;
+  --sidebar-foreground: #f7f3ff;
+  --sidebar-primary: #a855f7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #261538;
+  --sidebar-accent-foreground: #e9d5ff;
+  --sidebar-border: #2d2038;
+  --sidebar-ring: #a855f7;
 }
 
 @theme inline {
@@ -197,8 +197,8 @@
   --shadow-pop: 0 12px 32px rgba(17, 24, 39, 0.14);
 }
 .dark {
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 6px 20px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 14px 36px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.72), 0 8px 24px rgba(88, 28, 135, 0.18);
+  --shadow-pop: 0 18px 44px rgba(0, 0, 0, 0.76), 0 0 0 1px rgba(168, 85, 247, 0.1);
 }
 
 @layer base {

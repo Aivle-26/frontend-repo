@@ -291,7 +291,7 @@ export function PmAssign({
       .finally(() => setAssignLoading(false));
   };
 
-
+  const handleSaveAssignments = () => {
     const unresolvable: string[] = [];
 
     // 선택된 담당자가 있는 작업만 저장한다. (AI 추천 후보가 아니어도 배정 가능)

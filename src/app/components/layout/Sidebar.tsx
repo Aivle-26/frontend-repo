@@ -130,9 +130,6 @@ export function Sidebar({
           <div className="truncate font-medium text-sidebar-foreground">
             BidWorks AI
           </div>
-          <div className="truncate text-xs text-muted-foreground">
-            RFP 프로젝트 관리
-          </div>
         </div>
       </div>
 

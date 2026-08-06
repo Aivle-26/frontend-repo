@@ -93,6 +93,29 @@ interface AssignRecommendationCache {
 }
 const assignRecommendationCache = new Map<string, AssignRecommendationCache>();
 
+// 이 프로젝트는 로그아웃/로그인(및 새로고침) 후에도 추천 결과가 남도록 localStorage에도 저장한다.
+const PERSIST_PROJECT_NAME = "IT 개발 관리";
+const ASSIGN_REC_STORAGE_PREFIX = "aipm.assignRec.";
+
+function readPersistedRecommendation(projectId: string): AssignRecommendationCache | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ASSIGN_REC_STORAGE_PREFIX + projectId);
+    return raw ? (JSON.parse(raw) as AssignRecommendationCache) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedRecommendation(projectId: string, value: AssignRecommendationCache) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(ASSIGN_REC_STORAGE_PREFIX + projectId, JSON.stringify(value));
+  } catch {
+    // 저장 실패(용량/직렬화)는 무시한다.
+  }
+}
+
 export function PmAssign({
   project,
   onNavigateNext,
@@ -181,39 +204,59 @@ export function PmAssign({
       .finally(() => setSavingMembers(false));
   };
 
+  // 메모리 캐시 우선, 대상 프로젝트면 localStorage 백업에서도 복원한다.
+  const isPersistProject = project.name === PERSIST_PROJECT_NAME;
+  const cachedRec = useMemo<AssignRecommendationCache | null>(
+    () =>
+      assignRecommendationCache.get(project.id) ??
+      (isPersistProject ? readPersistedRecommendation(project.id) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project.id],
+  );
+
   const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>(
-    () => assignRecommendationCache.get(project.id)?.assignRecs ?? [],
+    () => cachedRec?.assignRecs ?? [],
   );
   // 추천 응답의 candidates = 배정 가능한 전체 후보 명단(드롭다운에 사용)
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
-  >(() => assignRecommendationCache.get(project.id)?.candidates ?? []);
+  >(() => cachedRec?.candidates ?? []);
   // AI가 아예 추천 항목을 만들지 못한 확정 리프 WBS (그래도 최종 저장 땐 반드시 포함해야 함)
   const [unassignedIds, setUnassignedIds] = useState<number[]>(
-    () => assignRecommendationCache.get(project.id)?.unassignedIds ?? [],
+    () => cachedRec?.unassignedIds ?? [],
   );
   // 자동 호출 방지: 진입 시 추천을 돌리지 않고, 버튼을 눌러야 실행한다.
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [hasRecommended, setHasRecommended] = useState(
-    () => assignRecommendationCache.get(project.id)?.hasRecommended ?? false,
+    () => cachedRec?.hasRecommended ?? false,
   );
   const [selectedMember, setSelectedMember] = useState<Record<number, string>>(
-    () => assignRecommendationCache.get(project.id)?.selectedMember ?? {},
+    () => cachedRec?.selectedMember ?? {},
   );
   const [savingAssignments, setSavingAssignments] = useState(false);
 
-  // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 그대로 저장해둔다.
+  // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 저장한다. 대상 프로젝트는 localStorage에도 백업.
   useEffect(() => {
     if (!hasRecommended) return;
-    assignRecommendationCache.set(project.id, {
+    const value: AssignRecommendationCache = {
       assignRecs,
       candidates,
       unassignedIds,
       selectedMember,
       hasRecommended,
-    });
-  }, [project.id, assignRecs, candidates, unassignedIds, selectedMember, hasRecommended]);
+    };
+    assignRecommendationCache.set(project.id, value);
+    if (isPersistProject) writePersistedRecommendation(project.id, value);
+  }, [
+    project.id,
+    assignRecs,
+    candidates,
+    unassignedIds,
+    selectedMember,
+    hasRecommended,
+    isPersistProject,
+  ]);
 
   const loadRecommendations = () => {
     setAssignLoading(true);

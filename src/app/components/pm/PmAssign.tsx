@@ -216,7 +216,8 @@ export function PmAssign({
   const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>(
     () => cachedRec?.assignRecs ?? [],
   );
-  // 추천 응답의 candidates = 배정 가능한 전체 후보 명단(드롭다운에 사용)
+  // 추천 응답의 candidates = 이 프로젝트의 배정 가능 팀원 전체 명단.
+  // 드롭다운은 작업별 AI 추천(rec.recommendedMembers)만 쓰므로 여기선 참조용으로만 보관한다.
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >(() => cachedRec?.candidates ?? []);
@@ -272,11 +273,9 @@ export function PmAssign({
             defaults[a.wbsId] = a.recommendedMembers[0].employeeNumber;
           }
         }
-        for (const wbsId of res.unassignedWbsIds ?? []) {
-          if (res.candidates?.[0]) {
-            defaults[wbsId] = res.candidates[0].employeeNumber;
-          }
-        }
+        // AI가 추천을 만들지 못한 WBS는 비워둔다.
+        // 예전엔 candidates[0](= 이름순 첫 팀원)을 자동으로 채웠는데,
+        // 그러면 추천과 무관한 같은 사람이 계속 배정된 것처럼 보인다.
         setSelectedMember(defaults);
       })
       .catch((caught) => {
@@ -294,15 +293,12 @@ export function PmAssign({
   const handleSaveAssignments = () => {
     const unresolvable: string[] = [];
 
-    // 선택된 담당자가 있는 작업만 저장한다. (AI 추천 후보가 아니어도 배정 가능)
-    // 백엔드는 확정된 리프 WBS 전부가 정확히 한 번씩 포함되길 요구하므로,
-    // AI 추천이 없는 작업은 전체 팀원 후보(candidates) 중 첫 번째로라도 채운다.
+    // 선택된 담당자(또는 AI 1순위)가 있는 작업만 저장한다.
+    // 아무것도 없으면 임의의 팀원으로 채우지 않고 unresolvable로 보고한다.
     const fromRecs = assignRecs
       .map((rec) => {
         const employeeNumber =
-          selectedMember[rec.wbsId] ??
-          rec.recommendedMembers[0]?.employeeNumber ??
-          candidates[0]?.employeeNumber;
+          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber;
         if (!employeeNumber) {
           unresolvable.push(rec.wbsName);
           return null;
@@ -321,7 +317,7 @@ export function PmAssign({
     // AI가 추천 항목 자체를 못 만든 WBS(unassignedWbsIds) — 시간 정보가 없어 1시간으로 채운다.
     const fromUnassigned = unassignedIds
       .map((wbsId) => {
-        const employeeNumber = selectedMember[wbsId] ?? candidates[0]?.employeeNumber;
+        const employeeNumber = selectedMember[wbsId];
         if (!employeeNumber) {
           unresolvable.push(`WBS #${wbsId}`);
           return null;
@@ -749,8 +745,10 @@ export function PmAssign({
                     const recMember = rec.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,
                     );
-                    const options =
-                      candidates.length > 0 ? candidates : rec.recommendedMembers;
+                    // 이 작업에 대해 AI가 추천한 팀원만 후보로 보여준다.
+                    // 전체 팀원(candidates)으로 대체하면 추천과 무관한 사람이 섞여
+                    // "왜 이 사람이 후보지?"가 되고, 추천 근거도 표시할 수 없다.
+                    const options = rec.recommendedMembers;
                     return (
                       <TableRow key={rec.wbsId}>
                         <TableCell>
@@ -772,7 +770,7 @@ export function PmAssign({
                             }
                           >
                             <SelectTrigger className="w-56">
-                              <SelectValue placeholder="담당자 선택" />
+                              <SelectValue placeholder="선택되지 않음" />
                             </SelectTrigger>
                             <SelectContent>
                               {options.map((m) => {
@@ -786,7 +784,7 @@ export function PmAssign({
                               })}
                               {options.length === 0 && (
                                 <div className="px-2 py-1.5 text-muted-foreground text-xs">
-                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
+                                  이 작업에 대한 AI 추천이 없습니다.
                                 </div>
                               )}
                             </SelectContent>

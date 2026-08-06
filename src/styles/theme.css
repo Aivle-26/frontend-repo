@@ -2,13 +2,13 @@
 
 
 :root {
-  /* Cool Mint Light — 차가운 민트 + 시안 그라데이션 */
+  /* Cool White Mint Light — 흰색 중심 + 아래로 짙어지는 차가운 민트 */
   --font-size: 16px;
-  --background: #f2fbfb;
+  --background: #f8fcfd;
   --foreground: #102b2d;
-  --card: #fbffff;
+  --card: #ffffff;
   --card-foreground: #123033;
-  --popover: #f9ffff;
+  --popover: #ffffff;
   --popover-foreground: #123033;
   --primary: #0f9f9a;
   --primary-foreground: #f7ffff;
@@ -22,7 +22,7 @@
   --destructive-foreground: #ffffff;
   --border: rgba(13, 116, 116, 0.18);
   --input: rgba(13, 116, 116, 0.18);
-  --input-background: rgba(248, 255, 255, 0.9);
+  --input-background: rgba(255, 255, 255, 0.94);
   --switch-background: #a8d8d5;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -47,7 +47,7 @@
     radial-gradient(circle at 8% 0%, rgba(34, 211, 238, 0.16), transparent 31%),
     radial-gradient(circle at 82% 8%, rgba(45, 212, 191, 0.18), transparent 30%),
     linear-gradient(135deg, #f5fdfd 0%, #edfafa 48%, #eef8ff 100%);
-  --card-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(235, 251, 250, 0.94));
+  --card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.995) 0%, rgba(249, 253, 253, 0.975) 100%);
 }
 
 .dark {
@@ -149,6 +149,23 @@
       BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto,
       "Helvetica Neue", "Malgun Gothic", sans-serif;
     letter-spacing: -0.01em;
+  }
+
+  /* 라이트 모드의 본문 영역만 적용: 상단은 거의 흰색, 아래로 갈수록 옅은 쿨 민트 */
+  html:not(.dark) main {
+    background-color: #f5fbfc;
+    background-image:
+      radial-gradient(circle at 50% -12%, rgba(255, 255, 255, 0.98) 0%, transparent 42%),
+      linear-gradient(
+        180deg,
+        #ffffff 0%,
+        #fcffff 20%,
+        #f8fcfd 48%,
+        #f1f9fa 74%,
+        #e9f5f7 100%
+      );
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
   }
 
   /**

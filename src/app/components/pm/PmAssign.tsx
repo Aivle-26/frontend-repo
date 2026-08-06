@@ -230,9 +230,8 @@ export function PmAssign({
   const [hasRecommended, setHasRecommended] = useState(
     () => cachedRec?.hasRecommended ?? false,
   );
-  const [selectedMember, setSelectedMember] = useState<Record<number, string>>(
-    () => cachedRec?.selectedMember ?? {},
-  );
+  // 선택값은 캐시에서 복원하지 않는다. 복원 시엔 각 행이 렌더에서 AI 1순위로 다시 기본선택되도록.
+  const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
   const [savingAssignments, setSavingAssignments] = useState(false);
 
   // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 저장한다. 대상 프로젝트는 localStorage에도 백업.

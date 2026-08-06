@@ -216,8 +216,7 @@ export function PmAssign({
   const [assignRecs, setAssignRecs] = useState<AssignmentRecommendation[]>(
     () => cachedRec?.assignRecs ?? [],
   );
-  // 추천 응답의 candidates = 이 프로젝트의 배정 가능 팀원 전체 명단.
-  // 드롭다운은 작업별 AI 추천(rec.recommendedMembers)만 쓰므로 여기선 참조용으로만 보관한다.
+  // 추천 응답의 candidates = 이 프로젝트의 배정 가능 팀원 전체 명단(드롭다운 목록).
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >(() => cachedRec?.candidates ?? []);
@@ -745,10 +744,11 @@ export function PmAssign({
                     const recMember = rec.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,
                     );
-                    // 이 작업에 대해 AI가 추천한 팀원만 후보로 보여준다.
-                    // 전체 팀원(candidates)으로 대체하면 추천과 무관한 사람이 섞여
-                    // "왜 이 사람이 후보지?"가 되고, 추천 근거도 표시할 수 없다.
-                    const options = rec.recommendedMembers;
+                    // PM이 프로젝트 팀원 중에서 직접 고를 수 있어야 하므로 전원을 보여준다.
+                    // AI가 추천한 사람에겐 "(AI n순위)"가 붙고 1순위가 기본 선택되며,
+                    // 추천이 없는 작업은 선택되지 않은 상태로 두고 PM이 고른다.
+                    const options =
+                      candidates.length > 0 ? candidates : rec.recommendedMembers;
                     return (
                       <TableRow key={rec.wbsId}>
                         <TableCell>
@@ -784,7 +784,7 @@ export function PmAssign({
                               })}
                               {options.length === 0 && (
                                 <div className="px-2 py-1.5 text-muted-foreground text-xs">
-                                  이 작업에 대한 AI 추천이 없습니다.
+                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
                                 </div>
                               )}
                             </SelectContent>

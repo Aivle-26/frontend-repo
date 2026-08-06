@@ -166,6 +166,25 @@ function isNotFound(error: unknown): boolean {
 }
 
 /**
+ * 예산 완료 여부를 서버(최종 확정 견적 존재)로 판단한다.
+ * localStorage 플래그는 브라우저/계정마다 달라 사람마다 랜딩이 갈리므로, DB를 우선한다.
+ * 조회 자체가 실패(네트워크 등)하면 기존 localStorage 플래그로 폴백한다.
+ */
+async function isBudgetSavedOnServer(
+  projectId: string | number,
+): Promise<boolean> {
+  try {
+    const cost = await projectRepository.getFinalCostEstimate(projectId);
+    return cost != null && (cost.confirmed === true || cost.costEstimateId != null);
+  } catch (error) {
+    if (isNotFound(error)) {
+      return false;
+    }
+    return isProjectBudgetCompleted(projectId);
+  }
+}
+
+/**
  * 서버 실데이터를 가장 뒤 단계부터 확인합니다.
  *
  * - 모든 WBS leaf task가 실제 업무로 배정됨: 계획 완료 → 기존 운영 대시보드
@@ -186,7 +205,7 @@ export async function getProjectPlanningProgress(
     const assignedTaskCount = Number(progress.assignedTaskCount ?? 0);
 
     if (totalTaskCount > 0 && assignedTaskCount >= totalTaskCount) {
-      if (!isProjectBudgetCompleted(projectId)) {
+      if (!(await isBudgetSavedOnServer(projectId))) {
         return STAGE_META.budget;
       }
       return isProjectUiPrototypeCompleted(projectId)

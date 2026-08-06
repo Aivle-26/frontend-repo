@@ -382,7 +382,8 @@ export function PmAssign({
       .saveFinalAssignments(project.id, { assignments: dedupedAssignments })
       .then(() => {
         toast.success("담당자 배정을 저장했어요.");
-        loadRecommendations();
+        // 저장 후 loadRecommendations()를 부르면 AI 추천이 다시 실행되면서
+        // PM이 방금 고른 담당자가 AI 1순위로 덮여버린다. 워크로드만 갱신한다.
         loadWorkload();
         setProgressRefreshKey((k) => k + 1);
       })

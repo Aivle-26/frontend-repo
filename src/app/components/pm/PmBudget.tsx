@@ -120,6 +120,25 @@ export function PmBudget({ project }: PmBudgetProps) {
     };
   }, [project.id]);
 
+  // 저장된 최종 견적이 있으면 화면 진입 시 복원한다.
+  // 메모리 캐시만으로는 새로고침이나 앱 재진입 때 그래프가 사라진다.
+  useEffect(() => {
+    let ignore = false;
+    projectRepository
+      .getFinalCostEstimate(project.id)
+      .then((saved) => {
+        if (ignore) return;
+        setResult(saved);
+        costEstimateCache.set(String(project.id), saved);
+      })
+      .catch(() => {
+        // 저장된 견적이 없으면(404) 아무것도 하지 않는다. 캐시가 있으면 그대로 유지된다.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [project.id]);
+
   const wbsRows = useMemo(
     () =>
       wbsTasks.map((t) => ({

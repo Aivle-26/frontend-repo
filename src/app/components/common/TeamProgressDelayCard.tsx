@@ -57,7 +57,7 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
           </div>
           {!loading && !error && members.length > 0 && (
             delayedCount > 0 ? (
-              <Badge variant="outline" className="border-red-200 bg-red-50 font-normal text-red-700">
+              <Badge variant="outline" className="border-rose-200 bg-rose-50 font-normal text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
                 지연 {delayedCount}명
               </Badge>
             ) : (
@@ -77,7 +77,7 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
           </div>
         ) : error ? (
           <div className="flex items-center gap-2 py-6 text-muted-foreground text-sm">
-            <AlertCircle className="size-4 text-red-500" /> {error}
+            <AlertCircle className="size-4 text-rose-500" /> {error}
           </div>
         ) : members.length === 0 ? (
           <p className="py-6 text-center text-muted-foreground text-sm">
@@ -88,7 +88,7 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
             {members.map((m) => {
               const delayed = m.delayedTaskCount > 0;
               const barColor = delayed
-                ? "bg-red-500"
+                ? "bg-gradient-to-r from-[#f4a0a7] via-[#ec7883] to-[#d95f6d] shadow-[0_0_10px_rgba(217,95,109,0.18)]"
                 : m.progressRate >= 100
                   ? "bg-emerald-500"
                   : "bg-blue-500";
@@ -104,7 +104,7 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
                     {delayed ? (
                       <Badge
                         variant="outline"
-                        className="shrink-0 border-red-200 bg-red-50 font-normal text-red-700"
+                        className="shrink-0 border-rose-200 bg-rose-50 font-normal text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300"
                       >
                         지연 {m.delayedTaskCount}건
                       </Badge>

@@ -532,47 +532,47 @@ export function PmAssign({
       {/* 프로젝트 팀원 관리 */}
       <Card>
         <Collapsible open={membersOpen} onOpenChange={setMembersOpen}>
-          <CollapsibleTrigger asChild>
-            <CardHeader
-              className={cn(
-                "cursor-pointer select-none",
-                !membersOpen && "py-4",
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Users className="size-4 shrink-0 text-muted-foreground" />
-                  <CardTitle className="truncate">프로젝트 팀원 관리</CardTitle>
-                  {!membersLoading && !membersError && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "shrink-0 font-normal",
-                        !membersOpen &&
-                          projectMembers.length > 0 &&
-                          "border-emerald-200 bg-emerald-50 text-emerald-700",
-                      )}
-                    >
-                      {projectMembers.length > 0
+          <CardHeader className={cn(!membersOpen && "py-4")}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Users className="size-4 shrink-0 text-muted-foreground" />
+                <CardTitle className="truncate">프로젝트 팀원 관리</CardTitle>
+              </div>
+
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-[4px] border-2 px-3.5 text-[0.92rem] font-semibold shadow-sm outline-none transition-all hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50",
+                    projectMembers.length > 0
+                      ? "border-teal-300 bg-teal-50/80 text-teal-800 hover:border-teal-400 hover:bg-teal-100/80 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-200 dark:hover:bg-violet-950/70"
+                      : "border-amber-300 bg-amber-50/80 text-amber-800 hover:border-amber-400 hover:bg-amber-100/80 dark:border-amber-700/70 dark:bg-amber-950/25 dark:text-amber-300",
+                  )}
+                  aria-label={membersOpen ? "프로젝트 팀원 관리 접기" : "프로젝트 팀원 관리 열기"}
+                  aria-expanded={membersOpen}
+                >
+                  {membersLoading
+                    ? "불러오는 중"
+                    : membersError
+                      ? "확인하기"
+                      : projectMembers.length > 0
                         ? `등록됨 ${projectMembers.length}명`
                         : "미등록"}
-                    </Badge>
-                  )}
-                </div>
-                <ChevronDown
-                  className={cn(
-                    "size-4 shrink-0 text-muted-foreground transition-transform",
-                    membersOpen && "rotate-180",
-                  )}
-                />
-              </div>
-              {membersOpen && (
-                <CardDescription>
-                  체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
-                </CardDescription>
-              )}
-            </CardHeader>
-          </CollapsibleTrigger>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 transition-transform",
+                      membersOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
+            </div>
+            {membersOpen && (
+              <CardDescription>
+                체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
+              </CardDescription>
+            )}
+          </CardHeader>
           <CollapsibleContent>
             <CardContent className="space-y-4">
           {membersLoading && (

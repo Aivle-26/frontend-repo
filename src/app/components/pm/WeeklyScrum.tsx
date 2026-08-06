@@ -162,6 +162,9 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   const [loadingSubs, setLoadingSubs] = useState(true);
   const [subsError, setSubsError] = useState("");
   const [selectedEmp, setSelectedEmp] = useState<string>("");
+  const [requestedEmployees, setRequestedEmployees] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const [analysis, setAnalysis] = useState<WeeklyScrumReportResponse | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -201,8 +204,9 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
       projectRepository
         .getMissingWeeklyScrumMembers(project.id, weekStart)
         .catch(() => null),
+      projectRepository.getScrumRequests(project.id).catch(() => []),
     ])
-      .then(([subs, allMembers, missing]) => {
+      .then(([subs, allMembers, missing, requests]) => {
         if (cancelled) return;
         const nameMap = new Map(allMembers.map((m) => [m.employeeNumber, m]));
         const subByEmp = new Map(subs.map((s) => [s.employeeNumber, s]));
@@ -219,6 +223,18 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
             submission: subByEmp.get(emp) ?? null,
           };
         });
+        const requestedForWeek = new Set(
+          requests
+            .filter(
+              (request) =>
+                request.type === "SCRUM_REQUEST" &&
+                request.targetWeekStart === weekStart &&
+                request.recipientEmployeeNumber,
+            )
+            .map((request) => request.recipientEmployeeNumber as string),
+        );
+        setRequestedEmployees(requestedForWeek);
+
         rows.sort((a, b) => a.name.localeCompare(b.name));
         setMembers(rows);
         setSelectedEmp((prev) =>
@@ -302,11 +318,18 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
   const [requestingFor, setRequestingFor] = useState<string | null>(null);
   const handleRequestSubmission = async (employeeNumber: string, name: string) => {
+    if (requestingFor || requestedEmployees.has(employeeNumber)) return;
+
     setRequestingFor(employeeNumber);
     try {
       await projectRepository.createScrumRequests(project.id, {
         weekStartDate: weekStart,
         recipientEmployeeNumbers: [employeeNumber],
+      });
+      setRequestedEmployees((current) => {
+        const next = new Set(current);
+        next.add(employeeNumber);
+        return next;
       });
       toast.success(`${name}님에게 제출 요청을 보냈어요.`);
     } catch (caught) {
@@ -360,10 +383,10 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="min-w-44 rounded-lg border border-border px-3 py-1.5 text-center hover:bg-muted/50"
+                  className="min-w-44 rounded-md border border-teal-200 !bg-white px-3.5 py-2 text-center shadow-sm transition-all hover:border-teal-300 hover:shadow-md dark:border-violet-800/70 dark:!bg-zinc-950 dark:hover:bg-violet-950/45"
                 >
-                  <div className="text-foreground text-sm">{weekLabel(weekOffset)}</div>
-                  <div className="text-muted-foreground text-xs">
+                  <div className="text-[0.94rem] font-semibold text-teal-950 dark:text-violet-50">{weekLabel(weekOffset)}</div>
+                  <div className="text-[0.78rem] text-teal-700/70 dark:text-violet-300/70">
                     {weekRangeLabel(weekOffset)}
                   </div>
                 </button>
@@ -506,21 +529,31 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                            disabled={requestingFor === member.employeeNumber}
+                            className={cn(
+                              "h-8 rounded-[4px] px-3 text-[0.82rem] font-semibold",
+                              requestingFor === member.employeeNumber ||
+                              requestedEmployees.has(member.employeeNumber)
+                                ? "cursor-not-allowed !border-slate-200 !bg-slate-100 !text-slate-400 shadow-none hover:!bg-slate-100 hover:!text-slate-400 dark:!border-zinc-800 dark:!bg-zinc-900 dark:!text-zinc-500"
+                                : "!border-teal-300 !bg-white !text-teal-700 hover:!border-teal-400 hover:!bg-teal-50 hover:!text-teal-800 dark:!border-violet-700 dark:!bg-black/30 dark:!text-violet-200 dark:hover:!bg-violet-950/55",
+                            )}
+                            disabled={
+                              requestingFor === member.employeeNumber ||
+                              requestedEmployees.has(member.employeeNumber)
+                            }
                             onClick={(e) => {
                               e.stopPropagation();
                               void handleRequestSubmission(member.employeeNumber, member.name);
                             }}
                           >
-                            {requestingFor === member.employeeNumber ? "요청 중…" : "제출 요청"}
+                            {requestingFor === member.employeeNumber
+                              ? "요청 중…"
+                              : requestedEmployees.has(member.employeeNumber)
+                                ? "요청 완료"
+                                : "제출 요청"}
                           </Button>
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 border-amber-200 bg-amber-50 text-amber-700"
-                          >
+                          <span className="inline-flex shrink-0 items-center gap-1 text-[0.82rem] font-medium text-rose-500 dark:text-rose-300">
                             <CircleDashed className="size-3.5" /> 미제출
-                          </Badge>
+                          </span>
                         </div>
                       )}
                     </div>

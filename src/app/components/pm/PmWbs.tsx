@@ -209,12 +209,6 @@ export function PmWbs({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">WBS 생성 결과</h2>
-                <Badge variant="secondary">{project.name}</Badge>
-                {result?.finalConfirmed ? (
-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">최종 확정</Badge>
-                ) : result ? (
-                  <Badge variant="outline">확정 전</Badge>
-                ) : null}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 확정 요구사항을 기반으로 AI가 생성한 WBS를 조회하고 최종 확정합니다.

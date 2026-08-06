@@ -47,7 +47,7 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
             whiteSpace: "pre",
           }}
         >
-          {char === " " ? " " : char}
+          {char === " " ? " " : char}
         </span>
       ))}
     </>
@@ -681,8 +681,8 @@ export function PrimaryButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="h-11 w-full rounded-2xl text-[15px] font-semibold text-white shadow-[0_16px_34px_rgba(47,111,242,0.28)] transition-opacity hover:opacity-95 disabled:opacity-60"
-      style={{ background: "linear-gradient(90deg, #2F6FF2 0%, #3779F6 100%)" }}
+      className="h-11 w-full rounded-2xl text-base font-semibold text-white shadow-[0_16px_34px_rgba(13,148,136,0.24)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(8,145,178,0.28)] disabled:translate-y-0 disabled:opacity-60"
+      style={{ background: "linear-gradient(90deg, #0f766e 0%, #0d9488 52%, #0891b2 100%)" }}
     >
       {children}
     </button>

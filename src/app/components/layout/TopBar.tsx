@@ -57,17 +57,17 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "flex h-16 shrink-0 items-center justify-between border-b border-cyan-200/90 bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-6 shadow-[0_5px_22px_-16px_rgba(8,145,178,0.9)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950",
+        "flex h-[80px] shrink-0 items-center justify-between border-b-[3px] border-cyan-200/90 bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-7 shadow-[0_6px_24px_-15px_rgba(8,145,178,0.9)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950",
         compactOnMobile && "gap-2 px-3 sm:px-6",
       )}
     >
       <div className="flex min-w-0 items-center gap-4">
         <div className="min-w-0 shrink-0 leading-tight">
-          <div className="truncate font-medium text-teal-950 dark:text-violet-50">
+          <div className="truncate text-xl font-bold text-teal-950 dark:text-violet-50">
             {title}
           </div>
           {subtitle && (
-            <div className="truncate text-xs text-teal-700/70 dark:text-violet-300/70">
+            <div className="truncate text-[0.94rem] font-medium text-teal-700/75 dark:text-violet-300/75">
               {subtitle}
             </div>
           )}
@@ -80,7 +80,7 @@ export function TopBar({
         <Badge
           variant="secondary"
           className={cn(
-            "border border-cyan-200 bg-white/76 text-teal-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
+            "border border-cyan-200 bg-white/76 text-[0.94rem] font-semibold text-teal-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
             compactOnMobile && "hidden sm:inline-flex",
           )}
         >
@@ -95,10 +95,10 @@ export function TopBar({
               type="button"
               aria-label={`${displayName} 프로필 열기`}
               title={`${displayName} 프로필`}
-              className="group flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 py-1 pl-1 pr-3 shadow-sm outline-none backdrop-blur-sm transition-all hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cyan-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
+              className="group flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 py-1.5 pl-2 pr-3.5 shadow-sm outline-none backdrop-blur-sm transition-all hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cyan-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
             >
-              <UserRound className="size-4 shrink-0 text-teal-700 dark:text-violet-300" />
-              <span className="whitespace-nowrap text-sm font-semibold text-teal-950 dark:text-violet-50">
+              <UserRound className="size-[18px] shrink-0 text-teal-700 dark:text-violet-300" />
+              <span className="whitespace-nowrap text-[1.05rem] font-semibold text-teal-950 dark:text-violet-50">
                 {displayName}
               </span>
             </PopoverTrigger>

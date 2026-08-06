@@ -194,7 +194,6 @@ export function PmAssign({
         setProjectMembers(saved);
         toast.success("프로젝트 팀원을 저장했어요.");
         setMembersOpen(false);
-        loadRecommendations();
       })
       .catch((caught) => {
         toast.error(
@@ -440,10 +439,12 @@ export function PmAssign({
       });
   };
 
+  // AI 담당자 추천을 실행한 뒤에만 워크로드를 불러온다(그 전엔 화면에 표시하지 않음).
   useEffect(() => {
+    if (!hasRecommended) return;
     loadWorkload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
+  }, [project.id, hasRecommended]);
 
   const maxWorkloadHours = Math.max(1, ...workloadMembers.map((m) => m.totalEstimatedHours));
   const topWorkloadMember = useMemo(() => {
@@ -674,7 +675,6 @@ export function PmAssign({
               {!assignLoading && !assignError && hasRecommended && (
                 <Badge variant="outline" className="font-normal">
                   AI 추천 {assignRecs.length}건
-                  {unassignedIds.length > 0 && ` · 미추천 ${unassignedIds.length}건`}
                 </Badge>
               )}
               <Button
@@ -813,50 +813,7 @@ export function PmAssign({
                       </TableRow>
                     );
                   })}
-                  {unassignedIds.map((wbsId) => {
-                    const selected = selectedMember[wbsId] ?? candidates[0]?.employeeNumber ?? "";
-                    return (
-                      <TableRow key={`unassigned-${wbsId}`}>
-                        <TableCell>
-                          <div className="text-foreground">WBS #{wbsId}</div>
-                          <div className="text-muted-foreground text-xs">
-                            AI가 추천을 만들지 못했어요 — 직접 선택해 주세요
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-muted-foreground">-</span>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={selected || undefined}
-                            onValueChange={(v) =>
-                              setSelectedMember((prev) => ({ ...prev, [wbsId]: v }))
-                            }
-                          >
-                            <SelectTrigger className="w-56">
-                              <SelectValue placeholder="담당자 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {candidates.map((m) => (
-                                <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
-                                  {m.name}
-                                </SelectItem>
-                              ))}
-                              {candidates.length === 0 && (
-                                <div className="px-2 py-1.5 text-muted-foreground text-xs">
-                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
-                                </div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-muted-foreground">-</span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {assignRecs.length === 0 && unassignedIds.length === 0 && (
+                  {assignRecs.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                         추천할 업무가 없습니다. WBS를 먼저 확정해 주세요.
@@ -879,7 +836,8 @@ export function PmAssign({
         </CardContent>
       </Card>
 
-      {/* 팀원 진행 현황 (완료율 + 일정 대비 지연) | 팀 워크로드 */}
+      {/* 팀원 진행 현황 · 팀 워크로드 — AI 담당자 추천 실행 후에만 표시 */}
+      {hasRecommended && (
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <TeamProgressDelayCard key={progressRefreshKey} projectId={project.id} />
 
@@ -949,6 +907,7 @@ export function PmAssign({
           </CardContent>
         </Card>
       </div>
+      )}
 
       {onNavigateNext && (
         <div className="flex justify-end">

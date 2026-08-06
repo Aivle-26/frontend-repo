@@ -79,6 +79,10 @@ function priorityVariant(p: string) {
 
 const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 
+// Radix Select는 빈 문자열을 SelectItem value로 허용하지 않아 별도 센티널을 쓴다.
+// 선택 시 내부 상태에는 ""(미선택)로 저장한다.
+const UNSELECTED_VALUE = "__unselected__";
+
 /**
  * "담당자 추천" 결과를 프로젝트별로 메모리에 기억해둔다.
  * 다른 화면(WBS/일정/예산 등)에 갔다가 돌아와도 다시 추천 버튼을 누를 필요 없게
@@ -764,15 +768,21 @@ export function PmAssign({
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={selected || undefined}
+                            value={selected || UNSELECTED_VALUE}
                             onValueChange={(v) =>
-                              setSelectedMember((prev) => ({ ...prev, [rec.wbsId]: v }))
+                              setSelectedMember((prev) => ({
+                                ...prev,
+                                [rec.wbsId]: v === UNSELECTED_VALUE ? "" : v,
+                              }))
                             }
                           >
                             <SelectTrigger className="w-56">
                               <SelectValue placeholder="선택되지 않음" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value={UNSELECTED_VALUE}>
+                                <span className="text-muted-foreground">선택되지 않음</span>
+                              </SelectItem>
                               {options.map((m) => {
                                 const rank = recRank.get(m.employeeNumber);
                                 return (

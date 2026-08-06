@@ -743,10 +743,10 @@ export function PmAssign({
                     const recRank = new Map(
                       rec.recommendedMembers.map((m, i) => [m.employeeNumber, i] as const),
                     );
+                    // AI 추천이 있으면 그 사람으로, 없으면 "선택 안 됨"으로 둔다(첫 팀원 자동선택 금지).
                     const selected =
                       selectedMember[rec.wbsId] ??
                       rec.recommendedMembers[0]?.employeeNumber ??
-                      candidates[0]?.employeeNumber ??
                       "";
                     const recMember = rec.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,

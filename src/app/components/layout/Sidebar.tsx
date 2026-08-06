@@ -7,7 +7,6 @@ import { SlackIcon } from "@/app/components/common/SlackIcon";
 // Slack 워크스페이스 바로가기 URL. .env(VITE_SLACK_URL)로 오버라이드 가능.
 const SLACK_URL =
   (import.meta.env?.VITE_SLACK_URL as string | undefined) ?? "https://slack.com";
-
 export interface SidebarItem {
   key: string;
   label: string;
@@ -29,10 +28,14 @@ interface SidebarProps {
 }
 
 const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
-
 const DEFAULT_SIDEBAR_WIDTH = 240;
 const MIN_SIDEBAR_WIDTH = 190;
 const MAX_SIDEBAR_WIDTH = 380;
+
+const ACTIVE_ITEM_CLASS =
+  "bg-emerald-200/85 font-medium text-emerald-950 shadow-sm ring-1 ring-emerald-300/80 dark:bg-emerald-800/75 dark:text-emerald-50 dark:ring-emerald-700/80";
+const INACTIVE_ITEM_CLASS =
+  "text-emerald-900/70 hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-emerald-100/70 dark:hover:bg-emerald-900/65 dark:hover:text-emerald-50";
 
 export function Sidebar({
   items,
@@ -46,7 +49,6 @@ export function Sidebar({
     const savedWidth = localStorage.getItem(SIDEBAR_STORAGE_KEY);
 
     if (!savedWidth) return DEFAULT_SIDEBAR_WIDTH;
-
     const parsedWidth = Number(savedWidth);
     if (Number.isNaN(parsedWidth)) return DEFAULT_SIDEBAR_WIDTH;
 
@@ -62,7 +64,6 @@ export function Sidebar({
     items.forEach((item) => {
       const label = item.group ?? "메뉴";
       const currentGroup = groups[groups.length - 1];
-
       if (!currentGroup || currentGroup.label !== label) {
         groups.push({ label, items: [item] });
         return;
@@ -83,7 +84,6 @@ export function Sidebar({
 
     const startX = event.clientX;
     const startWidth = sidebarWidth;
-
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
@@ -97,7 +97,6 @@ export function Sidebar({
 
       setSidebarWidth(limitedWidth);
     };
-
     const stopResize = () => {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
@@ -116,18 +115,17 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "relative flex shrink-0 flex-col border-r border-border bg-sidebar",
+        "relative flex shrink-0 flex-col border-r border-emerald-200/80 bg-gradient-to-b from-emerald-50 via-teal-50/90 to-cyan-50/70 text-emerald-950 shadow-[4px_0_24px_-18px_rgba(5,150,105,0.75)] dark:border-emerald-800/70 dark:from-emerald-950 dark:via-teal-950/95 dark:to-slate-950 dark:text-emerald-50",
         hideOnMobile && "hidden md:flex",
       )}
       style={{ width: `${sidebarWidth}px` }}
     >
-      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-border/60 px-5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-emerald-200/70 px-5 dark:border-emerald-800/70">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
           <Sparkles className="size-5" />
         </div>
-
         <div className="min-w-0 whitespace-nowrap leading-tight">
-          <div className="truncate font-medium text-sidebar-foreground">
+          <div className="truncate font-semibold tracking-tight text-emerald-950 dark:text-emerald-50">
             BidWorks AI
           </div>
         </div>
@@ -138,11 +136,14 @@ export function Sidebar({
           <section
             key={group.label}
             aria-label={group.label}
-            className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm"
+            className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-emerald-800/70 dark:bg-emerald-950/45"
           >
             <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
-              <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
+              <span
+                className="size-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/40"
+                aria-hidden="true"
+              />
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-emerald-200/80">
                 {group.label}
               </span>
             </div>
@@ -160,28 +161,24 @@ export function Sidebar({
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
-                      isActive
-                        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
-                        : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                      isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                     )}
                   >
                     <span
                       className={cn(
-                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity",
                         isActive ? "opacity-100" : "opacity-0",
                       )}
                       aria-hidden="true"
                     />
-
                     <Icon
                       className={cn(
                         "size-4 shrink-0 transition-colors",
                         isActive
-                          ? "text-primary"
-                          : "text-muted-foreground group-hover:text-sidebar-foreground",
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-emerald-300/55 dark:group-hover:text-emerald-200",
                       )}
                     />
-
                     <span className="truncate">{item.label}</span>
                   </button>
                 );
@@ -194,7 +191,7 @@ export function Sidebar({
           <div className="space-y-0.5 pt-1">
             <div
               role="separator"
-              className="mx-2 my-2 border-t border-border/60"
+              className="mx-2 my-2 border-t border-emerald-200/70 dark:border-emerald-800/70"
               aria-hidden="true"
             />
             {bottomItems.map((item) => {
@@ -209,14 +206,12 @@ export function Sidebar({
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
-                    isActive
-                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                   )}
                 >
                   <span
                     className={cn(
-                      "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                      "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-emerald-500 transition-opacity",
                       isActive ? "opacity-100" : "opacity-0",
                     )}
                     aria-hidden="true"
@@ -225,8 +220,8 @@ export function Sidebar({
                     className={cn(
                       "size-4 shrink-0 transition-colors",
                       isActive
-                        ? "text-primary"
-                        : "text-muted-foreground group-hover:text-sidebar-foreground",
+                        ? "text-emerald-700 dark:text-emerald-300"
+                        : "text-emerald-700/55 group-hover:text-emerald-800 dark:text-emerald-300/55 dark:group-hover:text-emerald-200",
                     )}
                   />
                   <span className="truncate">{item.label}</span>
@@ -238,21 +233,23 @@ export function Sidebar({
       </nav>
 
       {showIntegrations ? (
-        <div className="overflow-hidden border-t border-border p-3">
-          <section className="rounded-2xl border border-border/60 bg-background/40 p-1.5 shadow-sm">
+        <div className="overflow-hidden border-t border-emerald-200/70 p-3 dark:border-emerald-800/70">
+          <section className="rounded-2xl border border-emerald-200/70 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-emerald-800/70 dark:bg-emerald-950/45">
             <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
-              <span className="size-1.5 rounded-full bg-primary/70" aria-hidden="true" />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-sidebar-foreground/75">
+              <span
+                className="size-1.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/40"
+                aria-hidden="true"
+              />
+              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-emerald-800/80 dark:text-emerald-200/80">
                 연동 서비스
               </span>
             </div>
-
             {/* 복잡한 OAuth 연동 대신 단순 외부 링크(Slack 바로가기)로 대체 */}
             <a
               href={SLACK_URL}
               target="_blank"
               rel="noreferrer noopener"
-              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-muted-foreground transition-all hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-emerald-900/70 transition-all hover:bg-emerald-100/85 hover:text-emerald-950 dark:text-emerald-100/70 dark:hover:bg-emerald-900/65 dark:hover:text-emerald-50"
             >
               <SlackIcon className="shrink-0 text-base" />
               <span className="truncate">Slack 바로가기</span>
@@ -269,7 +266,7 @@ export function Sidebar({
         title="드래그하여 너비 조절 · 더블클릭하여 초기화"
         onPointerDown={startResize}
         onDoubleClick={resetSidebarWidth}
-        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/50"
+        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-emerald-400/35 active:bg-emerald-500/55"
       />
     </aside>
   );

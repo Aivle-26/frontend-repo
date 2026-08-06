@@ -183,18 +183,11 @@ export function PmBudget({ project }: PmBudgetProps) {
     setEstimating(true);
     setEstimateError("");
     try {
-      const saved = await projectRepository.saveFinalCostEstimate(
+      const estimated = await projectRepository.estimateProjectCost(
         project.id,
         body,
       );
-
-      if (saved.confirmed === true) {
-        markProjectBudgetCompleted(project.id);
-      }
-
-      toast.success(
-        "최종 견적을 저장했습니다. 프로젝트 화면에서 대시보드를 열 수 있습니다.",
-      );
+      setResult(estimated);
     } catch (caught) {
       setEstimateError(
         caught instanceof ApiError ? caught.message : "견적 계산에 실패했습니다.",
@@ -215,8 +208,14 @@ export function PmBudget({ project }: PmBudgetProps) {
     }
     setSaving(true);
     try {
-      await projectRepository.saveFinalCostEstimate(project.id, body);
-      toast.success("최종 견적을 저장했어요.");
+      const saved = await projectRepository.saveFinalCostEstimate(project.id, body);
+      setResult(saved);
+      if (saved.confirmed === true) {
+        markProjectBudgetCompleted(project.id);
+      }
+      toast.success(
+        "최종 견적을 저장했습니다. 프로젝트 화면에서 대시보드를 열 수 있습니다.",
+      );
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "저장에 실패했습니다.");
     } finally {

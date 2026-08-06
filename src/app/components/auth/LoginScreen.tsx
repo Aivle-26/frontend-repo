@@ -82,13 +82,13 @@ export function LoginScreen({
   return (
     <AuthShell
       title="로그인"
-      subtitle="AI 기반 RFP 프로젝트 관리"
+      subtitle=""
       mainClassName="py-8 sm:py-10"
       matchPanelHeight
       fitViewport
       footer={
         <div className="space-y-4">
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-base font-medium text-slate-600">
             아직 계정이 없으신가요?{" "}
             <button
               type="button"

@@ -74,7 +74,7 @@ export function ProjectScopeBar({
           ))}
         </SelectContent>
       </Select>
-      {selected && statusLabel && (
+      {selected && statusLabel && !compact && (
         <>
           <Badge
             variant="outline"
@@ -87,7 +87,7 @@ export function ProjectScopeBar({
           >
             {statusLabel}
           </Badge>
-          {!compact && <span className="text-muted-foreground text-xs">{selected.client}</span>}
+          <span className="text-muted-foreground text-xs">{selected.client}</span>
         </>
       )}
       {rightSlotId ? (

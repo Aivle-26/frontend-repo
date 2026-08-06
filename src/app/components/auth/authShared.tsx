@@ -5,7 +5,6 @@ import {
   ListChecks,
   Loader2,
   Network,
-  Play,
   RotateCcw,
   Sparkles,
   Users,
@@ -19,7 +18,7 @@ import { cn } from "@/app/components/ui/utils";
 import { SiteFooter } from "@/app/components/common/SiteFooter_our";
 
 export const LOGIN_BLUE = "#2F6FF2";
-export const EMAIL_EXAMPLE = "user@bidworks.ai";
+export const EMAIL_EXAMPLE = "user@pmate.ai";
 
 /** 로그인·회원가입 입력칸 공통 스타일 */
 export const INPUT_CLASS =
@@ -191,8 +190,15 @@ function startDemo() {
 function LiveExtractDemo({ expanded = false }: { expanded?: boolean }) {
   const lastPhase = DEMO_PHASE_MS.length - 1;
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
-  // 이 마운트에서 버튼으로 새로 시작한 경우만 카운트업 애니메이션 재생
+  // 이 마운트에서 새로 시작한 경우만 카운트업 애니메이션 재생
   const [justStarted, setJustStarted] = useState(false);
+
+  useEffect(() => {
+    if (!demoStarted) {
+      setJustStarted(true);
+      startDemo();
+    }
+  }, []);
 
   useEffect(() => {
     demoListeners.add(forceRender);
@@ -286,15 +292,11 @@ function LiveExtractDemo({ expanded = false }: { expanded?: boolean }) {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <button
-              type="button"
-              onClick={start}
-              className="inline-flex items-center gap-2 rounded-full bg-[#2F6FF2] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(47,111,242,0.30)] transition hover:opacity-95"
-            >
-              <Play className="size-4" /> 분석 시작
-            </button>
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#eaf1ff] px-4 py-2 text-sm font-semibold text-[#2F6FF2]">
+              <Loader2 className="size-4 animate-spin" /> 자동 분석 준비 중
+            </div>
             <span className="text-xs text-slate-400">
-              버튼을 누르면 AI가 문서를 분석합니다
+              접속 시 문서 분석 데모가 자동으로 1회 재생됩니다
             </span>
           </div>
         )}
@@ -353,7 +355,7 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
               : "text-[1.8rem] sm:text-[1.95rem]",
           )}
         >
-          <span className="text-[#2F6FF2]">BidWorks</span> AI
+          <span className="text-[#2F6FF2]">Pmate</span> AI
         </div>
 
         <div
@@ -393,7 +395,7 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
                 : "mt-4 text-[0.98rem] leading-[1.5] sm:text-base",
             )}
           >
-            BidWorks AI는 사업 문서를 분석해 요구사항을 체계화하여
+            Pmate AI는 사업 문서를 분석해 요구사항을 체계화하여
             <br />
             PM과 팀의 업무를 효율화합니다.
             <br />
@@ -454,7 +456,7 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
 
 interface AuthShellProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   mainClassName?: string;
@@ -562,13 +564,13 @@ export function AuthShell({
                   <Sparkles className="size-5" />
                 </div>
                 <span className="text-[1.8rem] font-semibold text-slate-900">
-                  BidWorks AI
+                  Pmate AI
                 </span>
               </div>
 
               <div className="mb-4 text-center">
                 <h1 className="text-[1.85rem] font-bold text-slate-950">{title}</h1>
-                <p className="mt-1.5 text-base text-slate-500">{subtitle}</p>
+                {subtitle ? <p className="mt-1.5 text-base text-slate-500">{subtitle}</p> : null}
               </div>
 
                 {children}

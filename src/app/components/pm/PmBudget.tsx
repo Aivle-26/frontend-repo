@@ -50,6 +50,13 @@ import { markProjectBudgetCompleted } from "@/app/projects/projectProgress";
 
 const WORKING_HOURS_PER_MM = 160;
 
+/**
+ * "AI 견적 분석" 결과를 프로젝트별로 메모리에 기억해둔다.
+ * 다른 화면에 갔다가 돌아와도 그래프가 사라지지 않게 하기 위한 것으로,
+ * 새로고침하면 사라진다(의도된 동작). PmAssign의 추천 캐시와 같은 방식.
+ */
+const costEstimateCache = new Map<string, CostEstimateResponse>();
+
 const SCALE_OPTIONS: { value: ServiceScale; label: string }[] = [
   { value: "SMALL", label: "소규모" },
   { value: "MEDIUM", label: "중규모" },
@@ -78,7 +85,9 @@ export function PmBudget({ project }: PmBudgetProps) {
   const [includeAiApi, setIncludeAiApi] = useState(true);
   const [includeVat, setIncludeVat] = useState(true);
 
-  const [result, setResult] = useState<CostEstimateResponse | null>(null);
+  const [result, setResult] = useState<CostEstimateResponse | null>(
+    () => costEstimateCache.get(String(project.id)) ?? null,
+  );
   const [estimating, setEstimating] = useState(false);
   const [estimateError, setEstimateError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -188,6 +197,7 @@ export function PmBudget({ project }: PmBudgetProps) {
         body,
       );
       setResult(estimated);
+      costEstimateCache.set(String(project.id), estimated);
     } catch (caught) {
       setEstimateError(
         caught instanceof ApiError ? caught.message : "견적 계산에 실패했습니다.",
@@ -210,6 +220,7 @@ export function PmBudget({ project }: PmBudgetProps) {
     try {
       const saved = await projectRepository.saveFinalCostEstimate(project.id, body);
       setResult(saved);
+      costEstimateCache.set(String(project.id), saved);
       if (saved.confirmed === true) {
         markProjectBudgetCompleted(project.id);
       }

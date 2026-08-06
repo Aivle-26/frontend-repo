@@ -57,17 +57,17 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "flex h-16 shrink-0 items-center justify-between border-b border-emerald-200/80 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50/80 px-6 shadow-[0_4px_18px_-16px_rgba(5,150,105,0.9)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950",
+        "flex h-16 shrink-0 items-center justify-between border-b border-cyan-200/90 bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-6 shadow-[0_5px_22px_-16px_rgba(8,145,178,0.9)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950",
         compactOnMobile && "gap-2 px-3 sm:px-6",
       )}
     >
       <div className="flex min-w-0 items-center gap-4">
         <div className="min-w-0 shrink-0 leading-tight">
-          <div className="truncate font-medium text-emerald-950 dark:text-violet-50">
+          <div className="truncate font-medium text-teal-950 dark:text-violet-50">
             {title}
           </div>
           {subtitle && (
-            <div className="truncate text-xs text-emerald-700/70 dark:text-violet-300/70">
+            <div className="truncate text-xs text-teal-700/70 dark:text-violet-300/70">
               {subtitle}
             </div>
           )}
@@ -80,7 +80,7 @@ export function TopBar({
         <Badge
           variant="secondary"
           className={cn(
-            "border border-emerald-200 bg-white/70 text-emerald-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
+            "border border-cyan-200 bg-white/76 text-teal-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
             compactOnMobile && "hidden sm:inline-flex",
           )}
         >
@@ -95,10 +95,10 @@ export function TopBar({
               type="button"
               aria-label={`${displayName} 프로필 열기`}
               title={`${displayName} 프로필`}
-              className="group flex items-center gap-2 rounded-full border border-emerald-200 bg-white/75 py-1 pl-1 pr-3 shadow-sm outline-none backdrop-blur-sm transition-all hover:border-emerald-300 hover:bg-emerald-100/80 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
+              className="group flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 py-1 pl-1 pr-3 shadow-sm outline-none backdrop-blur-sm transition-all hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cyan-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
             >
-              <UserRound className="size-4 shrink-0 text-emerald-700 dark:text-violet-300" />
-              <span className="whitespace-nowrap text-sm font-semibold text-emerald-950 dark:text-violet-50">
+              <UserRound className="size-4 shrink-0 text-teal-700 dark:text-violet-300" />
+              <span className="whitespace-nowrap text-sm font-semibold text-teal-950 dark:text-violet-50">
                 {displayName}
               </span>
             </PopoverTrigger>
@@ -108,33 +108,33 @@ export function TopBar({
               side="bottom"
               sideOffset={10}
               collisionPadding={16}
-              className="z-[110] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden border-emerald-200 p-0 shadow-xl dark:border-violet-900/70"
+              className="z-[110] w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden border-cyan-200 p-0 shadow-xl dark:border-violet-900/70"
             >
-              <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-5 dark:from-black dark:via-zinc-950 dark:to-purple-950">
+              <div className="bg-gradient-to-br from-cyan-50 via-teal-50 to-sky-50 p-5 dark:from-black dark:via-zinc-950 dark:to-purple-950">
                 <div className="flex items-start gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-white/70 text-emerald-700 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/55 dark:text-violet-200">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-cyan-300 bg-white/76 text-teal-700 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/55 dark:text-violet-200">
                     <UserRound className="size-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="break-words text-base font-semibold text-emerald-950 dark:text-violet-50">
+                      <div className="break-words text-base font-semibold text-teal-950 dark:text-violet-50">
                         {displayName}
                       </div>
                       <Badge
                         variant={isPm ? "default" : "secondary"}
-                        className="border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-violet-700/70 dark:bg-violet-950/55 dark:text-violet-200"
+                        className="border border-cyan-300 bg-cyan-100 text-teal-800 dark:border-violet-700/70 dark:bg-violet-950/55 dark:text-violet-200"
                       >
                         {roleLabel}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-xs text-emerald-700/70 dark:text-violet-300/70">
+                    <div className="mt-1 text-xs text-teal-700/70 dark:text-violet-300/70">
                       {isPm ? "프로젝트 매니저" : "프로젝트 참여 직원"}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <Separator className="bg-emerald-100 dark:bg-violet-950/70" />
+              <Separator className="bg-cyan-100 dark:bg-violet-950/70" />
 
               <div className="space-y-1 p-3">
                 <ProfileRow
@@ -173,7 +173,7 @@ export function TopBar({
           onClick={onLogout}
           aria-label="로그아웃"
           title="로그아웃"
-          className="border-emerald-200 bg-white/65 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-950 dark:border-violet-800/80 dark:bg-black/35 dark:text-violet-200 dark:hover:border-violet-600 dark:hover:bg-violet-950/65 dark:hover:text-violet-50"
+          className="border-cyan-200 bg-white/72 text-teal-800 hover:border-cyan-300 hover:bg-cyan-100 hover:text-teal-950 dark:border-violet-800/80 dark:bg-black/35 dark:text-violet-200 dark:hover:border-violet-600 dark:hover:bg-violet-950/65 dark:hover:text-violet-50"
         >
           <LogOut className="size-4" />
           <span className={cn(compactOnMobile && "hidden sm:inline")}>
@@ -195,12 +195,12 @@ function ProfileRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-emerald-50 dark:hover:bg-violet-950/60">
-      <span className="mt-0.5 shrink-0 text-emerald-600 dark:text-violet-400">
+    <div className="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-cyan-50 dark:hover:bg-violet-950/60">
+      <span className="mt-0.5 shrink-0 text-cyan-700 dark:text-violet-400">
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="text-xs text-emerald-700/65 dark:text-violet-300/65">
+        <div className="text-xs text-teal-700/65 dark:text-violet-300/65">
           {label}
         </div>
         <div className="mt-0.5 break-words text-sm text-foreground">

@@ -268,15 +268,15 @@ export function PmAssign({
         setUnassignedIds(res.unassignedWbsIds ?? []);
         const defaults: Record<number, string> = {};
         for (const a of res.assignments ?? []) {
-          if (a.recommendedMembers[0]) {
-            defaults[a.wbsId] = a.recommendedMembers[0].employeeNumber;
+          const top = a.recommendedMembers[0];
+          // AI가 실제로 추천한 작업(적합도 > 0)만 기본 선택한다.
+          // 적합도 0(채우기용 후보)이나 추천이 아예 없는 작업은 비워서 "선택 안됨"으로 둔다.
+          if (top && top.recommendationScore > 0) {
+            defaults[a.wbsId] = top.employeeNumber;
           }
         }
-        for (const wbsId of res.unassignedWbsIds ?? []) {
-          if (res.candidates?.[0]) {
-            defaults[wbsId] = res.candidates[0].employeeNumber;
-          }
-        }
+        // AI가 추천하지 못한 작업(unassignedWbsIds)은 특정 팀원으로 자동 채우지 않는다.
+        // (예전엔 candidates[0]로 채워 한 사람에게 도배되는 문제가 있었음)
         setSelectedMember(defaults);
       })
       .catch((caught) => {
@@ -292,20 +292,23 @@ export function PmAssign({
   };
 
 
-  const handleSaveAssignments = () => {
     const unresolvable: string[] = [];
+    // 담당자가 아직 선택되지 않은("선택 안됨") 작업. 김도훈 등 특정 팀원으로 몰래 채우지 않고,
+    // PM이 직접 고르도록 저장을 막는다.
+    const unselected: string[] = [];
 
-    // 선택된 담당자가 있는 작업만 저장한다. (AI 추천 후보가 아니어도 배정 가능)
-    // 백엔드는 확정된 리프 WBS 전부가 정확히 한 번씩 포함되길 요구하므로,
-    // AI 추천이 없는 작업은 전체 팀원 후보(candidates) 중 첫 번째로라도 채운다.
+    // 각 작업의 담당자는 (1) PM이 직접 고른 값 또는 (2) AI가 실제로 추천한 사람(적합도 > 0)만 사용한다.
+    // 둘 다 없으면 임의의 팀원으로 채우지 않고 "선택 안됨"으로 남겨 둔다.
     const fromRecs = assignRecs
       .map((rec) => {
+        const topRec = rec.recommendedMembers[0];
         const employeeNumber =
           selectedMember[rec.wbsId] ??
-          rec.recommendedMembers[0]?.employeeNumber ??
-          candidates[0]?.employeeNumber;
+          (topRec && topRec.recommendationScore > 0
+            ? topRec.employeeNumber
+            : undefined);
         if (!employeeNumber) {
-          unresolvable.push(rec.wbsName);
+          unselected.push(rec.wbsName);
           return null;
         }
         const recMember = rec.recommendedMembers.find(
@@ -341,6 +344,13 @@ export function PmAssign({
       seenWbsIds.add(a.wbsId);
       return true;
     });
+
+    if (unselected.length > 0) {
+      toast.error(
+        `담당자가 선택되지 않은 작업이 있어요: ${unselected.slice(0, 3).join(", ")}${unselected.length > 3 ? ` 외 ${unselected.length - 3}건` : ""}. 담당자를 직접 선택한 뒤 저장해 주세요.`,
+      );
+      return;
+    }
 
     if (unresolvable.length > 0) {
       toast.error(
@@ -742,11 +752,14 @@ export function PmAssign({
                     const recRank = new Map(
                       rec.recommendedMembers.map((m, i) => [m.employeeNumber, i] as const),
                     );
-                    // AI 추천이 있으면 그 사람으로, 없으면 "선택 안 됨"으로 둔다(첫 팀원 자동선택 금지).
+                    // AI가 실제로 추천한 경우(1순위 적합도 > 0)에만 기본 선택한다.
+                    // 적합도 0(채우기용)이나 추천이 없으면 "선택 안됨"으로 둔다(자동선택 금지).
+                    const topRec = rec.recommendedMembers[0];
                     const selected =
                       selectedMember[rec.wbsId] ??
-                      rec.recommendedMembers[0]?.employeeNumber ??
-                      "";
+                      (topRec && topRec.recommendationScore > 0
+                        ? topRec.employeeNumber
+                        : "");
                     const recMember = rec.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,
                     );
@@ -773,7 +786,7 @@ export function PmAssign({
                             }
                           >
                             <SelectTrigger className="w-56">
-                              <SelectValue placeholder="담당자 선택" />
+                              <SelectValue placeholder="선택 안됨" />
                             </SelectTrigger>
                             <SelectContent>
                               {options.map((m) => {
@@ -824,7 +837,7 @@ export function PmAssign({
 
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground text-xs">
-                  AI 추천값이 기본 선택되어 있습니다.
+                  AI가 추천한 작업만 담당자가 기본 선택됩니다. 나머지는 "선택 안됨"이니 직접 골라 주세요.
                 </p>
                 <Button onClick={handleSaveAssignments} disabled={savingAssignments}>
                   {savingAssignments ? "저장 중…" : "배정 저장"}

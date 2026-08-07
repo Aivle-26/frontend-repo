@@ -987,7 +987,7 @@ function ddayLabel(endDate?: string | null): {
     };
   }
   return {
-    prefix: "마감 후",
+    prefix: "마감",
     value: `${Math.abs(days)}일 경과`,
     overdue: true,
     soon: false,
@@ -1172,12 +1172,12 @@ function ProjectCard({
 
                 <div
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3",
+                    "flex items-center justify-between gap-3 rounded-xl px-3.5 py-3",
                     dday.overdue
-                      ? "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/25 dark:text-rose-300"
+                      ? "bg-rose-100/90 text-rose-700 dark:bg-rose-950/45 dark:text-rose-300"
                       : dday.soon
-                        ? "border-amber-200 bg-amber-50/80 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-300"
-                        : "border-cyan-200 bg-gradient-to-r from-cyan-50/90 to-teal-50/65 text-teal-800 dark:border-cyan-900/60 dark:from-cyan-950/25 dark:to-teal-950/20 dark:text-teal-300",
+                        ? "bg-amber-100/90 text-amber-700 dark:bg-amber-950/45 dark:text-amber-300"
+                        : "bg-gradient-to-r from-cyan-100/90 to-teal-100/80 text-teal-800 dark:from-cyan-950/45 dark:to-teal-950/40 dark:text-teal-300",
                   )}
                 >
                   <div className="flex items-center gap-2">

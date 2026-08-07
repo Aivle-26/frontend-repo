@@ -249,11 +249,9 @@ export function StaffNoticeBoard({
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>
-              {isCompact
-                ? "최근 공지입니다. 클릭하면 상세 내용을 확인할 수 있습니다."
-                : "공지를 클릭하면 상세 내용을 확인할 수 있습니다."}
-            </CardDescription>
+            {isCompact ? (
+              <CardDescription>최근 공지입니다.</CardDescription>
+            ) : null}
           </div>
           {canCreate && (
             <Button size="sm" onClick={() => setCreateOpen(true)}>

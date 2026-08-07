@@ -110,36 +110,22 @@ function priorityLabel(priority: string) {
 
 function typeTone(type: string) {
   const tones: Record<string, string> = {
-    FUNCTIONAL:
-      "border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-900/60 dark:bg-cyan-950/35 dark:text-cyan-200",
-    NON_FUNCTIONAL:
-      "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/35 dark:text-sky-200",
-    SECURITY:
-      "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/35 dark:text-violet-200",
-    DATA:
-      "border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-900/60 dark:bg-teal-950/35 dark:text-teal-200",
-    INTERFACE:
-      "border-indigo-200 bg-indigo-50 text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/35 dark:text-indigo-200",
-    OPERATION:
-      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200",
-    PROJECT_MANAGEMENT:
-      "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-200",
+    FUNCTIONAL: "text-cyan-700 dark:text-cyan-300",
+    NON_FUNCTIONAL: "text-sky-700 dark:text-sky-300",
+    SECURITY: "text-violet-700 dark:text-violet-300",
+    DATA: "text-teal-700 dark:text-teal-300",
+    INTERFACE: "text-indigo-700 dark:text-indigo-300",
+    OPERATION: "text-amber-700 dark:text-amber-300",
+    PROJECT_MANAGEMENT: "text-emerald-700 dark:text-emerald-300",
   };
-  return tones[type] ??
-    "border-border bg-muted/45 text-muted-foreground";
+  return tones[type] ?? "text-muted-foreground";
 }
 
 function priorityTone(priority: string) {
-  if (priority === "HIGH") {
-    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-200";
-  }
-  if (priority === "MEDIUM") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200";
-  }
-  if (priority === "LOW") {
-    return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300";
-  }
-  return "border-border bg-muted/45 text-muted-foreground";
+  if (priority === "HIGH") return "text-rose-700 dark:text-rose-300";
+  if (priority === "MEDIUM") return "text-amber-700 dark:text-amber-300";
+  if (priority === "LOW") return "text-slate-600 dark:text-slate-300";
+  return "text-muted-foreground";
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -673,27 +659,14 @@ function RequirementTable({
             key={item.requirementId}
             className="rounded-xl border border-border/75 bg-background/80 p-4 shadow-sm transition-colors hover:border-primary/25 hover:bg-primary/[0.02]"
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex h-7 items-center rounded-md border border-border bg-muted/45 px-2 text-xs font-semibold text-muted-foreground">
-                #{index + 1}
-              </span>
-              <span className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
-                참조 {item.externalReferenceId ?? "-"}
-              </span>
-              <span
-                className={cn(
-                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
-                  typeTone(item.type),
-                )}
-              >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
+              <span className="font-semibold text-muted-foreground">#{index + 1}</span>
+              <span aria-hidden="true" className="text-border">·</span>
+              <span className={cn("font-semibold", typeTone(item.type))}>
                 {typeLabel(item.type)}
               </span>
-              <span
-                className={cn(
-                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
-                  priorityTone(item.priority),
-                )}
-              >
+              <span aria-hidden="true" className="text-border">·</span>
+              <span className={cn("font-semibold", priorityTone(item.priority))}>
                 우선순위 {priorityLabel(item.priority)}
               </span>
             </div>
@@ -751,27 +724,14 @@ function EditableRequirementTable({
             key={item.clientId}
             className="rounded-xl border border-border/75 bg-background/85 p-4 shadow-sm transition-colors hover:border-primary/30"
           >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex h-7 items-center rounded-md border border-primary/20 bg-primary/5 px-2 text-xs font-semibold text-primary">
-                순서 {index + 1}
-              </span>
-              <span className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
-                참조 {item.externalReferenceId ?? "-"}
-              </span>
-              <span
-                className={cn(
-                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
-                  typeTone(item.type),
-                )}
-              >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
+              <span className="font-semibold text-muted-foreground">#{index + 1}</span>
+              <span aria-hidden="true" className="text-border">·</span>
+              <span className={cn("font-semibold", typeTone(item.type))}>
                 {typeLabel(item.type)}
               </span>
-              <span
-                className={cn(
-                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
-                  priorityTone(item.priority),
-                )}
-              >
+              <span aria-hidden="true" className="text-border">·</span>
+              <span className={cn("font-semibold", priorityTone(item.priority))}>
                 우선순위 {priorityLabel(item.priority)}
               </span>
             </div>

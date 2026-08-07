@@ -9,7 +9,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import loginPageBackground from "@assets/landing/login-page-background.png";
+import loginPageBackground from "@assets/landing/login-project-dashboard-background.png";
 import featureRfpAnalysis from "@assets/landing/feature-rfp-analysis.png";
 import featureSchedule from "@assets/landing/feature-schedule.png";
 import featureRisk from "@assets/landing/feature-risk.png";
@@ -47,7 +47,7 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
             whiteSpace: "pre",
           }}
         >
-          {char === " " ? " " : char}
+          {char === " " ? " " : char}
         </span>
       ))}
     </>
@@ -336,14 +336,14 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
   return (
     <section
       className={cn(
-        "relative overflow-hidden bg-white/70 px-6 sm:px-8 lg:min-h-[570px]",
+        "relative overflow-hidden border border-white/55 bg-white/60 px-6 shadow-[0_26px_70px_rgba(15,73,90,0.10)] backdrop-blur-[13px] sm:px-8 lg:min-h-[570px]",
         expanded
           ? "rounded-[36px] py-8 lg:min-h-[826px] lg:px-10 lg:py-8 xl:px-12 xl:py-8"
           : "rounded-[32px] py-5 lg:px-8 lg:py-5 xl:px-10 xl:py-6",
       )}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[36px]">
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,251,255,0.92)_0%,rgba(248,251,255,0.82)_42%,rgba(248,251,255,0.56)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(248,252,253,0.86)_0%,rgba(248,252,253,0.70)_46%,rgba(248,252,253,0.46)_100%)]" />
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
@@ -524,15 +524,97 @@ export function AuthShell({
   return (
     <div
       className={cn(
-        "relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-no-repeat",
-        fitViewport && "lg:h-screen lg:min-h-0 lg:overflow-hidden",
+        "relative flex min-h-screen flex-col overflow-hidden bg-[#eef9fb]",
+        fitViewport && "lg:h-screen lg:min-h-0",
       )}
-      style={{
-        backgroundImage: `url(${loginPageBackground})`,
-        backgroundPosition: "center 52%",
-      }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-white/12" />
+      <style>{`
+        @keyframes pmate-login-drift {
+          0% {
+            transform: scale(1.035) translate3d(-0.6%, -0.45%, 0);
+          }
+          48% {
+            transform: scale(1.075) translate3d(0.75%, 0.5%, 0);
+          }
+          100% {
+            transform: scale(1.045) translate3d(-0.25%, 0.9%, 0);
+          }
+        }
+
+        @keyframes pmate-login-wave-one {
+          0%, 100% {
+            transform: translate3d(-8%, -3%, 0) scale(0.96) rotate(-4deg);
+            opacity: 0.34;
+          }
+          50% {
+            transform: translate3d(7%, 5%, 0) scale(1.09) rotate(5deg);
+            opacity: 0.52;
+          }
+        }
+
+        @keyframes pmate-login-wave-two {
+          0%, 100% {
+            transform: translate3d(8%, 3%, 0) scale(1.05) rotate(4deg);
+            opacity: 0.24;
+          }
+          50% {
+            transform: translate3d(-7%, -5%, 0) scale(0.94) rotate(-5deg);
+            opacity: 0.42;
+          }
+        }
+
+        @keyframes pmate-login-sheen {
+          0% {
+            transform: translate3d(-9%, 0, 0) skewX(-8deg);
+            opacity: 0.10;
+          }
+          50% {
+            opacity: 0.23;
+          }
+          100% {
+            transform: translate3d(9%, 0, 0) skewX(8deg);
+            opacity: 0.10;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pmate-login-bg-image,
+          .pmate-login-wave-one,
+          .pmate-login-wave-two,
+          .pmate-login-sheen {
+            animation: none !important;
+            transform: none !important;
+          }
+        }
+      `}</style>
+
+      {/* 생성한 프로젝트 관리 일러스트를 로그인 페이지 전체 배경으로 사용 */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="pmate-login-bg-image absolute -inset-[4%] bg-cover bg-center will-change-transform"
+          style={{
+            backgroundImage: `url(${loginPageBackground})`,
+            animation: "pmate-login-drift 24s ease-in-out infinite alternate",
+          }}
+        />
+
+        {/* 배경이 너무 정적으로 보이지 않도록 아주 느린 일렁임을 겹친다. */}
+        <div
+          className="pmate-login-wave-one absolute -left-[14%] top-[4%] h-[76%] w-[64%] rounded-[48%] bg-[radial-gradient(ellipse_at_center,rgba(71,188,191,0.24)_0%,rgba(94,190,215,0.12)_45%,transparent_72%)] blur-3xl will-change-transform"
+          style={{ animation: "pmate-login-wave-one 18s ease-in-out infinite" }}
+        />
+        <div
+          className="pmate-login-wave-two absolute -right-[12%] bottom-[-16%] h-[78%] w-[60%] rounded-[48%] bg-[radial-gradient(ellipse_at_center,rgba(113,99,210,0.18)_0%,rgba(66,173,194,0.10)_48%,transparent_73%)] blur-3xl will-change-transform"
+          style={{ animation: "pmate-login-wave-two 21s ease-in-out infinite" }}
+        />
+        <div
+          className="pmate-login-sheen absolute -inset-y-[18%] left-[22%] w-[28%] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.34),transparent)] blur-2xl will-change-transform"
+          style={{ animation: "pmate-login-sheen 16s ease-in-out infinite alternate" }}
+        />
+
+        {/* 로그인 카드/문구 가독성을 유지하되 새 일러스트는 충분히 보이도록 최소한의 wash만 적용 */}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(241,250,251,0.22)_0%,rgba(245,251,252,0.10)_52%,rgba(238,248,250,0.18)_100%)]" />
+      </div>
       <div
         ref={mainRef}
         className={cn(
@@ -565,7 +647,7 @@ export function AuthShell({
             <LandingPanel expanded={matchPanelHeight} />
 
             <div className="flex items-center justify-center lg:justify-end">
-              <div className="w-full max-w-[520px] rounded-[28px] border border-white/80 bg-white px-6 py-5 shadow-[0_24px_80px_rgba(15,23,42,0.10)] sm:px-8 sm:py-5">
+              <div className="w-full max-w-[520px] rounded-[28px] border border-white/75 bg-white/92 px-6 py-5 shadow-[0_28px_90px_rgba(12,64,83,0.16)] backdrop-blur-xl sm:px-8 sm:py-5">
               <div className="mx-auto mb-4 flex w-fit items-center gap-3">
                 <div
                   className="flex size-10 items-center justify-center rounded-xl text-white shadow-[0_12px_32px_rgba(47,111,242,0.28)]"

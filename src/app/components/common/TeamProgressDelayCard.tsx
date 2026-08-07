@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Hourglass, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
 import {
   ApiError,
@@ -55,19 +54,10 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
             <Hourglass className="size-4 text-blue-600" />
             <span className="text-foreground">팀원 진행 상황</span>
           </div>
-          {!loading && !error && members.length > 0 && (
-            delayedCount > 0 ? (
-              <Badge variant="outline" className="border-rose-200 bg-rose-50 font-normal text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300">
-                지연 {delayedCount}명
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-              >
-                전원 정상
-              </Badge>
-            )
+          {!loading && !error && members.length > 0 && delayedCount === 0 && (
+            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              전원 정상
+            </span>
           )}
         </div>
 
@@ -93,7 +83,15 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
                   ? "bg-emerald-500"
                   : "bg-blue-500";
               return (
-                <div key={m.employeeNumber} className="rounded-lg border border-border p-3">
+                <div
+                  key={m.employeeNumber}
+                  className={cn(
+                    "rounded-lg border p-3 transition-colors",
+                    delayed
+                      ? "border-rose-300/90 bg-rose-50/30 shadow-[0_6px_18px_-14px_rgba(190,24,93,0.55)] dark:border-rose-800/80 dark:bg-rose-950/15"
+                      : "border-border bg-card",
+                  )}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <span className="text-foreground text-sm">{m.name}</span>
@@ -102,19 +100,13 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
                       </p>
                     </div>
                     {delayed ? (
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 border-rose-200 bg-rose-50 font-normal text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300"
-                      >
+                      <span className="shrink-0 text-sm font-bold text-rose-700 dark:text-rose-300">
                         지연 {m.delayedTaskCount}건
-                      </Badge>
+                      </span>
                     ) : (
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-                      >
+                      <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                         정상
-                      </Badge>
+                      </span>
                     )}
                   </div>
                   <div className="mt-2.5 flex items-center gap-2">

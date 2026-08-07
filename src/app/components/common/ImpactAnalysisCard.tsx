@@ -152,20 +152,30 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
   return (
     <Card>
       <CardContent className="pt-5">
-        <div className="mb-4 flex items-center gap-2">
-          <AlertTriangle className="size-4 text-amber-600" />
-          <span className="text-foreground">프로젝트 조정 여부 평가</span>
+        <div className="mb-4 flex items-start gap-2.5">
+          <AlertTriangle className="mt-0.5 size-4 text-amber-600" />
+          <div>
+            <div className="text-base font-semibold text-foreground">프로젝트 조정 여부 평가</div>
+            <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+              변경 내용을 입력하면 AI가 일정·업무·인력 영향도를 계산합니다.
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           {/* 입력 폼 */}
           <div className="rounded-lg border border-border p-4">
-            <p className="mb-3 text-muted-foreground text-xs">
-              변경 정보 입력
-              {autoFilled && (
-                <span className="ml-1 text-blue-600">· 남은 일정은 프로젝트 종료일에서 자동 반영(수정 가능)</span>
-              )}
-            </p>
+            <div className="mb-4">
+              <div className="text-sm font-semibold text-foreground">변경 정보</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                변경 내용을 입력하고 AI 분석을 실행하세요.
+                {autoFilled && (
+                  <span className="ml-1 text-teal-700 dark:text-teal-300">
+                    남은 일정은 프로젝트 종료일을 기준으로 자동 반영됩니다.
+                  </span>
+                )}
+              </p>
+            </div>
 
             <div className="space-y-3">
               <div>
@@ -208,27 +218,27 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
               </Button>
 
               <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-muted-foreground text-xs">영향 수치</span>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">영향 수치</span>
                   {aiFilled && (
-                    <span className="flex items-center gap-1 text-blue-600 text-xs">
-                      <Sparkles className="size-3" /> AI 자동 입력됨 · 수정 가능
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-teal-700 dark:text-teal-300">
+                      <Sparkles className="size-3.5" /> AI 입력값 · 직접 수정 가능
                     </span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <NumberField label="영향 업무 수" value={form.affectedTaskCount} onChange={setNumber("affectedTaskCount")} />
-                  <NumberField label="영향 팀원 수" value={form.affectedMemberCount} onChange={setNumber("affectedMemberCount")} />
-                  <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} />
-                  <NumberField label="추가 작업(일)" value={form.additionalWorkDays} onChange={setNumber("additionalWorkDays")} />
+                  <NumberField label="영향 업무 수" value={form.affectedTaskCount} onChange={setNumber("affectedTaskCount")} highlight={aiFilled} />
+                  <NumberField label="영향 팀원 수" value={form.affectedMemberCount} onChange={setNumber("affectedMemberCount")} highlight={aiFilled} />
+                  <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} highlight={autoFilled} subtleHighlight />
+                  <NumberField label="추가 작업(일)" value={form.additionalWorkDays} onChange={setNumber("additionalWorkDays")} highlight={aiFilled} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <ToggleField label="범위 변경" checked={form.scopeChanged} onChange={toggle("scopeChanged")} />
-                <ToggleField label="DB 변경" checked={form.databaseChanged} onChange={toggle("databaseChanged")} />
-                <ToggleField label="API 변경" checked={form.apiChanged} onChange={toggle("apiChanged")} />
-                <ToggleField label="UI 변경" checked={form.uiChanged} onChange={toggle("uiChanged")} />
+                <ToggleField label="범위 변경" checked={form.scopeChanged} onChange={toggle("scopeChanged")} highlight={aiFilled} />
+                <ToggleField label="DB 변경" checked={form.databaseChanged} onChange={toggle("databaseChanged")} highlight={aiFilled} />
+                <ToggleField label="API 변경" checked={form.apiChanged} onChange={toggle("apiChanged")} highlight={aiFilled} />
+                <ToggleField label="UI 변경" checked={form.uiChanged} onChange={toggle("uiChanged")} highlight={aiFilled} />
               </div>
 
               <Button className="w-full" onClick={() => void handleAnalyze()} disabled={loading || analyzing}>
@@ -257,6 +267,28 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
             )}
           </div>
         </div>
+
+        <style>{`
+          @keyframes pmate-ai-field-highlight {
+            0%, 100% {
+              background-color: transparent;
+              box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+            }
+            50% {
+              background-color: rgba(204, 251, 241, 0.42);
+              box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+            }
+          }
+          .pmate-ai-highlight {
+            animation: pmate-ai-field-highlight 2.2s ease-in-out infinite;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .pmate-ai-highlight {
+              animation: none;
+              background-color: rgba(204, 251, 241, 0.32);
+            }
+          }
+        `}</style>
       </CardContent>
     </Card>
   );
@@ -372,15 +404,35 @@ function NumberField({
   label,
   value,
   onChange,
+  highlight = false,
+  subtleHighlight = false,
 }: {
   label: string;
   value: number;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  highlight?: boolean;
+  subtleHighlight?: boolean;
 }) {
   return (
-    <div>
+    <div
+      className={cn(
+        "rounded-md transition-colors",
+        highlight && !subtleHighlight && "pmate-ai-highlight",
+        highlight && subtleHighlight && "bg-teal-50/40 dark:bg-teal-950/15",
+      )}
+    >
       <Label className="text-muted-foreground text-xs">{label}</Label>
-      <Input type="number" min={0} className="mt-1" value={value} onChange={onChange} />
+      <Input
+        type="number"
+        min={0}
+        className={cn(
+          "mt-1",
+          highlight && !subtleHighlight && "border-teal-300/70 focus-visible:ring-teal-400/30",
+          highlight && subtleHighlight && "border-teal-200/70",
+        )}
+        value={value}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -389,13 +441,22 @@ function ToggleField({
   label,
   checked,
   onChange,
+  highlight = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  highlight?: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2">
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition-colors",
+        highlight
+          ? "pmate-ai-highlight border-teal-300/70 dark:border-teal-800/70"
+          : "border-border",
+      )}
+    >
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} />
       <span className="text-foreground text-sm">{label}</span>
     </label>

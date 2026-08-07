@@ -303,9 +303,6 @@ export function RiskManagement({
       {/* 프로젝트 조정 여부 평가 (요구사항 변경 영향도, AI 서버 연동) */}
       {!hideImpactAnalysis && <ImpactAnalysisCard projectId={project.id} />}
 
-      <p className="text-muted-foreground text-xs">
-        {project.name} 기준 · AI가 탐지한 리스크를 검토합니다.
-      </p>
     </div>
   );
 }

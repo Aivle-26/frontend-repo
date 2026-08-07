@@ -308,7 +308,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
           <button
             type="button"
             onClick={() => onBackToLogin()}
-            className="font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80"
+            className="font-semibold text-[#3A8FB6] transition-opacity hover:opacity-80"
           >
             로그인
           </button>
@@ -428,17 +428,17 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
                 checked={termsAgreed}
                 onCheckedChange={() => handleAgreementClick("terms")}
                 aria-labelledby="termsAgreementLabel"
-                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#5B84DC] data-[state=checked]:bg-[#5B84DC] group-hover:data-[state=unchecked]:border-[#7EA1EC] group-hover:data-[state=unchecked]:bg-[#F3F7FF] group-hover:data-[state=checked]:border-[#6C92E4] group-hover:data-[state=checked]:bg-[#6C92E4]"
+                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#4A9FC3] data-[state=checked]:bg-[#4A9FC3] group-hover:data-[state=unchecked]:border-[#78B7CF] group-hover:data-[state=unchecked]:bg-[#F1FAFC] group-hover:data-[state=checked]:border-[#5EAAC7] group-hover:data-[state=checked]:bg-[#5EAAC7]"
                 disabled={isSubmitting}
               />
               <button
                 id="termsAgreementLabel"
                 type="button"
                 onClick={() => handleAgreementClick("terms")}
-                className="text-left transition-colors group-hover:text-[#5B84DC] disabled:cursor-not-allowed disabled:opacity-60"
+                className="text-left transition-colors group-hover:text-[#3A8FB6] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
               >
-                <span className="font-semibold text-[#5B84DC]">[필수]</span>{" "}
+                <span className="font-semibold text-[#3A8FB6]">[필수]</span>{" "}
                 PM Agent 서비스 이용약관 동의
               </button>
             </div>
@@ -450,17 +450,17 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
                 checked={privacyAcknowledged}
                 onCheckedChange={() => handleAgreementClick("privacy")}
                 aria-labelledby="privacyAgreementLabel"
-                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#5B84DC] data-[state=checked]:bg-[#5B84DC] group-hover:data-[state=unchecked]:border-[#7EA1EC] group-hover:data-[state=unchecked]:bg-[#F3F7FF] group-hover:data-[state=checked]:border-[#6C92E4] group-hover:data-[state=checked]:bg-[#6C92E4]"
+                className="mt-0.5 border-slate-300 transition-colors data-[state=checked]:border-[#4A9FC3] data-[state=checked]:bg-[#4A9FC3] group-hover:data-[state=unchecked]:border-[#78B7CF] group-hover:data-[state=unchecked]:bg-[#F1FAFC] group-hover:data-[state=checked]:border-[#5EAAC7] group-hover:data-[state=checked]:bg-[#5EAAC7]"
                 disabled={isSubmitting}
               />
               <button
                 id="privacyAgreementLabel"
                 type="button"
                 onClick={() => handleAgreementClick("privacy")}
-                className="text-left transition-colors group-hover:text-[#5B84DC] disabled:cursor-not-allowed disabled:opacity-60"
+                className="text-left transition-colors group-hover:text-[#3A8FB6] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
               >
-                <span className="font-semibold text-[#5B84DC]">[필수]</span>{" "}
+                <span className="font-semibold text-[#3A8FB6]">[필수]</span>{" "}
                 개인정보 수집·이용 안내 확인
               </button>
             </div>
@@ -494,7 +494,7 @@ export function SignupScreen({ onBackToLogin }: SignupScreenProps) {
             />
             <button
               type="button"
-              className="mt-2 text-sm font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-2 text-sm font-semibold text-[#3A8FB6] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isSubmitting}
               onClick={handleEditDetails}
             >

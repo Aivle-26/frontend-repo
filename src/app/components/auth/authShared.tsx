@@ -17,7 +17,7 @@ import { Label } from "@/app/components/ui/label";
 import { cn } from "@/app/components/ui/utils";
 import { SiteFooter } from "@/app/components/common/SiteFooter_our";
 
-export const LOGIN_BLUE = "#2F6FF2";
+export const LOGIN_BLUE = "#4F9FD8";
 export const EMAIL_EXAMPLE = "user@pmate.ai";
 
 /** 로그인·회원가입 입력칸 공통 스타일 */
@@ -47,7 +47,7 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
             whiteSpace: "pre",
           }}
         >
-          {char === " " ? " " : char}
+          {char === " " ? " " : char}
         </span>
       ))}
     </>
@@ -414,34 +414,41 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
         >
           <LiveExtractDemo expanded={expanded} />
 
-          {/* 반투명 배경으로 뒤 배경 이미지 위에서도 가독성 확보 */}
-          <div className="flex flex-1 flex-col justify-center gap-1 rounded-3xl bg-white/45 p-2.5 backdrop-blur-sm">
+          {/* 세 기능을 각각 독립 카드로 분리해 데모 카드와 같은 시각적 위계를 구성 */}
+          <div className="grid flex-1 grid-rows-3 gap-3 self-stretch">
             {LANDING_FEATURES.map((feature) => (
               <div
                 key={feature.title}
                 className={cn(
-                  "group flex cursor-default items-center gap-3 rounded-2xl transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_30px_rgba(15,23,42,0.10)]",
-                  expanded ? "p-3" : "p-2",
+                  "group flex min-h-0 cursor-default items-center gap-3 rounded-2xl border border-sky-100/90 bg-white/82 shadow-[0_12px_30px_rgba(30,93,125,0.08)] backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:shadow-[0_16px_34px_rgba(30,93,125,0.12)]",
+                  expanded ? "px-4 py-3.5" : "px-3.5 py-2.5",
                 )}
               >
-                <img
-                  src={feature.icon}
-                  alt=""
+                <span
                   className={cn(
-                    "shrink-0 object-contain transition-transform duration-300 ease-out group-hover:scale-110",
-                    expanded ? "size-11" : "size-9",
+                    "flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-50 to-cyan-50 ring-1 ring-sky-100/80",
+                    expanded ? "size-12" : "size-10",
                   )}
-                />
+                >
+                  <img
+                    src={feature.icon}
+                    alt=""
+                    className={cn(
+                      "object-contain transition-transform duration-300 ease-out group-hover:scale-105",
+                      expanded ? "size-9" : "size-7",
+                    )}
+                  />
+                </span>
                 <div className="min-w-0">
                   <div
                     className={cn(
-                      "font-bold text-[#0f172a] transition-colors duration-200 group-hover:text-[#2F6FF2]",
-                      expanded ? "text-[1.05rem]" : "text-[0.92rem]",
+                      "font-bold text-slate-900 transition-colors duration-200 group-hover:text-[#3A8FB6]",
+                      expanded ? "text-[1.04rem]" : "text-[0.94rem]",
                     )}
                   >
                     {feature.title}
                   </div>
-                  <div className="truncate text-[13px] leading-5 text-slate-500">
+                  <div className="mt-0.5 truncate text-[13px] leading-5 text-slate-500">
                     {feature.short}
                   </div>
                 </div>
@@ -610,6 +617,7 @@ interface RoleCardProps {
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
+  description?: string;
 }
 
 export function RoleCard({
@@ -618,6 +626,7 @@ export function RoleCard({
   onClick,
   icon,
   title,
+  description,
 }: RoleCardProps) {
   return (
     <button
@@ -625,38 +634,45 @@ export function RoleCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group relative overflow-hidden rounded-[18px] border px-3 py-2 text-left transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-80",
+        "group relative overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-80",
         active
-          ? "translate-y-[-1px] border-[#6b9aff] bg-[#f4f8ff] shadow-[0_14px_28px_rgba(47,111,242,0.14)] ring-1 ring-[#cfe0ff]"
-          : "border-slate-200 bg-white hover:border-[#cbdcfb] hover:bg-[#fafcff] hover:shadow-[0_10px_20px_rgba(15,23,42,0.06)]",
+          ? "translate-y-[-1px] border-[#62A8CF] bg-gradient-to-br from-[#F3FAFE] to-[#EFFBFA] shadow-[0_12px_26px_rgba(69,145,180,0.14)] ring-1 ring-[#CDE8F2]"
+          : "border-slate-200 bg-white/90 hover:border-[#A9D2E4] hover:bg-[#F8FCFE] hover:shadow-[0_10px_20px_rgba(30,93,125,0.07)]",
       )}
     >
       <div
         className={cn(
           "absolute inset-0 opacity-0 transition-opacity duration-200",
           active
-            ? "bg-[radial-gradient(circle_at_top_left,_rgba(47,111,242,0.10),_transparent_55%)] opacity-100"
-            : "group-hover:opacity-100 bg-[radial-gradient(circle_at_top_left,_rgba(47,111,242,0.06),_transparent_55%)]",
+            ? "bg-[radial-gradient(circle_at_top_left,_rgba(79,159,216,0.11),_transparent_58%)] opacity-100"
+            : "group-hover:opacity-100 bg-[radial-gradient(circle_at_top_left,_rgba(79,159,216,0.06),_transparent_58%)]",
         )}
       />
       <div className="relative flex items-center gap-2.5">
         <span
           className={cn(
-            "flex size-8 items-center justify-center rounded-full transition-all duration-200",
+            "flex size-9 items-center justify-center rounded-lg transition-all duration-200",
             active
-              ? "bg-[#2F6FF2] text-white shadow-[0_8px_18px_rgba(47,111,242,0.30)]"
-              : "bg-slate-100 text-slate-500 group-hover:bg-[#eef4ff] group-hover:text-[#2F6FF2]",
+              ? "bg-gradient-to-br from-[#5B9FE8] to-[#55B5C8] text-white shadow-[0_8px_18px_rgba(79,159,216,0.24)]"
+              : "bg-slate-100 text-slate-500 group-hover:bg-sky-50 group-hover:text-[#3A8FB6]",
           )}
         >
           {icon}
         </span>
-        <span
-          className={cn(
-            "text-[1.05rem] font-semibold transition-colors duration-200",
-            active ? "text-[#0f172a]" : "text-slate-950",
-          )}
-        >
-          {title}
+        <span className="min-w-0">
+          <span
+            className={cn(
+              "block text-[1.02rem] font-semibold transition-colors duration-200",
+              active ? "text-slate-950" : "text-slate-900",
+            )}
+          >
+            {title}
+          </span>
+          {description ? (
+            <span className="mt-0.5 block truncate text-xs text-slate-500">
+              {description}
+            </span>
+          ) : null}
         </span>
       </div>
     </button>
@@ -681,8 +697,8 @@ export function PrimaryButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="h-11 w-full rounded-2xl text-base font-semibold text-white shadow-[0_16px_34px_rgba(13,148,136,0.24)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(8,145,178,0.28)] disabled:translate-y-0 disabled:opacity-60"
-      style={{ background: "linear-gradient(90deg, #0f766e 0%, #0d9488 52%, #0891b2 100%)" }}
+      className="h-11 w-full rounded-2xl text-base font-semibold text-white shadow-[0_14px_30px_rgba(79,159,216,0.24)] transition-all hover:-translate-y-0.5 hover:brightness-[0.98] hover:shadow-[0_17px_34px_rgba(71,151,194,0.28)] disabled:translate-y-0 disabled:opacity-60"
+      style={{ background: "linear-gradient(90deg, #6DAAF0 0%, #61A9E3 48%, #5DBBC9 100%)" }}
     >
       {children}
     </button>

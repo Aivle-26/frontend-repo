@@ -153,12 +153,15 @@ export function ProjectBoard({
   }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const visibleProjects = projects.filter((p) =>
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.client.toLowerCase().includes(q),
-    );
+    const q = normalizeSearchText(query);
+    const visibleProjects = projects.filter((project) => {
+      if (!q) return true;
+
+      return (
+        normalizeSearchText(project.name).includes(q) ||
+        normalizeSearchText(project.client).includes(q)
+      );
+    });
 
     return mode === "real"
       ? [...visibleProjects].sort(compareByNearestPlannedEndDate)
@@ -435,7 +438,8 @@ export function ProjectBoard({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="프로젝트·고객사 검색"
-            className="h-9 w-56 pl-8"
+            aria-label="프로젝트 또는 고객사 검색"
+            className="h-10 w-64 rounded-xl border-cyan-200/80 bg-card/90 pl-9 text-sm shadow-sm placeholder:text-muted-foreground/75 focus-visible:ring-cyan-300/40"
           />
         </div>
         <Button onClick={openNew}>
@@ -562,7 +566,7 @@ export function ProjectBoard({
                 </div>
               ) : null}
 
-              <DialogFooter>
+              <DialogFooter className="border-t border-border/70 bg-muted/20 px-6 py-4">
                 {mode === "real" ? (
                   <>
                     <Button
@@ -704,33 +708,35 @@ export function ProjectBoard({
           }
         }}
       >
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl overflow-hidden sm:max-w-2xl">
-          <DialogHeader className="min-w-0">
-            <DialogTitle>새 프로젝트</DialogTitle>
-            <DialogDescription>
-              프로젝트를 등록한 뒤 선택한 초기 문서를 안전하게 업로드합니다.
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl gap-0 overflow-hidden rounded-3xl border-cyan-100 bg-card p-0 shadow-[0_28px_80px_rgba(15,80,92,0.18)] sm:max-w-2xl">
+          <DialogHeader className="min-w-0 border-b border-cyan-100/80 bg-gradient-to-r from-cyan-50/70 to-white px-6 py-5 text-left dark:from-cyan-950/20 dark:to-card">
+            <DialogTitle className="text-2xl font-bold tracking-tight">새 프로젝트</DialogTitle>
+            <DialogDescription className="mt-1 text-sm leading-6">
+              기본 정보를 입력한 뒤 초기 문서를 함께 등록할 수 있습니다.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="min-w-0 space-y-4 overflow-hidden py-1">
+          <div className="min-w-0 space-y-5 overflow-hidden px-6 py-5">
             <div className="space-y-2">
-              <label className="text-sm text-foreground">프로젝트 이름</label>
+              <label className="text-base font-semibold text-foreground">프로젝트 이름</label>
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="예: 신규 커머스 플랫폼 구축"
                 disabled={isCreatingProject || !!createdDraft}
                 autoFocus
+                className="h-11 rounded-xl text-base"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-foreground">고객사</label>
+              <label className="text-base font-semibold text-foreground">고객사</label>
               <Input
                 value={newClient}
                 onChange={(e) => setNewClient(e.target.value)}
                 placeholder="예: 한국전력공사"
                 disabled={isCreatingProject || !!createdDraft}
+                className="h-11 rounded-xl text-base"
               />
             </div>
 
@@ -738,7 +744,7 @@ export function ProjectBoard({
               <div className="min-w-0 space-y-2">
                 <label
                   htmlFor="new-project-start-date"
-                  className="text-sm text-foreground"
+                  className="text-base font-semibold text-foreground"
                 >
                   시작일
                 </label>
@@ -748,12 +754,13 @@ export function ProjectBoard({
                   value={newStartDate}
                   onChange={(event) => setNewStartDate(event.target.value)}
                   disabled={isCreatingProject || !!createdDraft}
+                  className="h-11 rounded-xl text-base"
                 />
               </div>
               <div className="min-w-0 space-y-2">
                 <label
                   htmlFor="new-project-end-date"
-                  className="text-sm text-foreground"
+                  className="text-base font-semibold text-foreground"
                 >
                   종료일
                 </label>
@@ -763,20 +770,26 @@ export function ProjectBoard({
                   value={newEndDate}
                   onChange={(event) => setNewEndDate(event.target.value)}
                   disabled={isCreatingProject || !!createdDraft}
+                  className="h-11 rounded-xl text-base"
                 />
               </div>
             </div>
 
-            <div className="min-w-0 space-y-2 overflow-hidden">
-              <label className="text-sm text-foreground">초기 문서 업로드</label>
+            <div className="min-w-0 space-y-3 overflow-hidden rounded-2xl border border-cyan-100 bg-cyan-50/35 p-4 dark:bg-cyan-950/10">
+              <div>
+                <label className="text-base font-semibold text-foreground">초기 문서 업로드</label>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                  RFP나 제안요청서를 등록하면 프로젝트 생성 후 바로 분석할 수 있습니다.
+                </p>
+              </div>
               <DocPicker
                 documents={pendingDocs}
                 onChange={setPendingDocs}
                 onError={setNewProjectError}
                 disabled={isCreatingProject}
               />
-              <p className="text-muted-foreground text-xs">
-                지금 문서가 없으면 그냥 생성하고 나중에 업로드해도 돼요.
+              <p className="text-sm text-muted-foreground">
+                문서가 없어도 프로젝트를 먼저 만든 뒤 나중에 추가할 수 있습니다.
               </p>
             </div>
 
@@ -797,15 +810,17 @@ export function ProjectBoard({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t border-border/70 bg-muted/20 px-6 py-4">
             <Button
               variant="outline"
+              className="h-10 px-5"
               disabled={isCreatingProject}
               onClick={resetNewProject}
             >
               취소
             </Button>
             <Button
+              className="h-10 px-5"
               disabled={isCreatingProject}
               onClick={() => void createProject()}
             >
@@ -949,15 +964,25 @@ function ddayLabel(endDate?: string | null): {
   overdue: boolean;
   soon: boolean;
 } {
-  if (!endDate) return { label: "-", overdue: false, soon: false };
+  if (!endDate) return { label: "마감일 미정", overdue: false, soon: false };
   const end = new Date(`${endDate}T00:00:00`).getTime();
-  if (Number.isNaN(end)) return { label: "-", overdue: false, soon: false };
+  if (Number.isNaN(end)) return { label: "마감일 미정", overdue: false, soon: false };
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round((end - today.getTime()) / 86_400_000);
-  if (days === 0) return { label: "D-DAY", overdue: false, soon: true };
-  if (days > 0) return { label: `D-${days}`, overdue: false, soon: days <= 7 };
-  return { label: `D+${Math.abs(days)}`, overdue: true, soon: false };
+  if (days === 0) return { label: "오늘 마감", overdue: false, soon: true };
+  if (days > 0) {
+    return {
+      label: `마감까지 ${days}일`,
+      overdue: false,
+      soon: days <= 7,
+    };
+  }
+  return {
+    label: `마감 ${Math.abs(days)}일 경과`,
+    overdue: true,
+    soon: false,
+  };
 }
 
 function getProjectActionError(caught: unknown, fallback: string) {
@@ -985,11 +1010,19 @@ function getProjectDeleteError(caught: unknown) {
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const meta = STATUS_META[status];
   const Icon = meta.icon;
+  const tone: Record<ProjectStatus, string> = {
+    분석중: "text-slate-500",
+    준비: "text-amber-700",
+    승인대기: "text-orange-700",
+    진행중: "text-teal-700",
+    완료: "text-emerald-700",
+  };
+
   return (
-    <Badge variant="outline" className={cn("gap-1 font-normal", meta.badge)}>
-      <Icon className={cn("size-3", status === "분석중" && "animate-spin")} />
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold", tone[status])}>
+      <Icon className={cn("size-3.5", status === "분석중" && "animate-spin")} />
       {meta.label}
-    </Badge>
+    </span>
   );
 }
 
@@ -1000,16 +1033,25 @@ function RealStatusBadge({
   status?: string;
   planningComplete?: boolean;
 }) {
+  const label = planningComplete ? "진행 중" : formatServerProjectStatus(status);
+  const isActive = planningComplete || label === "진행 중" || label === "진행중";
+
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
-        "font-normal",
-        planningComplete && "border-blue-200 bg-blue-50 text-blue-700",
+        "inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold",
+        isActive ? "text-teal-700 dark:text-teal-300" : "text-slate-600 dark:text-slate-300",
       )}
     >
-      {planningComplete ? "진행 중" : formatServerProjectStatus(status)}
-    </Badge>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "size-2 rounded-sm",
+          isActive ? "bg-teal-500" : "bg-slate-400",
+        )}
+      />
+      {label}
+    </span>
   );
 }
 
@@ -1057,150 +1099,151 @@ function ProjectCard({
   const dday = ddayLabel(p.server?.plannedEndDate);
   const planningComplete = planningProgress?.planningComplete === true;
 
+  const deleteButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-slate-500 hover:bg-rose-50 hover:text-rose-700 dark:text-slate-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+      disabled={isDeleting}
+      onClick={onDelete}
+    >
+      {isDeleting ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="size-3.5" />
+      )}
+      삭제
+    </Button>
+  );
+
   return (
     <Card
       className={cn(
-        "transition-all hover:shadow-md",
+        "group overflow-hidden border-cyan-200/75 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-300/90 hover:shadow-[0_18px_38px_-24px_rgba(8,145,178,0.65)]",
         isHighlighted &&
-          "border-blue-500 ring-2 ring-blue-200 shadow-md shadow-blue-100",
+          "border-cyan-500 ring-2 ring-cyan-200 shadow-md shadow-cyan-100",
       )}
       data-testid={mode === "real" ? "real-project-card" : undefined}
       data-project-id={mode === "real" ? p.id : undefined}
     >
-      <CardContent className="pt-5">
-        <div className="flex items-start justify-between gap-2">
-          <button onClick={onOpenName} className="min-w-0 text-left">
-            <div className="truncate text-foreground hover:underline">{p.name}</div>
-            <div className="truncate text-xs text-muted-foreground">{p.client}</div>
-          </button>
-
-          {mode === "real" ? (
-            <RealStatusBadge
-              status={p.server?.status}
-              planningComplete={planningComplete}
-            />
-          ) : (
-            <StatusBadge status={p.status} />
-          )}
-        </div>
-
-        {/* 상태별 본문 */}
-        <div className="mt-4 min-h-[52px]">
-          {mode === "real" ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CalendarClock className="size-3.5 shrink-0" />
-                <span className="truncate">{p.updatedAt}</span>
+      <CardContent className="flex h-full flex-col p-0">
+        <div className="flex-1 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <button
+              onClick={onOpenName}
+              className="min-w-0 flex-1 text-left outline-none"
+            >
+              <div className="truncate text-[1.18rem] font-bold leading-7 text-foreground transition-colors group-hover:text-teal-800 dark:group-hover:text-teal-300">
+                {p.name}
               </div>
+              <div className="mt-1 truncate text-sm text-muted-foreground">
+                {p.client}
+              </div>
+            </button>
 
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={`text-2xl font-medium leading-none ${
+            {mode === "real" ? (
+              <RealStatusBadge
+                status={p.server?.status}
+                planningComplete={planningComplete}
+              />
+            ) : (
+              <StatusBadge status={p.status} />
+            )}
+          </div>
+
+          <div className="mt-5 min-h-[92px]">
+            {mode === "real" ? (
+              <div className="space-y-3.5">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CalendarClock className="size-4 shrink-0 text-cyan-700/75 dark:text-cyan-300/80" />
+                  <span className="truncate">{p.updatedAt}</span>
+                </div>
+
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3",
                     dday.overdue
-                      ? "text-red-600"
+                      ? "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/25 dark:text-rose-300"
                       : dday.soon
-                        ? "text-amber-600"
-                        : "text-foreground"
-                  }`}
+                        ? "border-amber-200 bg-amber-50/80 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-300"
+                        : "border-cyan-200 bg-gradient-to-r from-cyan-50/90 to-teal-50/65 text-teal-800 dark:border-cyan-900/60 dark:from-cyan-950/25 dark:to-teal-950/20 dark:text-teal-300",
+                  )}
                 >
-                  {dday.label}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {dday.overdue ? "마감 지남" : "마감까지"}
-                </span>
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="size-4" />
+                    <span className="text-xs font-semibold opacity-75">마감 일정</span>
+                  </div>
+                  <span className="text-base font-bold tracking-tight">
+                    {dday.label}
+                  </span>
+                </div>
               </div>
-
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">서버 상태</span>
-                <span className="text-foreground">
-                  {planningComplete
-                    ? "진행 중"
-                    : formatServerProjectStatus(p.server?.status)}
-                </span>
+            ) : isActive ? (
+              <>
+                <div className="mb-1.5 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">진행률</span>
+                  <span className="font-semibold text-foreground">
+                    <CountUp value={`${p.progress}%`} />
+                  </span>
+                </div>
+                <Progress value={p.progress} />
+                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <CalendarClock className="size-3.5" />
+                    {p.dueDate}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <AlertTriangle className="size-3.5" />
+                    리스크 {p.riskCount}
+                  </span>
+                </div>
+              </>
+            ) : p.status === "준비" ? (
+              <>
+                <div className="mb-1.5 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">준비 단계</span>
+                  <span className="font-semibold text-foreground">
+                    {p.wizardStep}/{WIZARD_STEPS.length}
+                  </span>
+                </div>
+                <Progress value={stepPct} />
+                <div className="mt-3 text-xs text-muted-foreground">
+                  요구사항 {p.reqCount}건 · AI 추천 검토 중
+                </div>
+              </>
+            ) : p.status === "승인대기" ? (
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">견적</span>
+                  <span className="font-semibold text-foreground">{p.estimate}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  요구사항 {p.reqCount}건 · 2사 승인 대기
+                </div>
               </div>
-            </div>
-          ) : isActive ? (
-            <>
-              <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">진행률</span>
-                <span className="text-foreground">
-                  <CountUp value={`${p.progress}%`} />
-                </span>
+            ) : p.status === "분석중" ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                AI가 초기 문서를 분석하고 있어요…
               </div>
-
-              <Progress value={p.progress} />
-
-              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarClock className="size-3.5" />
-                  {p.dueDate}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <AlertTriangle className="size-3.5" />
-                  리스크 {p.riskCount}
-                </span>
-              </div>
-            </>
-          ) : p.status === "준비" ? (
-            <>
-              <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">준비 단계</span>
-                <span className="text-foreground">
-                  {p.wizardStep}/{WIZARD_STEPS.length}
-                </span>
-              </div>
-              <Progress value={stepPct} />
-              <div className="mt-3 text-xs text-muted-foreground">
-                요구사항 {p.reqCount}건 · AI 추천 검토 중
-              </div>
-            </>
-          ) : p.status === "승인대기" ? (
-            <div className="space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">견적</span>
-                <span className="text-foreground">{p.estimate}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                요구사항 {p.reqCount}건 · 2사 승인 대기
-              </div>
-            </div>
-          ) : p.status === "분석중" ? (
-            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              AI가 초기 문서를 분석하고 있어요…
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
-        {/* 액션 */}
-        <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-border pt-3">
+        <div className="mt-auto flex min-h-14 items-center justify-between gap-2 border-t border-border/75 bg-muted/20 px-4 py-2.5">
           {mode === "real" ? (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                disabled={isDeleting}
-                onClick={onDelete}
-              >
-                {isDeleting ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                삭제
-              </Button>
-
+              {deleteButton}
               <Button
                 variant="outline"
                 size="sm"
+                className="border-cyan-200 bg-card text-teal-800 hover:border-cyan-300 hover:bg-cyan-50 hover:text-teal-900 dark:border-cyan-900/70 dark:hover:bg-cyan-950/30 dark:hover:text-cyan-200"
                 disabled={isProgressLoading}
                 onClick={() => {
                   if (planningComplete) {
                     onOpen();
                     return;
                   }
-
                   onOpenReal(planningProgress?.stage ?? "requirements");
                 }}
               >
@@ -1220,62 +1263,49 @@ function ProjectCard({
               </Button>
             </>
           ) : isActive ? (
-            <Button variant="outline" size="sm" onClick={onOpen}>
-              열기 <ArrowRight className="size-3.5" />
-            </Button>
-          ) : null}
-
-          {mode === "demo" && isPrep ? (
+            <div className="ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-cyan-200 text-teal-800 hover:border-cyan-300 hover:bg-cyan-50 hover:text-teal-900"
+                onClick={onOpen}
+              >
+                열기 <ArrowRight className="size-3.5" />
+              </Button>
+            </div>
+          ) : isPrep ? (
             <>
-              <Button variant="ghost" size="sm" onClick={onEdit}>
-                <Pencil className="size-3.5" /> 수정
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
-                disabled={isDeleting}
-                onClick={onDelete}
-              >
-                {isDeleting ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="size-3.5" />
-                )}
-                삭제
-              </Button>
-
-              <Button
-                size="sm"
-                disabled={p.wizardStep < WIZARD_STEPS.length}
-                onClick={onStart}
-              >
-                <Play className="size-3.5" /> 시작
-              </Button>
+              {deleteButton}
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  onClick={onEdit}
+                >
+                  <Pencil className="size-3.5" /> 수정
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={p.wizardStep < WIZARD_STEPS.length}
+                  onClick={onStart}
+                >
+                  <Play className="size-3.5" /> 시작
+                </Button>
+              </div>
             </>
-          ) : null}
-
-          {mode === "demo" && p.status === "분석중" ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              disabled={isDeleting}
-              onClick={onDelete}
-            >
-              {isDeleting ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              삭제
-            </Button>
+          ) : p.status === "분석중" ? (
+            <>{deleteButton}<span /></>
           ) : null}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+
+function normalizeSearchText(value: string) {
+  return value.normalize("NFKC").trim().toLocaleLowerCase("ko-KR");
 }
 
 function compareByNearestPlannedEndDate(

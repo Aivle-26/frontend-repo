@@ -27,7 +27,7 @@ export const AGREEMENT_CONTENT = {
       {
         heading: "제1조 (목적)",
         paragraphs: [
-          "이 약관은 BidWorks AI가 제공하는 PM Agent 서비스의 이용과 관련하여 회사와 회원 사이의 권리, 의무 및 책임사항을 정하는 것을 목적으로 합니다.",
+          "이 약관은 Pmate AI가 제공하는 PM Agent 서비스의 이용과 관련하여 회사와 회원 사이의 권리, 의무 및 책임사항을 정하는 것을 목적으로 합니다.",
         ],
       },
       {
@@ -229,7 +229,7 @@ export function AgreementModal({
                 type="button"
                 disabled={!hasReachedBottom}
                 onClick={onAgree}
-                className="h-9 rounded-md bg-[#2F6FF2] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(47,111,242,0.24)] transition hover:bg-[#2464e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6FF2]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                className="h-9 rounded-md bg-gradient-to-r from-[#6DAAF0] via-[#61A9E3] to-[#5DBBC9] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(79,159,216,0.22)] transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9FD8]/35 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-none disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
               >
                 동의함
               </button>

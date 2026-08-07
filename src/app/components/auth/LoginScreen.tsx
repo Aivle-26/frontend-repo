@@ -93,7 +93,7 @@ export function LoginScreen({
             <button
               type="button"
               onClick={onSignupClick}
-              className="font-semibold text-[#2F6FF2] transition-opacity hover:opacity-80"
+              className="font-semibold text-[#3A8FB6] transition-opacity hover:opacity-80"
             >
               회원가입
             </button>
@@ -113,7 +113,7 @@ export function LoginScreen({
                 <button
                   type="button"
                   onClick={() => setLegalDocument(document.type)}
-                  className="transition-colors hover:text-[#2F6FF2] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F6FF2]/30"
+                  className="transition-colors hover:text-[#3A8FB6] focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9FD8]/25"
                 >
                   {document.label}
                 </button>
@@ -134,7 +134,7 @@ export function LoginScreen({
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={isSubmitting}
-            className={INPUT_CLASS}
+            className={cn(INPUT_CLASS, "h-12 text-base")}
             style={INPUT_STYLE}
             required
           />
@@ -150,7 +150,7 @@ export function LoginScreen({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={isSubmitting}
-              className={cn(INPUT_CLASS, "pr-11")}
+              className={cn(INPUT_CLASS, "h-12 pr-11 text-base")}
               style={INPUT_STYLE}
               required
             />
@@ -170,22 +170,29 @@ export function LoginScreen({
           </div>
         </FormField>
 
-        <FormField label="역할 선택">
-          <div className="mx-auto grid w-full max-w-[288px] grid-cols-1 gap-6 sm:grid-cols-2">
-            <RoleCard
-              active={role === "pm"}
-              disabled={isSubmitting}
-              onClick={() => setRole("pm")}
-              icon={<Briefcase className="size-4" />}
-              title="PM"
-            />
-            <RoleCard
-              active={role === "staff"}
-              disabled={isSubmitting}
-              onClick={() => setRole("staff")}
-              icon={<UserRound className="size-4" />}
-              title="STAFF"
-            />
+        <FormField label="로그인 유형">
+          <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-white/90 to-sky-50/55 p-3.5 shadow-[0_8px_22px_rgba(30,93,125,0.05)]">
+            <p className="mb-3 text-sm leading-5 text-slate-500">
+              사용할 역할을 선택해 주세요.
+            </p>
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+              <RoleCard
+                active={role === "pm"}
+                disabled={isSubmitting}
+                onClick={() => setRole("pm")}
+                icon={<Briefcase className="size-4" />}
+                title="PM"
+                description="프로젝트 관리"
+              />
+              <RoleCard
+                active={role === "staff"}
+                disabled={isSubmitting}
+                onClick={() => setRole("staff")}
+                icon={<UserRound className="size-4" />}
+                title="STAFF"
+                description="배정 업무 수행"
+              />
+            </div>
           </div>
         </FormField>
 

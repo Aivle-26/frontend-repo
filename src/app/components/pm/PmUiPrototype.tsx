@@ -329,7 +329,7 @@ function PrototypeCanvas({
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Sparkles className="size-4" />
               </span>
-              BidWorks AI
+              Pmate AI
             </div>
             <p className="mb-3 text-[10px] font-medium tracking-wider text-muted-foreground">
               WORKSPACE

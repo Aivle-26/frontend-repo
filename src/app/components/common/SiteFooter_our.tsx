@@ -16,12 +16,12 @@ import { cn } from "@/app/components/ui/utils";
  *   - SiteFooter_real  : KT AIVLE 실제 정보 버전
  */
 const BUSINESS = {
-  companyName: "BidWorks",                          // 상호(서비스명)
+  companyName: "Pmate",                          // 상호(서비스명)
   team: "KT AIVLE School AI 9기 팀 프로젝트",        // 소속(데모 표기)
   ceo: "이채은",                                     // 대표자 성명
   address: "서울특별시 서초구 태봉로 108, 3층",       // 사업장 주소
   phone: "070-4123-4567",                            // 전화번호
-  email: "bidworks.aivle@gmail.com",                 // 전자우편(이메일)
+  email: "pmate.aivle@gmail.com",                 // 전자우편(이메일)
   bizRegNo: "123-45-67890",                          // 사업자등록번호
   mailOrderNo: "제2026-서울서초-1234호",              // 통신판매업 신고번호
   privacyOfficer: "이채은",                           // 개인정보 보호책임자

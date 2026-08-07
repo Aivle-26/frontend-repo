@@ -449,7 +449,7 @@ export function buildUiPrototypeSvg(
   <rect width="${width}" height="${height}" fill="#f8fafc"/>
   <rect x="0" y="0" width="${sidebarWidth}" height="${height}" fill="#ffffff" stroke="#e2e8f0"/>
   <circle cx="38" cy="38" r="18" fill="#2563eb"/>
-  <text x="66" y="44" font-size="18" font-weight="700" fill="#0f172a" font-family="Arial, sans-serif">BidWorks AI</text>
+  <text x="66" y="44" font-size="18" font-weight="700" fill="#0f172a" font-family="Arial, sans-serif">Pmate AI</text>
   <text x="20" y="94" font-size="11" fill="#94a3b8" font-family="Arial, sans-serif">PROJECT WORKSPACE</text>
   ${nav}
   <rect x="${contentX}" y="28" width="${contentWidth}" height="64" rx="16" fill="#ffffff" stroke="#e2e8f0"/>

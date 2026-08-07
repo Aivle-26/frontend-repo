@@ -47,7 +47,7 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
             whiteSpace: "pre",
           }}
         >
-          {char === " " ? " " : char}
+          {char === " " ? " " : char}
         </span>
       ))}
     </>
@@ -336,14 +336,17 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
   return (
     <section
       className={cn(
-        "relative overflow-hidden border border-white/55 bg-white/60 px-6 shadow-[0_26px_70px_rgba(15,73,90,0.10)] backdrop-blur-[13px] sm:px-8 lg:min-h-[570px]",
+        "relative overflow-hidden border border-white/60 bg-[linear-gradient(135deg,rgba(246,253,253,0.78)_0%,rgba(229,247,248,0.66)_48%,rgba(232,242,253,0.60)_100%)] px-6 shadow-[0_28px_80px_rgba(23,99,114,0.13)] ring-1 ring-cyan-100/45 backdrop-blur-[17px] sm:px-8 lg:min-h-[570px]",
         expanded
           ? "rounded-[36px] py-8 lg:min-h-[826px] lg:px-10 lg:py-8 xl:px-12 xl:py-8"
           : "rounded-[32px] py-5 lg:px-8 lg:py-5 xl:px-10 xl:py-6",
       )}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[36px]">
-        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(248,252,253,0.86)_0%,rgba(248,252,253,0.70)_46%,rgba(248,252,253,0.46)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.44)_0%,rgba(229,249,248,0.20)_44%,rgba(224,239,252,0.16)_100%)]" />
+        <div className="absolute -left-24 -top-28 size-72 rounded-full bg-cyan-300/14 blur-3xl" />
+        <div className="absolute -bottom-32 right-[-4rem] size-80 rounded-full bg-blue-300/12 blur-3xl" />
+        <div className="absolute left-[38%] top-[-18%] h-[55%] w-[22%] rotate-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)] blur-2xl" />
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
@@ -647,10 +650,16 @@ export function AuthShell({
             <LandingPanel expanded={matchPanelHeight} />
 
             <div className="flex items-center justify-center lg:justify-end">
-              <div className="w-full max-w-[520px] rounded-[28px] border border-white/75 bg-white/92 px-6 py-5 shadow-[0_28px_90px_rgba(12,64,83,0.16)] backdrop-blur-xl sm:px-8 sm:py-5">
+              <div className="relative w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.91)_0%,rgba(239,250,250,0.86)_58%,rgba(240,244,253,0.82)_100%)] px-6 py-5 shadow-[0_30px_90px_rgba(13,75,96,0.18)] ring-1 ring-cyan-100/45 backdrop-blur-[18px] sm:px-8 sm:py-5">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute -right-20 -top-24 size-56 rounded-full bg-cyan-300/12 blur-3xl" />
+                <div className="absolute -bottom-24 -left-16 size-52 rounded-full bg-violet-300/10 blur-3xl" />
+                <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
+              </div>
+              <div className="relative z-10">
               <div className="mx-auto mb-4 flex w-fit items-center gap-3">
                 <div
-                  className="flex size-10 items-center justify-center rounded-xl text-white shadow-[0_12px_32px_rgba(47,111,242,0.28)]"
+                  className="flex size-10 items-center justify-center rounded-xl border border-white/55 text-white shadow-[0_12px_30px_rgba(57,135,177,0.22)]"
                   style={{ backgroundColor: LOGIN_BLUE }}
                 >
                   <Sparkles className="size-5" />
@@ -661,13 +670,14 @@ export function AuthShell({
               </div>
 
               <div className="mb-4 text-center">
-                <h1 className="text-[1.85rem] font-bold text-slate-950">{title}</h1>
+                <h1 className="text-[1.85rem] font-bold text-[#18343d]">{title}</h1>
                 {subtitle ? <p className="mt-1.5 text-base text-slate-500">{subtitle}</p> : null}
               </div>
 
                 {children}
 
                 {footer ? <div className="mt-4">{footer}</div> : null}
+              </div>
               </div>
             </div>
           </div>

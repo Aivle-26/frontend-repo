@@ -24,6 +24,13 @@ import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -165,25 +172,31 @@ export function PmUiPrototype({ project }: { project: ProjectSummary }) {
                 {request.length}/800
               </span>
             </label>
-            <label className="space-y-2 text-sm">
+            <div className="space-y-2 text-sm">
               <span className="font-medium text-foreground">디자인 방향</span>
-              <select
+              <Select
                 value={style}
-                onChange={(event) =>
-                  setStyle(event.target.value as UiPrototypeStyle)
-                }
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                onValueChange={(value) => setStyle(value as UiPrototypeStyle)}
               >
-                {Object.entries(STYLE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-10 w-full border-teal-200 bg-white text-sm font-medium text-foreground shadow-sm transition-colors hover:border-teal-300 focus:ring-teal-300/40 dark:border-violet-800 dark:bg-zinc-950 dark:hover:border-violet-700 dark:focus:ring-violet-700/40">
+                  <SelectValue placeholder="디자인 방향을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent className="border-teal-100 dark:border-violet-900">
+                  {Object.entries(STYLE_LABELS).map(([value, label]) => (
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      className="cursor-pointer focus:bg-teal-50 focus:text-teal-900 dark:focus:bg-violet-950/55 dark:focus:text-violet-100"
+                    >
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs leading-5 text-muted-foreground">
                 생성 결과는 프로젝트별로 브라우저에 저장되어 새로고침 후에도 유지됩니다.
               </p>
-            </label>
+            </div>
           </div>
 
           {errorMessage ? (

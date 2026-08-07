@@ -10,16 +10,13 @@ import {
 /**
  * 백엔드 공지 API(`/projects/{id}/notices`)를 사용하는 공유 공지 스토어 훅.
  *
- * PM 등록 화면(StaffNotice)과 직원 열람 화면(StaffNoticeBoard)이 이 훅을 함께 써서
- * 같은 백엔드 데이터를 바라본다. (기존 localStorage 스토어는 PM/직원이 분리돼 있어
- * 서로 동기화되지 않았다.)
- *
- * 백엔드 스키마는 title + content(문자열)만 저장하므로, 화면에서 쓰는
- * category/priority/pinned/summary/author는 content 앞에 한 줄 메타(@@meta:{...})로
- * 실어 왕복시킨다. 메타 줄은 화면 표시에서 제외된다.
+ * 공지 등록 직후에는 브라우저 localStorage에도 같은 내용을 저장한다.
+ * 이후 새로고침 시 캐시를 먼저 복원하고 서버 결과와 합쳐서 보여주므로,
+ * 서버 목록 반영이 늦더라도 방금 등록한 공지가 사라지지 않는다.
  */
 
 const META_PREFIX = "@@meta:";
+const NOTICE_CACHE_PREFIX = "pmate:project-notices:";
 
 interface NoticeMeta {
   category?: NoticeCategory;
@@ -27,6 +24,61 @@ interface NoticeMeta {
   pinned?: boolean;
   summary?: string;
   author?: string;
+}
+
+function cacheKey(projectId: string | number): string {
+  return `${NOTICE_CACHE_PREFIX}${String(projectId)}`;
+}
+
+function isNotice(value: unknown): value is Notice {
+  if (!value || typeof value !== "object") return false;
+  const notice = value as Partial<Notice>;
+  return (
+    typeof notice.id === "string" &&
+    typeof notice.title === "string" &&
+    typeof notice.date === "string" &&
+    Array.isArray(notice.content)
+  );
+}
+
+function readCachedNotices(projectId: string | number): Notice[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(cacheKey(projectId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isNotice);
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedNotices(projectId: string | number, notices: Notice[]): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(cacheKey(projectId), JSON.stringify(notices));
+  } catch {
+    // localStorage 사용이 막힌 환경에서도 서버 공지 기능 자체는 계속 동작시킨다.
+  }
+}
+
+/**
+ * 같은 id는 서버 응답을 우선하고, 아직 서버 목록에 반영되지 않은 로컬 공지는 유지한다.
+ */
+function mergeNotices(remote: Notice[], cached: Notice[]): Notice[] {
+  const merged = new Map<string, Notice>();
+
+  cached.forEach((notice) => merged.set(notice.id, notice));
+  remote.forEach((notice) => merged.set(notice.id, notice));
+
+  return Array.from(merged.values()).sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return b.id.localeCompare(a.id, "ko", { numeric: true });
+  });
 }
 
 /** Notice의 본문/메타를 백엔드 content 문자열로 인코딩. */
@@ -76,7 +128,7 @@ export interface UseProjectNoticesResult {
   loading: boolean;
   error: string;
   refresh: () => void;
-  /** 새 공지 등록 (PM 전용). 성공 시 목록을 새로고침한다. 실패 시 throw. */
+  /** 새 공지 등록 (PM 전용). 성공 시 로컬 캐시에도 즉시 저장한다. */
   createNotice: (notice: Omit<Notice, "id">) => Promise<void>;
 }
 
@@ -92,13 +144,24 @@ export function useProjectNotices(
       setNotices([]);
       return;
     }
+
+    const cached = readCachedNotices(projectId);
+    // 새로고침 직후 서버 요청을 기다리는 동안에도 기존 공지를 바로 복원한다.
+    setNotices(cached);
     setLoading(true);
     setError("");
+
     projectRepository
       .getProjectNotices(projectId)
-      .then((list) => setNotices(list.map(decodeNotice)))
+      .then((list) => {
+        const remote = list.map(decodeNotice);
+        const merged = mergeNotices(remote, cached);
+        setNotices(merged);
+        writeCachedNotices(projectId, merged);
+      })
       .catch((caught) => {
-        setNotices([]);
+        // 서버 조회가 일시적으로 실패해도 이미 등록한 로컬 공지는 지우지 않는다.
+        setNotices(cached);
         setError(
           caught instanceof ApiError
             ? caught.message
@@ -117,7 +180,8 @@ export function useProjectNotices(
       if (projectId == null || projectId === "") {
         throw new ApiError(400, "프로젝트가 선택되지 않았습니다.");
       }
-      await projectRepository.createProjectNotice(projectId, {
+
+      const createdResponse = await projectRepository.createProjectNotice(projectId, {
         title: notice.title,
         content: encodeContent(notice.content, {
           category: notice.category,
@@ -127,6 +191,21 @@ export function useProjectNotices(
           author: notice.author,
         }),
       });
+
+      const decoded = decodeNotice(createdResponse);
+      const created: Notice = {
+        ...notice,
+        id: decoded.id,
+        // 일부 백엔드 응답에서 createdAt이 비어도 등록 화면의 날짜는 유지한다.
+        date: decoded.date || notice.date,
+      };
+
+      // 서버의 GET 목록 반영을 기다리지 않고 먼저 저장한다.
+      const nextCached = mergeNotices([created], readCachedNotices(projectId));
+      writeCachedNotices(projectId, nextCached);
+      setNotices(nextCached);
+
+      // 서버에 정상 반영된 공지들과 다시 병합한다.
       refresh();
     },
     [projectId, refresh],

@@ -70,6 +70,43 @@ function formatWon(value: number) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
 
+function renderPiePercentLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+  payload,
+}: any) {
+  if (!percent || percent <= 0) return null;
+
+  const RADIAN = Math.PI / 180;
+  const centerX = Number(cx);
+  const centerY = Number(cy);
+  const inner = Number(innerRadius);
+  const outer = Number(outerRadius);
+  const radius = inner + (outer - inner) * 0.53;
+  const x = centerX + radius * Math.cos(-midAngle * RADIAN);
+  const y = centerY + radius * Math.sin(-midAngle * RADIAN);
+  const textColor = payload?.color === "#7DD3FC" ? "#0f172a" : "#ffffff";
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={textColor}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={700}
+      style={{ pointerEvents: "none" }}
+    >
+      {(percent * 100).toFixed(1)}%
+    </text>
+  );
+}
+
 interface PmBudgetProps {
   project: ProjectSummary;
 }
@@ -262,6 +299,7 @@ export function PmBudget({ project }: PmBudgetProps) {
         { name: "AI API", value: result.costSummary.aiApiCost, color: "#8B5CF6" },
       ].filter((d) => d.value > 0)
     : [];
+  const chartTotal = chartData.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <div className="space-y-6">
@@ -438,24 +476,22 @@ export function PmBudget({ project }: PmBudgetProps) {
 
       {/* AI 추천 견적 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="relative pr-32">
           <AiFeatureHeader
             icon={Sparkles}
             title="AI 추천 견적"
             description="WBS 공수와 운영 조건을 바탕으로 비용 구성을 항목별로 계산합니다."
             titleClassName="text-lg font-semibold tracking-tight"
             descriptionClassName="text-[0.82rem] leading-5"
-            meta={
-              result?.llmStatus ? (
-                <Badge
-                  variant="outline"
-                  className="border-teal-200 font-normal text-teal-700 dark:border-violet-700 dark:text-violet-200"
-                >
-                  {result.llmStatus}
-                </Badge>
-              ) : null
-            }
           />
+          {result?.llmStatus ? (
+            <Badge
+              variant="outline"
+              className="absolute right-6 top-6 border-teal-200 bg-white/80 font-medium text-teal-700 dark:border-violet-700 dark:bg-zinc-950/80 dark:text-violet-200"
+            >
+              {result.llmStatus}
+            </Badge>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-6">
           {estimating && (
@@ -497,44 +533,68 @@ export function PmBudget({ project }: PmBudgetProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-6">
-                <div className="h-48">
-                  {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius="60%"
-                          outerRadius="90%"
-                          paddingAngle={2}
-                        >
-                          {chartData.map((d) => (
-                            <Cell key={d.name} fill={d.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                      비용 구성 없음
-                    </div>
-                  )}
+              <div className="border-t border-border/80 pt-5">
+                <div className="mb-3">
+                  <p className="text-base font-semibold text-foreground">기본 비용 구성</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">항목별 금액과 전체 비용 대비 비중을 확인하세요.</p>
                 </div>
-                <div className="space-y-2">
-                  {chartData.map((d) => (
-                    <div key={d.name} className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="size-2.5 rounded-full"
-                          style={{ backgroundColor: d.color }}
-                        />
-                        {d.name}
-                      </span>
-                      <span className="text-foreground">{formatWon(d.value)}</span>
-                    </div>
-                  ))}
+
+                <div className="grid grid-cols-1 items-center gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
+                  <div className="relative h-60 min-h-60">
+                    {chartData.length > 0 ? (
+                      <>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={chartData}
+                              dataKey="value"
+                              nameKey="name"
+                              innerRadius="55%"
+                              outerRadius="92%"
+                              paddingAngle={2.5}
+                              labelLine={false}
+                              label={renderPiePercentLabel}
+                            >
+                              {chartData.map((d) => (
+                                <Cell key={d.name} fill={d.color} stroke="transparent" />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-xs font-medium text-muted-foreground">기본 비용</span>
+                          <span className="mt-1 max-w-28 text-sm font-semibold leading-5 text-foreground">
+                            {formatWon(result.costSummary.baseCost)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                        비용 구성 없음
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-border/70 border-y border-border/70">
+                    {chartData.map((d) => {
+                      const percentage = chartTotal > 0 ? (d.value / chartTotal) * 100 : 0;
+                      return (
+                        <div key={d.name} className="flex items-center justify-between gap-4 py-3">
+                          <span className="flex min-w-0 items-center gap-2.5 text-[0.98rem] font-semibold text-foreground">
+                            <span
+                              className="size-3 shrink-0 rounded-sm"
+                              style={{ backgroundColor: d.color }}
+                            />
+                            {d.name}
+                          </span>
+                          <span className="shrink-0 text-right">
+                            <span className="block text-[0.9rem] font-medium text-foreground">{formatWon(d.value)}</span>
+                            <span className="mt-0.5 block text-xs font-medium text-muted-foreground">{percentage.toFixed(1)}%</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

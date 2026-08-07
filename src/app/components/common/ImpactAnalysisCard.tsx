@@ -414,21 +414,15 @@ function NumberField({
   subtleHighlight?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-md transition-colors",
-        highlight && !subtleHighlight && "pmate-ai-highlight",
-        highlight && subtleHighlight && "bg-teal-50/40 dark:bg-teal-950/15",
-      )}
-    >
+    <div>
       <Label className="text-muted-foreground text-xs">{label}</Label>
       <Input
         type="number"
         min={0}
         className={cn(
-          "mt-1",
-          highlight && !subtleHighlight && "border-teal-300/70 focus-visible:ring-teal-400/30",
-          highlight && subtleHighlight && "border-teal-200/70",
+          "mt-1 transition-colors",
+          highlight && !subtleHighlight && "pmate-ai-highlight border-teal-300/70 focus-visible:ring-teal-400/30",
+          highlight && subtleHighlight && "border-teal-200/70 bg-teal-50/40 dark:bg-teal-950/15",
         )}
         value={value}
         onChange={onChange}

@@ -6,7 +6,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleDashed,
+  ClockAlert,
   ClipboardList,
   Loader2,
   Sparkles,
@@ -384,12 +384,15 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="min-w-44 rounded-md border border-teal-200 !bg-white px-3.5 py-2 text-center shadow-sm transition-all hover:border-teal-300 hover:shadow-md dark:border-violet-800/70 dark:!bg-zinc-950 dark:hover:bg-violet-950/45"
+                  className="flex h-8 min-w-[250px] items-center justify-center gap-2.5 rounded-md border border-teal-200 !bg-white px-3.5 text-center shadow-sm transition-all hover:border-teal-300 hover:shadow-md dark:border-violet-800/70 dark:!bg-zinc-950 dark:hover:bg-violet-950/45"
                 >
-                  <div className="text-[0.94rem] font-semibold text-teal-950 dark:text-violet-50">{weekLabel(weekOffset)}</div>
-                  <div className="text-[0.78rem] text-teal-700/70 dark:text-violet-300/70">
+                  <span className="text-[0.88rem] font-semibold text-teal-950 dark:text-violet-50">
+                    {weekLabel(weekOffset)}
+                  </span>
+                  <span className="h-3.5 w-px bg-teal-200 dark:bg-violet-800" aria-hidden="true" />
+                  <span className="text-[0.78rem] font-medium text-teal-700/75 dark:text-violet-300/75">
                     {weekRangeLabel(weekOffset)}
-                  </div>
+                  </span>
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-3" align="center">
@@ -552,8 +555,8 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                                 ? "요청 완료"
                                 : "제출 요청"}
                           </Button>
-                          <span className="inline-flex shrink-0 items-center gap-1 text-[0.82rem] font-medium text-rose-500 dark:text-rose-300">
-                            <CircleDashed className="size-3.5" /> 미제출
+                          <span className="inline-flex shrink-0 items-center gap-1.5 text-[0.82rem] font-semibold text-rose-700 dark:text-rose-300">
+                            <ClockAlert className="size-3.5" /> 미제출
                           </span>
                         </div>
                       )}

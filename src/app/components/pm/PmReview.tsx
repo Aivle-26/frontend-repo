@@ -498,7 +498,7 @@ function DocumentPreview({
     <div className="mx-auto min-h-[650px] max-w-3xl bg-white px-12 py-14 text-slate-800 shadow-sm ring-1 ring-slate-200">
       <div className="border-b border-slate-200 pb-6">
         <div className="text-xs font-semibold tracking-[0.2em] text-blue-600">
-          BIDWORKS AI PROJECT DOCUMENT
+          PMATE AI PROJECT DOCUMENT
         </div>
         <h1 className="mt-4 text-3xl font-semibold">{submission.title}</h1>
         <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-slate-500">
@@ -639,7 +639,7 @@ function PdfPreview({
 
         <div className="mt-14 flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-400">
           <span>{submission.attachment}</span>
-          <span>BidWorks AI</span>
+          <span>Pmate AI</span>
         </div>
       </div>
     </div>

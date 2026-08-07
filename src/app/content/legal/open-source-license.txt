@@ -1,5 +1,5 @@
 ﻿Open Source S/W License Notice
-Copyright (c) 2022, BidWorks corp. All Rights Reserved.
+Copyright (c) 2022, Pmate corp. All Rights Reserved.
 
 This product contains the following Open Source Software with licenses and notices below.
 

@@ -137,7 +137,7 @@ export function Sidebar({
         {!isIconOnly ? (
           <div className="min-w-0 whitespace-nowrap leading-tight">
             <div className="truncate font-semibold tracking-tight text-teal-950 dark:text-violet-50">
-              BidWorks AI
+              Pmate AI
             </div>
           </div>
         ) : null}

@@ -119,10 +119,10 @@ export function PmUiPrototype({ project }: { project: ProjectSummary }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg text-foreground">
+          <h2 className="flex items-center gap-2 text-foreground text-xl font-semibold tracking-tight">
             <LayoutTemplate className="size-5" /> UI 프로토타입
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
             프로젝트 산출물을 AI가 분석해 대시보드·목록·상세 화면 구조를 제안합니다.
           </p>
         </div>
@@ -143,8 +143,8 @@ export function PmUiPrototype({ project }: { project: ProjectSummary }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>AI 화면 시안 생성</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-lg font-semibold tracking-tight">AI 화면 시안 생성</CardTitle>
+          <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
             추가 요청과 화면 스타일을 지정하면 통합 질의응답 API가 현재 프로젝트의
             요구사항·WBS·일정 맥락을 참고해 화면 구조를 생성합니다.
           </CardDescription>
@@ -217,13 +217,13 @@ export function PmUiPrototype({ project }: { project: ProjectSummary }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle>생성된 화면 시안</CardTitle>
+                  <CardTitle className="text-lg font-semibold tracking-tight">생성된 화면 시안</CardTitle>
                   <Badge variant="secondary">
                     {llmStatusLabel(result.llmStatus)}
                   </Badge>
                   <Badge variant="outline">{STYLE_LABELS[result.style]}</Badge>
                 </div>
-                <CardDescription className="mt-2 max-w-3xl">
+                <CardDescription className="mt-2 max-w-3xl text-[0.82rem] leading-5">
                   {result.summary}
                 </CardDescription>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -281,8 +281,8 @@ export function PmUiPrototype({ project }: { project: ProjectSummary }) {
               <LayoutTemplate className="size-6" />
             </span>
             <div>
-              <p className="font-medium text-foreground">아직 생성된 화면 시안이 없습니다.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="text-base font-semibold text-foreground">아직 생성된 화면 시안이 없습니다.</p>
+              <p className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
                 위 요청을 확인한 뒤 AI 화면 시안 생성 버튼을 눌러 주세요.
               </p>
             </div>

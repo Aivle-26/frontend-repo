@@ -10,6 +10,8 @@ interface AiFeatureHeaderProps {
   meta?: ReactNode;
   compact?: boolean;
   className?: string;
+  titleClassName?: string;
+  descriptionClassName?: string;
 }
 
 /**
@@ -23,6 +25,8 @@ export function AiFeatureHeader({
   meta,
   compact = false,
   className,
+  titleClassName,
+  descriptionClassName,
 }: AiFeatureHeaderProps) {
   return (
     <div className={cn("flex min-w-0 items-center gap-3", className)}>
@@ -42,6 +46,7 @@ export function AiFeatureHeader({
             className={cn(
               "font-semibold tracking-[-0.02em] text-foreground",
               compact ? "text-[0.98rem]" : "text-lg",
+              titleClassName,
             )}
           >
             {title}
@@ -53,6 +58,7 @@ export function AiFeatureHeader({
             className={cn(
               "mt-1 max-w-3xl leading-relaxed text-muted-foreground",
               compact ? "text-[0.8rem]" : "text-sm",
+              descriptionClassName,
             )}
           >
             {description}

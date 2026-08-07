@@ -229,16 +229,16 @@ export function ImpactAnalysisCard({ projectId }: ImpactAnalysisCardProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <NumberField label="영향 업무 수" value={form.affectedTaskCount} onChange={setNumber("affectedTaskCount")} highlight={aiFilled} />
                   <NumberField label="영향 팀원 수" value={form.affectedMemberCount} onChange={setNumber("affectedMemberCount")} highlight={aiFilled} />
-                  <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} highlight={autoFilled} subtleHighlight />
+                  <NumberField label="남은 일정(일)" value={form.remainingDays} onChange={setNumber("remainingDays")} highlight={autoFilled} />
                   <NumberField label="추가 작업(일)" value={form.additionalWorkDays} onChange={setNumber("additionalWorkDays")} highlight={aiFilled} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <ToggleField label="범위 변경" checked={form.scopeChanged} onChange={toggle("scopeChanged")} highlight={aiFilled} />
-                <ToggleField label="DB 변경" checked={form.databaseChanged} onChange={toggle("databaseChanged")} highlight={aiFilled} />
-                <ToggleField label="API 변경" checked={form.apiChanged} onChange={toggle("apiChanged")} highlight={aiFilled} />
-                <ToggleField label="UI 변경" checked={form.uiChanged} onChange={toggle("uiChanged")} highlight={aiFilled} />
+                <ToggleField label="범위 변경" checked={form.scopeChanged} onChange={toggle("scopeChanged")} highlight={aiFilled && form.scopeChanged} />
+                <ToggleField label="DB 변경" checked={form.databaseChanged} onChange={toggle("databaseChanged")} highlight={aiFilled && form.databaseChanged} />
+                <ToggleField label="API 변경" checked={form.apiChanged} onChange={toggle("apiChanged")} highlight={aiFilled && form.apiChanged} />
+                <ToggleField label="UI 변경" checked={form.uiChanged} onChange={toggle("uiChanged")} highlight={aiFilled && form.uiChanged} />
               </div>
 
               <Button className="w-full" onClick={() => void handleAnalyze()} disabled={loading || analyzing}>

@@ -207,6 +207,8 @@ export function PmWbs({
             icon={Network}
             title="WBS 생성 결과"
             description="확정 요구사항을 바탕으로 생성된 작업 구조를 검토하고 최종 WBS로 확정합니다."
+            titleClassName="text-xl font-semibold tracking-tight"
+            descriptionClassName="text-[0.82rem] leading-5"
           />
 
           <div className="flex flex-wrap gap-2">
@@ -242,8 +244,8 @@ export function PmWbs({
               <Network className="size-7 text-muted-foreground" />
             </div>
             <div>
-              <div className="font-medium text-foreground">생성된 WBS가 없습니다.</div>
-              <div className="mt-1 text-sm text-muted-foreground">
+              <div className="text-base font-semibold text-foreground">생성된 WBS가 없습니다.</div>
+              <div className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
                 최종 요구사항이 저장된 뒤 AI WBS 생성을 실행하세요.
               </div>
             </div>
@@ -274,8 +276,8 @@ export function PmWbs({
                     <Network className="size-[18px]" />
                   </div>
                   <div>
-                    <CardTitle className="text-base">WBS 계층 구조</CardTitle>
-                    <p className="mt-0.5 text-[0.78rem] text-muted-foreground">
+                    <CardTitle className="text-lg font-semibold tracking-tight">WBS 계층 구조</CardTitle>
+                    <p className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
                       작업을 선택하면 오른쪽에서 연결 정보와 완료 조건을 확인할 수 있습니다.
                     </p>
                   </div>
@@ -332,9 +334,9 @@ export function PmWbs({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="font-mono">{selectedTask?.taskCode}</Badge>
-                      <CardTitle className="text-lg">{selectedTask?.taskName}</CardTitle>
+                      <CardTitle className="text-lg font-semibold tracking-tight">{selectedTask?.taskName}</CardTitle>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    <p className="mt-2 text-[0.82rem] leading-5 text-muted-foreground">
                       {selectedTask?.description || "상세 설명이 없습니다."}
                     </p>
                   </div>

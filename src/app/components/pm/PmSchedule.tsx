@@ -273,6 +273,8 @@ export function PmSchedule({
             icon={CalendarClock}
             title="AI 일정 생성"
             description="확정된 WBS를 바탕으로 권장 일정과 여유를 반영한 보수 일정을 함께 제안합니다."
+            titleClassName="text-xl font-semibold tracking-tight"
+            descriptionClassName="text-[0.82rem] leading-5"
           />
 
           <div className="flex flex-wrap gap-2">
@@ -332,8 +334,8 @@ export function PmSchedule({
         <Card>
           <CardContent className="flex min-h-72 flex-col items-center justify-center gap-3 text-center">
             <Loader2 className="size-8 animate-spin text-blue-600" />
-            <div className="font-medium text-foreground">AI가 일정을 생성하고 있습니다…</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-base font-semibold text-foreground">AI가 일정을 생성하고 있습니다…</div>
+            <div className="text-[0.82rem] leading-5 text-muted-foreground">
               결과가 준비되면 자동으로 표시됩니다. (최대 약 1분)
             </div>
           </CardContent>
@@ -476,8 +478,8 @@ export function PmSchedule({
               <CalendarClock className="size-7 text-muted-foreground" />
             </div>
             <div>
-              <div className="font-medium text-foreground">아직 생성된 일정이 없습니다.</div>
-              <div className="mt-1 text-sm text-muted-foreground">
+              <div className="text-base font-semibold text-foreground">아직 생성된 일정이 없습니다.</div>
+              <div className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
                 최종 WBS를 확정한 뒤 "AI 일정 생성"을 눌러주세요.
               </div>
             </div>

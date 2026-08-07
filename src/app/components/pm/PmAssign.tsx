@@ -536,7 +536,7 @@ export function PmAssign({
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <Users className="size-4 shrink-0 text-muted-foreground" />
-                <CardTitle className="truncate">프로젝트 팀원 관리</CardTitle>
+                <CardTitle className="truncate text-lg font-semibold tracking-tight">프로젝트 팀원 관리</CardTitle>
               </div>
 
               <CollapsibleTrigger asChild>
@@ -572,7 +572,7 @@ export function PmAssign({
               </CollapsibleTrigger>
             </div>
             {membersOpen && (
-              <CardDescription>
+              <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
                 체크한 팀원이 이 프로젝트의 "담당자 추천" 후보가 됩니다. 저장해야 반영돼요.
               </CardDescription>
             )}
@@ -636,14 +636,14 @@ export function PmAssign({
                           {m.capabilityRegistered ? (
                             <Badge
                               variant="outline"
-                              className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+                              className="border-emerald-200 bg-emerald-50 text-sm font-normal text-emerald-700"
                             >
                               등록됨
                             </Badge>
                           ) : (
                             <Badge
                               variant="outline"
-                              className="border-amber-200 bg-amber-50 font-normal text-amber-700"
+                              className="border-amber-200 bg-amber-50 text-sm font-normal text-amber-700"
                             >
                               미등록
                             </Badge>
@@ -697,7 +697,7 @@ export function PmAssign({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>담당자 추천</CardTitle>
+            <CardTitle className="text-lg font-semibold tracking-tight">담당자 추천</CardTitle>
             <div className="flex items-center gap-2">
               {!assignLoading && !assignError && hasRecommended && (
                 <Badge variant="outline" className="font-normal">
@@ -935,10 +935,10 @@ export function PmAssign({
         {/* 팀 워크로드 */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <Users className="size-4" /> 팀 워크로드
             </CardTitle>
-            <CardDescription>배정된 업무의 예상 공수(시간) 기준이에요.</CardDescription>
+            <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">배정된 업무의 예상 공수(시간) 기준이에요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {workloadLoading && (

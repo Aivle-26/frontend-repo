@@ -662,7 +662,7 @@ function RequirementTable({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
               <span className="font-semibold text-muted-foreground">#{index + 1}</span>
               <span aria-hidden="true" className="text-border">·</span>
-              <span className={cn("font-semibold", typeTone(item.type))}>
+              <span className="font-semibold text-cyan-700 dark:text-cyan-300">
                 {typeLabel(item.type)}
               </span>
               <span aria-hidden="true" className="text-border">·</span>
@@ -727,7 +727,7 @@ function EditableRequirementTable({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
               <span className="font-semibold text-muted-foreground">#{index + 1}</span>
               <span aria-hidden="true" className="text-border">·</span>
-              <span className={cn("font-semibold", typeTone(item.type))}>
+              <span className="font-semibold text-cyan-700 dark:text-cyan-300">
                 {typeLabel(item.type)}
               </span>
               <span aria-hidden="true" className="text-border">·</span>

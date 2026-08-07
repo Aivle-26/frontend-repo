@@ -267,8 +267,8 @@ export function PmBudget({ project }: PmBudgetProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-foreground text-lg">예산</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-foreground text-xl font-semibold tracking-tight">예산</h2>
+          <p className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
             WBS 예상 공수(MM)를 바탕으로 프로젝트 예산을 산정합니다.
           </p>
         </div>
@@ -280,8 +280,8 @@ export function PmBudget({ project }: PmBudgetProps) {
       {/* 견적 조건 */}
       <Card>
         <CardHeader>
-          <CardTitle>견적 조건</CardTitle>
-          <CardDescription>값을 바꾼 뒤 아래 "AI 견적 분석하기"를 눌러주세요.</CardDescription>
+          <CardTitle className="text-lg font-semibold tracking-tight">견적 조건</CardTitle>
+          <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">값을 바꾼 뒤 아래 "AI 견적 분석하기"를 눌러주세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -352,8 +352,8 @@ export function PmBudget({ project }: PmBudgetProps) {
       {/* WBS별 예상 공수 */}
       <Card>
         <CardHeader>
-          <CardTitle>WBS별 예상 공수</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-lg font-semibold tracking-tight">WBS별 예상 공수</CardTitle>
+          <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
             WBS 조회 결과에서 자동 반영 · 총 {totalMm.toFixed(2)} MM
             {unsavedCount > 0 && ` · 저장 전 항목 ${unsavedCount}건은 견적에서 제외돼요`}
           </CardDescription>
@@ -443,6 +443,8 @@ export function PmBudget({ project }: PmBudgetProps) {
             icon={Sparkles}
             title="AI 추천 견적"
             description="WBS 공수와 운영 조건을 바탕으로 비용 구성을 항목별로 계산합니다."
+            titleClassName="text-lg font-semibold tracking-tight"
+            descriptionClassName="text-[0.82rem] leading-5"
             meta={
               result?.llmStatus ? (
                 <Badge

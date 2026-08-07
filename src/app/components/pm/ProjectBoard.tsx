@@ -1170,22 +1170,19 @@ function ProjectCard({
                   <span className="truncate">{p.updatedAt}</span>
                 </div>
 
-                <div
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl px-3.5 py-3",
-                    dday.overdue
-                      ? "bg-rose-100/90 text-rose-700 dark:bg-rose-950/45 dark:text-rose-300"
-                      : dday.soon
-                        ? "bg-amber-100/90 text-amber-700 dark:bg-amber-950/45 dark:text-amber-300"
-                        : "bg-gradient-to-r from-cyan-100/90 to-teal-100/80 text-teal-800 dark:from-cyan-950/45 dark:to-teal-950/40 dark:text-teal-300",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="size-4" />
-                    <span className="text-xs font-semibold opacity-75">마감 일정</span>
-                  </div>
-                  <span className="flex items-baseline gap-1.5 text-right">
-                    <span className="text-xs font-normal opacity-70">
+                <div className="flex items-baseline justify-between gap-3 px-0.5 py-1">
+                  <span className="text-xs font-medium text-muted-foreground">마감 일정</span>
+                  <span
+                    className={cn(
+                      "flex items-baseline gap-1.5 text-right",
+                      dday.overdue
+                        ? "text-rose-600 dark:text-rose-300"
+                        : dday.soon
+                          ? "text-amber-700 dark:text-amber-300"
+                          : "text-teal-700 dark:text-teal-300",
+                    )}
+                  >
+                    <span className="text-xs font-normal opacity-75">
                       {dday.prefix}
                     </span>
                     <span className="text-lg font-bold tracking-tight">

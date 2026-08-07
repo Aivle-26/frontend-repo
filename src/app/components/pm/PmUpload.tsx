@@ -731,18 +731,18 @@ export function PmUpload({
             <div className="overflow-x-auto rounded-lg border border-border">
               <Table className={mode === "real" ? "table-fixed" : undefined}>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-teal-50/85 hover:bg-teal-50/85 dark:bg-teal-950/30 dark:hover:bg-teal-950/30">
                     <TableHead
-                      className={mode === "real" ? "w-auto" : "min-w-52"}
+                      className={cn("font-semibold text-teal-950 dark:text-teal-100", mode === "real" ? "w-auto" : "min-w-52")}
                     >
                       제목
                     </TableHead>
                     {mode === "demo" ? (
-                      <TableHead className="min-w-72">설명</TableHead>
+                      <TableHead className="min-w-72 font-semibold text-teal-950 dark:text-teal-100">설명</TableHead>
                     ) : null}
-                    <TableHead className="w-32">유형</TableHead>
-                    <TableHead className="w-24">상태</TableHead>
-                    <TableHead className="w-20 text-right">근거</TableHead>
+                    <TableHead className="w-32 font-semibold text-teal-950 dark:text-teal-100">유형</TableHead>
+                    <TableHead className="w-24 font-semibold text-teal-950 dark:text-teal-100">상태</TableHead>
+                    <TableHead className="w-20 text-right font-semibold text-teal-950 dark:text-teal-100">근거</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

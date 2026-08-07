@@ -18,6 +18,7 @@ import {
   type ProjectScheduleResult,
   type WbsResult,
 } from "@/app/api/projectRepository";
+import { AiFeatureHeader } from "@/app/components/common/AiFeatureHeader";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -266,30 +267,13 @@ export function PmSchedule({
 
   return (
     <div className="space-y-5">
-      <Card className="border-blue-100 bg-blue-50/50">
+      <Card className="border-teal-200/80 bg-gradient-to-br from-white via-cyan-50/45 to-teal-50/70 dark:border-violet-900/70 dark:from-zinc-950 dark:via-violet-950/20 dark:to-purple-950/35">
         <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <CalendarClock className="size-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">AI 일정 생성</h2>
-                <Badge variant="secondary">{project.name}</Badge>
-                {schedule?.llmStatus && (
-                  <Badge
-                    variant="outline"
-                    className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-                  >
-                    {schedule.llmStatus}
-                  </Badge>
-                )}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                확정된 WBS를 기준으로 AI가 추천·보수 일정을 생성합니다.
-              </p>
-            </div>
-          </div>
+          <AiFeatureHeader
+            icon={CalendarClock}
+            title="AI 일정 생성"
+            description="확정된 WBS를 바탕으로 권장 일정과 여유를 반영한 보수 일정을 함께 제안합니다."
+          />
 
           <div className="flex flex-wrap gap-2">
             <Button

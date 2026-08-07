@@ -19,6 +19,7 @@ import {
   type WbsResult,
   type WbsTask,
 } from "@/app/api/projectRepository";
+import { AiFeatureHeader } from "@/app/components/common/AiFeatureHeader";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -200,21 +201,13 @@ export function PmWbs({
 
   return (
     <div className="space-y-5">
-      <Card className="border-blue-100 bg-blue-50/50">
+      <Card className="border-teal-200/80 bg-gradient-to-br from-white via-cyan-50/45 to-teal-50/70 dark:border-violet-900/70 dark:from-zinc-950 dark:via-violet-950/20 dark:to-purple-950/35">
         <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <Network className="size-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">WBS 생성 결과</h2>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                확정 요구사항을 기반으로 AI가 생성한 WBS를 조회하고 최종 확정합니다.
-              </p>
-            </div>
-          </div>
+          <AiFeatureHeader
+            icon={Network}
+            title="WBS 생성 결과"
+            description="확정 요구사항을 바탕으로 생성된 작업 구조를 검토하고 최종 WBS로 확정합니다."
+          />
 
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void loadWbs()} disabled={loading || generating}>
@@ -268,16 +261,27 @@ export function PmWbs({
             <SummaryCard
               icon={CheckCircle2}
               label="연결 산출물"
-              value={linkedArtifactCount > 0 ? `${linkedArtifactCount}건` : "API 반환 없음"}
+              value={linkedArtifactCount > 0 ? `${linkedArtifactCount}건` : "연결 정보 없음"}
+              muted={linkedArtifactCount === 0}
             />
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.4fr)]">
-            <Card className="min-w-0">
-              <CardHeader className="border-b">
-                <CardTitle className="text-base">WBS 계층 구조</CardTitle>
+            <Card className="min-w-0 overflow-hidden border-teal-100/90 bg-white/95 dark:border-violet-900/70 dark:bg-zinc-950/90">
+              <CardHeader className="border-b border-teal-100/80 bg-gradient-to-r from-cyan-50/70 to-teal-50/50 dark:border-violet-900/60 dark:from-violet-950/30 dark:to-purple-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-xl border border-teal-200 bg-white text-teal-700 shadow-sm dark:border-violet-800 dark:bg-black/30 dark:text-violet-200">
+                    <Network className="size-[18px]" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">WBS 계층 구조</CardTitle>
+                    <p className="mt-0.5 text-[0.78rem] text-muted-foreground">
+                      작업을 선택하면 오른쪽에서 연결 정보와 완료 조건을 확인할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="max-h-[640px] space-y-1 overflow-y-auto p-3">
+              <CardContent className="max-h-[640px] space-y-1.5 overflow-y-auto bg-gradient-to-b from-white to-teal-50/20 p-3 dark:from-zinc-950 dark:to-violet-950/10">
                 {tasks.map((task) => {
                   const level = getTaskLevel(task, taskByExternalId);
                   const active = selectedTask?.externalTaskId === task.externalTaskId;
@@ -286,19 +290,33 @@ export function PmWbs({
                       key={taskKey(task)}
                       type="button"
                       onClick={() => setSelectedExternalId(task.externalTaskId)}
+                      aria-current={active ? "true" : undefined}
                       className={cn(
-                        "flex w-full items-start gap-2 rounded-xl px-3 py-3 text-left transition-colors",
-                        active ? "bg-blue-50 text-blue-900" : "hover:bg-muted/60",
+                        "flex w-full items-start gap-2.5 rounded-lg border px-3 py-3 text-left transition-all",
+                        active
+                          ? "border-teal-300 bg-gradient-to-r from-teal-50 to-cyan-50/70 text-teal-950 shadow-sm dark:border-violet-700 dark:from-violet-950/55 dark:to-purple-950/35 dark:text-violet-50"
+                          : "border-transparent hover:border-teal-100 hover:bg-teal-50/55 dark:hover:border-violet-900/70 dark:hover:bg-violet-950/25",
                       )}
                       style={{ paddingLeft: `${12 + Math.min(level, 6) * 18}px` }}
                     >
-                      {level > 0 ? <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> : <Network className="mt-0.5 size-4 shrink-0 text-blue-600" />}
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="font-mono text-[11px]">{task.taskCode}</Badge>
-                          <span className="truncate font-medium">{task.taskName}</span>
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md",
+                          active
+                            ? "bg-teal-600 text-white dark:bg-violet-600"
+                            : "bg-teal-50 text-teal-700 dark:bg-violet-950/55 dark:text-violet-300",
+                        )}
+                      >
+                        {level > 0 ? <ChevronRight className="size-3.5" /> : <Network className="size-3.5" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-mono text-[0.72rem] font-semibold text-teal-700 dark:text-violet-300">
+                            {task.taskCode}
+                          </span>
+                          <span className="truncate text-[0.9rem] font-semibold">{task.taskName}</span>
                         </span>
-                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        <span className="mt-1 block truncate text-[0.78rem] text-muted-foreground">
                           {task.itemType ?? task.phase}
                         </span>
                       </span>
@@ -426,20 +444,31 @@ function SummaryCard({
   icon: Icon,
   label,
   value,
+  muted = false,
 }: {
   icon: typeof Network;
   label: string;
   value: string;
+  muted?: boolean;
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 pt-6">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-muted">
-          <Icon className="size-5 text-blue-600" />
+    <Card className="border-teal-100/90 bg-gradient-to-br from-white to-teal-50/55 dark:border-violet-900/70 dark:from-zinc-950 dark:to-violet-950/25">
+      <CardContent className="flex items-center justify-between gap-4 pt-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-teal-200 bg-white text-teal-700 shadow-sm dark:border-violet-800 dark:bg-black/30 dark:text-violet-200">
+            <Icon className="size-5" />
+          </div>
+          <div className="truncate text-sm font-medium text-muted-foreground">{label}</div>
         </div>
-        <div>
-          <div className="text-sm text-muted-foreground">{label}</div>
-          <div className="mt-1 text-xl font-semibold text-foreground">{value}</div>
+        <div
+          className={cn(
+            "shrink-0 border-l border-teal-100 pl-4 text-right font-semibold tracking-[-0.02em] dark:border-violet-900/70",
+            muted
+              ? "text-[0.84rem] text-muted-foreground"
+              : "text-xl text-teal-800 dark:text-violet-200",
+          )}
+        >
+          {value}
         </div>
       </CardContent>
     </Card>

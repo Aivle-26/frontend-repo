@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AiFeatureHeader } from "@/app/components/common/AiFeatureHeader";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -408,7 +409,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                     }}
                     modifiersClassNames={{
                       week: "bg-primary/10",
-                      due: "border border-red-400 text-red-600 font-semibold",
+                      due: "!rounded-full !bg-rose-500/20 !text-rose-700 font-semibold hover:!bg-rose-500/30 dark:!bg-rose-400/20 dark:!text-rose-200",
                     }}
                     className="rounded-lg border border-border"
                   />
@@ -419,7 +420,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                     </span>
                     {dueDate && (
                       <span className="flex items-center gap-1.5">
-                        <span className="inline-block size-2.5 rounded-full border border-red-400" />
+                        <span className="inline-block size-2.5 rounded-full bg-rose-500/25 dark:bg-rose-400/30" />
                         프로젝트 마감일 · {project.dueDate}
                       </span>
                     )}
@@ -617,27 +618,22 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
           <Card className="xl:sticky xl:top-4">
             <CardContent className="space-y-4 pt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                    <Bot className="size-4" />
-                  </div>
-                  <div className="leading-tight">
-                    <div className="flex items-center gap-2">
-                      <span className="text-foreground text-sm">AI 주간 종합 분석</span>
-                      {meta && (
-                        <Badge
-                          variant="outline"
-                          className={cn("font-normal", meta.className)}
-                        >
-                          {meta.label}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      {weekLabel(weekOffset)} · 제출 {submittedCount}/{members.length}
-                    </div>
-                  </div>
-                </div>
+                <AiFeatureHeader
+                  icon={Bot}
+                  compact
+                  title="AI 주간 종합 분석"
+                  description={`${weekLabel(weekOffset)} · 팀원 ${submittedCount}/${members.length}명 제출`}
+                  meta={
+                    meta ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("font-normal", meta.className)}
+                      >
+                        {meta.label}
+                      </Badge>
+                    ) : null
+                  }
+                />
 
                 <Button size="sm" onClick={() => void runAnalyze()} disabled={generating}>
                   {generating ? (
@@ -658,7 +654,7 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
               {generating ? (
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
-                  <Loader2 className="size-6 animate-spin text-blue-600" />
+                  <Loader2 className="size-6 animate-spin text-teal-600 dark:text-violet-300" />
                   <p className="text-foreground text-sm">AI가 주간 스크럼을 분석하고 있습니다…</p>
                   <p className="text-muted-foreground text-xs">
                     요약 → 검토 → 다음 액션 추천 순으로 처리됩니다.
@@ -718,14 +714,15 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-14 text-center">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                    <Bot className="size-6 text-muted-foreground" />
+                <div className="rounded-xl border border-dashed border-teal-200/80 bg-gradient-to-br from-white via-cyan-50/45 to-teal-50/70 px-6 py-12 text-center dark:border-violet-800/70 dark:from-zinc-950 dark:via-violet-950/25 dark:to-purple-950/35">
+                  <div className="mx-auto flex size-11 items-center justify-center rounded-xl border border-teal-200 bg-teal-50 text-teal-700 dark:border-violet-800 dark:bg-violet-950/55 dark:text-violet-200">
+                    <Bot className="size-5" />
                   </div>
-                  <p className="text-foreground text-sm">아직 생성된 분석이 없습니다.</p>
-                  <p className="max-w-xs text-muted-foreground text-xs">
-                    제출된 팀원 스크럼을 바탕으로 [AI 주간 분석 생성]을 눌러 이번 주 종합
-                    분석을 만들어 보세요.
+                  <p className="mt-4 text-[0.96rem] font-semibold text-foreground">
+                    이번 주 스크럼을 한 번에 정리해 보세요.
+                  </p>
+                  <p className="mx-auto mt-2 max-w-sm text-[0.84rem] leading-6 text-muted-foreground">
+                    팀원이 제출한 내용을 바탕으로 핵심 성과, 주요 이슈와 다음 액션을 AI가 요약합니다.
                   </p>
                 </div>
               )}

@@ -10,6 +10,7 @@ import {
 } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/app/components/ui/utils";
+import { AiFeatureHeader } from "@/app/components/common/AiFeatureHeader";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -255,10 +256,10 @@ export function PmBudget({ project }: PmBudgetProps) {
 
   const chartData = result
     ? [
-        { name: "인건비", value: result.costSummary.laborCost, color: "#6366f1" },
-        { name: "서버비", value: result.costSummary.serverCost, color: "#14b8a6" },
-        { name: "라이선스", value: result.costSummary.licenseCost, color: "#f59e0b" },
-        { name: "AI API", value: result.costSummary.aiApiCost, color: "#ec4899" },
+        { name: "인건비", value: result.costSummary.laborCost, color: "#0F9F9A" },
+        { name: "서버비", value: result.costSummary.serverCost, color: "#22B8CF" },
+        { name: "라이선스", value: result.costSummary.licenseCost, color: "#7DD3FC" },
+        { name: "AI API", value: result.costSummary.aiApiCost, color: "#8B5CF6" },
       ].filter((d) => d.value > 0)
     : [];
 
@@ -438,17 +439,21 @@ export function PmBudget({ project }: PmBudgetProps) {
       {/* AI 추천 견적 */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>AI 추천 견적</CardTitle>
-            {result?.llmStatus && (
-              <Badge
-                variant="outline"
-                className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-              >
-                {result.llmStatus}
-              </Badge>
-            )}
-          </div>
+          <AiFeatureHeader
+            icon={Sparkles}
+            title="AI 추천 견적"
+            description="WBS 공수와 운영 조건을 바탕으로 비용 구성을 항목별로 계산합니다."
+            meta={
+              result?.llmStatus ? (
+                <Badge
+                  variant="outline"
+                  className="border-teal-200 font-normal text-teal-700 dark:border-violet-700 dark:text-violet-200"
+                >
+                  {result.llmStatus}
+                </Badge>
+              ) : null
+            }
+          />
         </CardHeader>
         <CardContent className="space-y-6">
           {estimating && (

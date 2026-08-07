@@ -543,21 +543,25 @@ export function PmAssign({
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-[4px] border-2 px-3.5 text-[0.92rem] font-semibold shadow-sm outline-none transition-all hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-3.5 text-[0.9rem] font-semibold shadow-sm outline-none transition-all hover:-translate-y-px hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50",
                     projectMembers.length > 0
-                      ? "border-teal-300 bg-teal-50/80 text-teal-800 hover:border-teal-400 hover:bg-teal-100/80 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-200 dark:hover:bg-violet-950/70"
-                      : "border-amber-300 bg-amber-50/80 text-amber-800 hover:border-amber-400 hover:bg-amber-100/80 dark:border-amber-700/70 dark:bg-amber-950/25 dark:text-amber-300",
+                      ? "border-teal-300 bg-white text-teal-800 hover:border-teal-400 hover:bg-teal-50 dark:border-violet-700 dark:bg-black/30 dark:text-violet-200 dark:hover:bg-violet-950/55"
+                      : "border-amber-300 bg-white text-amber-800 hover:border-amber-400 hover:bg-amber-50 dark:border-amber-700/70 dark:bg-black/30 dark:text-amber-300",
                   )}
                   aria-label={membersOpen ? "프로젝트 팀원 관리 접기" : "프로젝트 팀원 관리 열기"}
                   aria-expanded={membersOpen}
                 >
                   {membersLoading
-                    ? "불러오는 중"
+                    ? "팀원 불러오는 중"
                     : membersError
-                      ? "확인하기"
+                      ? "팀원 목록 확인"
                       : projectMembers.length > 0
-                        ? `등록됨 ${projectMembers.length}명`
-                        : "미등록"}
+                        ? membersOpen
+                          ? "팀원 관리 접기"
+                          : `팀원 ${projectMembers.length}명 관리`
+                        : membersOpen
+                          ? "등록 화면 접기"
+                          : "팀원 등록하기"}
                   <ChevronDown
                     className={cn(
                       "size-4 shrink-0 transition-transform",

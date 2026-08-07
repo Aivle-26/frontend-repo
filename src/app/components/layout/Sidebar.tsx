@@ -31,7 +31,8 @@ const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 240;
 const MIN_SIDEBAR_WIDTH = 72;
 const ICON_ONLY_THRESHOLD = 170;
-const MAX_SIDEBAR_WIDTH = 380;
+// 기본값보다 넓히는 것은 허용하지 않는다. 기본값에서 줄이는 방향으로만 조절 가능.
+const MAX_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH;
 
 const ACTIVE_ITEM_CLASS =
   "bg-cyan-100/90 font-medium text-teal-950 shadow-sm ring-1 ring-cyan-300/90 dark:bg-violet-600/25 dark:text-violet-50 dark:ring-violet-500/45";
@@ -125,7 +126,8 @@ export function Sidebar({
     >
       <div
         className={cn(
-          "flex h-16 items-center overflow-hidden border-b border-cyan-200/80 dark:border-violet-900/60",
+          // 높이/테두리를 TopBar(h-[80px], border-b-[3px])와 맞춰 구분선이 일직선이 되게 한다.
+          "flex h-[80px] items-center overflow-hidden border-b-[3px] border-cyan-200/80 dark:border-violet-900/60",
           isIconOnly ? "justify-center px-2" : "gap-2.5 px-5",
         )}
       >

@@ -89,7 +89,7 @@ function renderPiePercentLabel({
   const radius = inner + (outer - inner) * 0.53;
   const x = centerX + radius * Math.cos(-midAngle * RADIAN);
   const y = centerY + radius * Math.sin(-midAngle * RADIAN);
-  const textColor = payload?.color === "#7DD3FC" ? "#0f172a" : "#ffffff";
+  const textColor = payload?.labelColor ?? "#ffffff";
 
   return (
     <text
@@ -293,10 +293,30 @@ export function PmBudget({ project }: PmBudgetProps) {
 
   const chartData = result
     ? [
-        { name: "인건비", value: result.costSummary.laborCost, color: "#0F9F9A" },
-        { name: "서버비", value: result.costSummary.serverCost, color: "#22B8CF" },
-        { name: "라이선스", value: result.costSummary.licenseCost, color: "#7DD3FC" },
-        { name: "AI API", value: result.costSummary.aiApiCost, color: "#8B5CF6" },
+        {
+          name: "인건비",
+          value: result.costSummary.laborCost,
+          color: "var(--budget-labor)",
+          labelColor: "var(--budget-light-label)",
+        },
+        {
+          name: "서버비",
+          value: result.costSummary.serverCost,
+          color: "var(--budget-server)",
+          labelColor: "var(--budget-light-label)",
+        },
+        {
+          name: "라이선스",
+          value: result.costSummary.licenseCost,
+          color: "var(--budget-license)",
+          labelColor: "var(--budget-license-label)",
+        },
+        {
+          name: "AI API",
+          value: result.costSummary.aiApiCost,
+          color: "var(--budget-ai)",
+          labelColor: "var(--budget-light-label)",
+        },
       ].filter((d) => d.value > 0)
     : [];
   const chartTotal = chartData.reduce((sum, item) => sum + item.value, 0);
@@ -539,8 +559,8 @@ export function PmBudget({ project }: PmBudgetProps) {
                   <p className="mt-0.5 text-xs text-muted-foreground">항목별 금액과 전체 비용 대비 비중을 확인하세요.</p>
                 </div>
 
-                <div className="grid grid-cols-1 items-center gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
-                  <div className="relative h-60 min-h-60">
+                <div className="grid grid-cols-1 items-center gap-7 [--budget-labor:#0F9F9A] [--budget-server:#22B8CF] [--budget-license:#7DD3FC] [--budget-ai:#8B5CF6] [--budget-light-label:#FFFFFF] [--budget-license-label:#0F172A] [--budget-pie-stroke:transparent] dark:[--budget-labor:#6658B8] dark:[--budget-server:#7A659E] dark:[--budget-license:#586DA7] dark:[--budget-ai:#956184] dark:[--budget-light-label:#F5F3FF] dark:[--budget-license-label:#F5F3FF] dark:[--budget-pie-stroke:#18181B] lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
+                  <div className="relative h-60 min-h-60 rounded-xl dark:bg-violet-950/10 dark:ring-1 dark:ring-inset dark:ring-violet-900/20">
                     {chartData.length > 0 ? (
                       <>
                         <ResponsiveContainer width="100%" height="100%">
@@ -556,7 +576,12 @@ export function PmBudget({ project }: PmBudgetProps) {
                               label={renderPiePercentLabel}
                             >
                               {chartData.map((d) => (
-                                <Cell key={d.name} fill={d.color} stroke="transparent" />
+                                <Cell
+                                  key={d.name}
+                                  fill={d.color}
+                                  stroke="var(--budget-pie-stroke)"
+                                  strokeWidth={1.5}
+                                />
                               ))}
                             </Pie>
                           </PieChart>

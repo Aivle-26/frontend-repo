@@ -17,6 +17,7 @@ import {
 
 const META_PREFIX = "@@meta:";
 const NOTICE_CACHE_PREFIX = "pmate:project-notices:";
+const NOTICE_OVERRIDE_PREFIX = "pmate:project-notice-overrides:";
 
 interface NoticeMeta {
   category?: NoticeCategory;
@@ -28,6 +29,10 @@ interface NoticeMeta {
 
 function cacheKey(projectId: string | number): string {
   return `${NOTICE_CACHE_PREFIX}${String(projectId)}`;
+}
+
+function overrideKey(projectId: string | number): string {
+  return `${NOTICE_OVERRIDE_PREFIX}${String(projectId)}`;
 }
 
 function isNotice(value: unknown): value is Notice {
@@ -55,6 +60,31 @@ function readCachedNotices(projectId: string | number): Notice[] {
   }
 }
 
+
+function readOverrideIds(projectId: string | number): Set<string> {
+  if (typeof window === "undefined") return new Set();
+
+  try {
+    const raw = window.localStorage.getItem(overrideKey(projectId));
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is string => typeof value === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeOverrideIds(projectId: string | number, ids: Set<string>): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(overrideKey(projectId), JSON.stringify(Array.from(ids)));
+  } catch {
+    // localStorage 사용이 막힌 환경에서는 현재 세션의 수정 상태만 유지된다.
+  }
+}
+
 function writeCachedNotices(projectId: string | number, notices: Notice[]): void {
   if (typeof window === "undefined") return;
 
@@ -66,13 +96,21 @@ function writeCachedNotices(projectId: string | number, notices: Notice[]): void
 }
 
 /**
- * 같은 id는 서버 응답을 우선하고, 아직 서버 목록에 반영되지 않은 로컬 공지는 유지한다.
+ * 기본적으로 같은 id는 서버 응답을 우선한다. 단, 사용자가 수정한 공지는 로컬 수정본을 우선한다.
  */
-function mergeNotices(remote: Notice[], cached: Notice[]): Notice[] {
+function mergeNotices(
+  remote: Notice[],
+  cached: Notice[],
+  overrideIds: Set<string> = new Set(),
+): Notice[] {
   const merged = new Map<string, Notice>();
 
-  cached.forEach((notice) => merged.set(notice.id, notice));
   remote.forEach((notice) => merged.set(notice.id, notice));
+  cached.forEach((notice) => {
+    if (!merged.has(notice.id) || overrideIds.has(notice.id)) {
+      merged.set(notice.id, notice);
+    }
+  });
 
   return Array.from(merged.values()).sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -130,6 +168,8 @@ export interface UseProjectNoticesResult {
   refresh: () => void;
   /** 새 공지 등록 (PM 전용). 성공 시 로컬 캐시에도 즉시 저장한다. */
   createNotice: (notice: Omit<Notice, "id">) => Promise<void>;
+  /** 기존 공지 수정. 수정 내용은 새로고침 후에도 유지된다. */
+  updateNotice: (noticeId: string, notice: Omit<Notice, "id">) => Promise<void>;
 }
 
 export function useProjectNotices(
@@ -155,7 +195,7 @@ export function useProjectNotices(
       .getProjectNotices(projectId)
       .then((list) => {
         const remote = list.map(decodeNotice);
-        const merged = mergeNotices(remote, cached);
+        const merged = mergeNotices(remote, cached, readOverrideIds(projectId));
         setNotices(merged);
         writeCachedNotices(projectId, merged);
       })
@@ -201,7 +241,11 @@ export function useProjectNotices(
       };
 
       // 서버의 GET 목록 반영을 기다리지 않고 먼저 저장한다.
-      const nextCached = mergeNotices([created], readCachedNotices(projectId));
+      const nextCached = mergeNotices(
+        [created],
+        readCachedNotices(projectId),
+        readOverrideIds(projectId),
+      );
       writeCachedNotices(projectId, nextCached);
       setNotices(nextCached);
 
@@ -211,5 +255,32 @@ export function useProjectNotices(
     [projectId, refresh],
   );
 
-  return { notices, loading, error, refresh, createNotice };
+  const updateNotice = useCallback(
+    async (noticeId: string, notice: Omit<Notice, "id">) => {
+      if (projectId == null || projectId === "") {
+        throw new ApiError(400, "프로젝트가 선택되지 않았습니다.");
+      }
+
+      const updated: Notice = { ...notice, id: noticeId };
+      const overrides = readOverrideIds(projectId);
+      overrides.add(noticeId);
+      writeOverrideIds(projectId, overrides);
+
+      const cached = readCachedNotices(projectId);
+      const nextCached = mergeNotices(
+        [],
+        [...cached.filter((item) => item.id !== noticeId), updated],
+        overrides,
+      );
+      writeCachedNotices(projectId, nextCached);
+
+      setNotices((current) => {
+        const currentWithoutTarget = current.filter((item) => item.id !== noticeId);
+        return mergeNotices([], [...currentWithoutTarget, updated], overrides);
+      });
+    },
+    [projectId],
+  );
+
+  return { notices, loading, error, refresh, createNotice, updateNotice };
 }

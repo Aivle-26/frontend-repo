@@ -4,6 +4,7 @@ import {
   Pin,
   ChevronRight,
   Plus,
+  Pencil,
   MessageSquareText,
   CalendarCheck2,
 } from "lucide-react";
@@ -102,7 +103,7 @@ export function StaffNoticeBoard({
   projectId = null,
 }: StaffNoticeBoardProps) {
   const isCompact = variant === "compact";
-  const { notices, createNotice } = useProjectNotices(projectId);
+  const { notices, createNotice, updateNotice } = useProjectNotices(projectId);
 
   // 위클리 스크럼 요청은 공지사항이랑 별도 백엔드 API(/scrum-requests)를 쓴다.
   const [scrumRequests, setScrumRequests] = useState<ProjectMessageResponse[]>([]);
@@ -142,6 +143,16 @@ export function StaffNoticeBoard({
   const [filter, setFilter] = useState<NoticeCategory | "전체">("전체");
   const [selected, setSelected] = useState<Notice | null>(null);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<Notice | null>(null);
+  const [editForm, setEditForm] = useState({
+    category: "시스템 공지" as NoticeCategory,
+    priority: "중간" as Priority,
+    title: "",
+    summary: "",
+    content: "",
+    pinned: false,
+  });
+  const [editingSubmitting, setEditingSubmitting] = useState(false);
 
   // 등록 폼
   const [createOpen, setCreateOpen] = useState(false);
@@ -203,6 +214,57 @@ export function StaffNoticeBoard({
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const startEditing = (notice: Notice) => {
+    setEditForm({
+      category: notice.category,
+      priority: notice.priority,
+      title: notice.title,
+      summary: notice.summary,
+      content: notice.content.join("\n"),
+      pinned: notice.pinned,
+    });
+    setEditing(notice);
+    setSelected(null);
+  };
+
+  const submitEdit = async () => {
+    if (!editing) return;
+    if (!editForm.title.trim()) {
+      toast.error("제목을 입력하세요.");
+      return;
+    }
+
+    const content = editForm.content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    setEditingSubmitting(true);
+    try {
+      await updateNotice(editing.id, {
+        category: editForm.category,
+        priority: editForm.priority,
+        pinned: editForm.pinned,
+        title: editForm.title.trim(),
+        author: editing.author,
+        date: editing.date,
+        summary: editForm.summary.trim() || editForm.title.trim(),
+        content:
+          content.length > 0
+            ? content
+            : [editForm.summary.trim() || editForm.title.trim()],
+      });
+      setEditing(null);
+      toast.success("공지를 수정했어요.");
+    } catch (caught) {
+      toast.error(
+        caught instanceof ApiError ? caught.message : "공지 수정에 실패했습니다.",
+      );
+    } finally {
+      setEditingSubmitting(false);
     }
   };
 
@@ -430,6 +492,11 @@ export function StaffNoticeBoard({
               )}
 
               <DialogFooter>
+                {canCreate && (
+                  <Button variant="outline" onClick={() => startEditing(selected)}>
+                    <Pencil className="size-4" /> 수정
+                  </Button>
+                )}
                 {selected.category === "위클리 스크럼" ? (
                   <>
                     <Button variant="outline" onClick={() => setSelected(null)}>
@@ -452,6 +519,128 @@ export function StaffNoticeBoard({
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 수정 다이얼로그 (PM 전용) */}
+      <Dialog
+        open={!!editing}
+        onOpenChange={(open) => {
+          if (!open && !editingSubmitting) setEditing(null);
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>공지 수정</DialogTitle>
+            <DialogDescription>
+              제목, 내용, 분류와 고정 여부를 수정할 수 있습니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>분류</Label>
+                <Select
+                  value={editForm.category}
+                  onValueChange={(v) =>
+                    setEditForm((f) => ({ ...f, category: v as NoticeCategory }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CREATE_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>우선순위</Label>
+                <Select
+                  value={editForm.priority}
+                  onValueChange={(v) =>
+                    setEditForm((f) => ({ ...f, priority: v as Priority }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITIES.map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {priority}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>제목</Label>
+              <Input
+                value={editForm.title}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, title: e.target.value }))
+                }
+                placeholder="공지 제목을 입력하세요"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>요약</Label>
+              <Input
+                value={editForm.summary}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, summary: e.target.value }))
+                }
+                placeholder="목록에 표시될 한 줄 요약"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>내용</Label>
+              <Textarea
+                value={editForm.content}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, content: e.target.value }))
+                }
+                placeholder="상세 내용을 입력하세요. 줄바꿈으로 문단을 나눕니다."
+                rows={6}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Switch
+                id="notice-edit-pinned"
+                checked={editForm.pinned}
+                onCheckedChange={(value) =>
+                  setEditForm((f) => ({ ...f, pinned: value }))
+                }
+              />
+              <Label htmlFor="notice-edit-pinned" className="cursor-pointer">
+                목록 상단에 고정
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditing(null)}
+              disabled={editingSubmitting}
+            >
+              취소
+            </Button>
+            <Button onClick={() => void submitEdit()} disabled={editingSubmitting}>
+              {editingSubmitting ? "저장 중…" : "수정 저장"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

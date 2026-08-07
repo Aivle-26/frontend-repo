@@ -29,7 +29,8 @@ interface SidebarProps {
 
 const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 240;
-const MIN_SIDEBAR_WIDTH = 190;
+const MIN_SIDEBAR_WIDTH = 72;
+const ICON_ONLY_THRESHOLD = 170;
 const MAX_SIDEBAR_WIDTH = 380;
 
 const ACTIVE_ITEM_CLASS =
@@ -57,6 +58,8 @@ export function Sidebar({
       Math.max(MIN_SIDEBAR_WIDTH, parsedWidth),
     );
   });
+
+  const isIconOnly = sidebarWidth < ICON_ONLY_THRESHOLD;
 
   const groupedItems = useMemo(() => {
     const groups: Array<{ label: string; items: SidebarItem[] }> = [];
@@ -120,33 +123,50 @@ export function Sidebar({
       )}
       style={{ width: `${sidebarWidth}px` }}
     >
-      <div className="flex h-16 items-center gap-2.5 overflow-hidden border-b border-cyan-200/80 px-5 dark:border-violet-900/60">
+      <div
+        className={cn(
+          "flex h-16 items-center overflow-hidden border-b border-cyan-200/80 dark:border-violet-900/60",
+          isIconOnly ? "justify-center px-2" : "gap-2.5 px-5",
+        )}
+      >
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-md shadow-cyan-500/25 dark:from-violet-500 dark:to-purple-700 dark:shadow-purple-950/45">
           <Sparkles className="size-5" />
         </div>
-        <div className="min-w-0 whitespace-nowrap leading-tight">
-          <div className="truncate font-semibold tracking-tight text-teal-950 dark:text-violet-50">
-            BidWorks AI
+        {!isIconOnly ? (
+          <div className="min-w-0 whitespace-nowrap leading-tight">
+            <div className="truncate font-semibold tracking-tight text-teal-950 dark:text-violet-50">
+              BidWorks AI
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
-      <nav className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-3 py-3">
+      <nav
+        className={cn(
+          "flex-1 space-y-3 overflow-y-auto overflow-x-hidden py-3",
+          isIconOnly ? "px-2" : "px-3",
+        )}
+      >
         {groupedItems.map((group) => (
           <section
             key={group.label}
             aria-label={group.label}
-            className="rounded-2xl border border-cyan-200/80 bg-white/68 p-1.5 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35"
+            className={cn(
+              "border border-cyan-200/80 bg-white/68 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35",
+              isIconOnly ? "rounded-xl p-1" : "rounded-2xl p-1.5",
+            )}
           >
-            <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
-              <span
-                className="size-1.5 rounded-full bg-cyan-500 shadow-sm shadow-cyan-500/45 dark:bg-violet-400 dark:shadow-violet-500/35"
-                aria-hidden="true"
-              />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-teal-800/80 dark:text-violet-300/80">
-                {group.label}
-              </span>
-            </div>
+            {!isIconOnly ? (
+              <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
+                <span
+                  className="size-1.5 rounded-full bg-cyan-500 shadow-sm shadow-cyan-500/45 dark:bg-violet-400 dark:shadow-violet-500/35"
+                  aria-hidden="true"
+                />
+                <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-teal-800/80 dark:text-violet-300/80">
+                  {group.label}
+                </span>
+              </div>
+            ) : null}
 
             <div className="space-y-0.5">
               {group.items.map((item) => {
@@ -159,8 +179,11 @@ export function Sidebar({
                     type="button"
                     onClick={() => onSelect(item.key)}
                     aria-current={isActive ? "page" : undefined}
+                    aria-label={item.label}
+                    title={isIconOnly ? item.label : undefined}
                     className={cn(
-                      "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                      "group relative flex w-full items-center whitespace-nowrap rounded-xl py-2.5 text-sm transition-all",
+                      isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
                       isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                     )}
                   >
@@ -179,7 +202,7 @@ export function Sidebar({
                           : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                       )}
                     />
-                    <span className="truncate">{item.label}</span>
+                    {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                   </button>
                 );
               })}
@@ -204,8 +227,11 @@ export function Sidebar({
                   type="button"
                   onClick={() => onSelect(item.key)}
                   aria-current={isActive ? "page" : undefined}
+                  aria-label={item.label}
+                  title={isIconOnly ? item.label : undefined}
                   className={cn(
-                    "group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                    "group relative flex w-full items-center whitespace-nowrap rounded-xl py-2.5 text-sm transition-all",
+                    isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
                     isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                   )}
                 >
@@ -224,7 +250,7 @@ export function Sidebar({
                         : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                     )}
                   />
-                  <span className="truncate">{item.label}</span>
+                  {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                 </button>
               );
             })}
@@ -233,27 +259,48 @@ export function Sidebar({
       </nav>
 
       {showIntegrations ? (
-        <div className="overflow-hidden border-t border-cyan-200/80 p-3 dark:border-violet-900/60">
-          <section className="rounded-2xl border border-cyan-200/80 bg-white/68 p-1.5 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35">
-            <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
-              <span
-                className="size-1.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/40 dark:bg-purple-400 dark:shadow-purple-500/35"
-                aria-hidden="true"
-              />
-              <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-teal-800/80 dark:text-violet-300/80">
-                연동 서비스
-              </span>
-            </div>
+        <div
+          className={cn(
+            "overflow-hidden border-t border-cyan-200/80 dark:border-violet-900/60",
+            isIconOnly ? "p-2" : "p-3",
+          )}
+        >
+          <section
+            className={cn(
+              "border border-cyan-200/80 bg-white/68 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35",
+              isIconOnly ? "rounded-xl p-1" : "rounded-2xl p-1.5",
+            )}
+          >
+            {!isIconOnly ? (
+              <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-1">
+                <span
+                  className="size-1.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/40 dark:bg-purple-400 dark:shadow-purple-500/35"
+                  aria-hidden="true"
+                />
+                <span className="whitespace-nowrap text-[11px] font-semibold tracking-wide text-teal-800/80 dark:text-violet-300/80">
+                  연동 서비스
+                </span>
+              </div>
+            ) : null}
             {/* 복잡한 OAuth 연동 대신 단순 외부 링크(Slack 바로가기)로 대체 */}
             <a
               href={SLACK_URL}
               target="_blank"
               rel="noreferrer noopener"
-              className="group relative flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm text-teal-900/70 transition-all hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50"
+              aria-label="Slack 바로가기"
+              title={isIconOnly ? "Slack 바로가기" : undefined}
+              className={cn(
+                "group relative flex w-full items-center whitespace-nowrap rounded-xl py-2.5 text-sm text-teal-900/70 transition-all hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50",
+                isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
+              )}
             >
               <SlackIcon className="shrink-0 text-base" />
-              <span className="truncate">Slack 바로가기</span>
-              <ExternalLink className="ml-auto size-3.5 shrink-0 opacity-60" />
+              {!isIconOnly ? (
+                <>
+                  <span className="truncate">Slack 바로가기</span>
+                  <ExternalLink className="ml-auto size-3.5 shrink-0 opacity-60" />
+                </>
+              ) : null}
             </a>
           </section>
         </div>
@@ -263,7 +310,7 @@ export function Sidebar({
         role="separator"
         aria-label="사이드바 너비 조절"
         aria-orientation="vertical"
-        title="드래그하여 너비 조절 · 더블클릭하여 초기화"
+        title="드래그하여 너비 조절 · 좁히면 아이콘 모드 · 더블클릭하여 초기화"
         onPointerDown={startResize}
         onDoubleClick={resetSidebarWidth}
         className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize transition-colors hover:bg-cyan-400/35 active:bg-cyan-500/55 dark:hover:bg-violet-500/30 dark:active:bg-violet-500/50"

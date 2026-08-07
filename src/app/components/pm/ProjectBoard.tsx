@@ -1048,17 +1048,17 @@ function RealStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold",
+        "inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold",
         isActive
-          ? "border-teal-300 bg-teal-100/90 text-teal-800 dark:border-teal-800 dark:bg-teal-950/55 dark:text-teal-200"
-          : "border-amber-300 bg-amber-100/90 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+          ? "text-teal-700 dark:text-teal-300"
+          : "text-slate-600 dark:text-slate-300",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
           "size-2 rounded-sm",
-          isActive ? "bg-teal-600 dark:bg-teal-400" : "bg-amber-500 dark:bg-amber-400",
+          isActive ? "bg-teal-500" : "bg-slate-400",
         )}
       />
       {label}

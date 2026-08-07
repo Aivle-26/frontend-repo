@@ -1,35 +1,134 @@
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>BidWorks AI 프로토타입 제작</title>
-      <meta name="description" content="AI-powered platform streamlines public RFP project management by enabling PMs to assign tasks and employees to track and submit deliverables efficiently." />
-      <meta name="robots" content="noindex, nofollow" />
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      <script>
-        // 초기 테마 적용 (화면 깜빡임 방지)
-        (function () {
-          try {
-            var t = localStorage.getItem("bidworks-theme");
-            if (t !== "light" && t !== "dark") {
-              t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-            }
-            if (t === "dark") document.documentElement.classList.add("dark");
-            document.documentElement.style.colorScheme = t;
-          } catch (e) {}
-        })();
-      </script>
 
-    </head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <body>
-      
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-      
-    </body>
-  </html>
-  
+<!-- 기본 정보 -->
+<title>PMate | AI 프로젝트 관리 플랫폼</title>
+
+<meta
+  name="description"
+  content="PMate는 요구사항 분석부터 WBS, 일정, 리스크, 산출물 관리까지 프로젝트 업무 전반을 AI로 지원하는 프로젝트 관리 플랫폼입니다."
+/>
+
+<meta name="theme-color" content="#18aeb3" />
+
+<!-- 검색 엔진 -->
+<meta name="robots" content="index, follow" />
+
+<!-- Open Graph : Teams / 카카오톡 / Discord / Slack 등 -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="PMate" />
+
+<meta
+  property="og:title"
+  content="PMate | AI 프로젝트 관리 플랫폼"
+/>
+
+<meta
+  property="og:description"
+  content="요구사항 분석부터 WBS, 일정, 리스크, 산출물 관리까지. PMate가 프로젝트 업무를 AI로 지원합니다."
+/>
+
+<meta
+  property="og:url"
+  content="https://aipm26.dev/"
+/>
+
+<meta
+  property="og:image"
+  content="https://aipm26.dev/og-image.png"
+/>
+
+<meta
+  property="og:image:secure_url"
+  content="https://aipm26.dev/og-image.png"
+/>
+
+<meta
+  property="og:image:type"
+  content="image/png"
+/>
+
+<meta
+  property="og:image:width"
+  content="1200"
+/>
+
+<meta
+  property="og:image:height"
+  content="630"
+/>
+
+<meta
+  property="og:image:alt"
+  content="AIVLE 26조 PMate"
+/>
+
+<!-- Twitter / X -->
+<meta
+  name="twitter:card"
+  content="summary_large_image"
+/>
+
+<meta
+  name="twitter:title"
+  content="PMate | AI 프로젝트 관리 플랫폼"
+/>
+
+<meta
+  name="twitter:description"
+  content="요구사항 분석부터 WBS, 일정, 리스크, 산출물 관리까지. PMate가 프로젝트 업무를 AI로 지원합니다."
+/>
+
+<meta
+  name="twitter:image"
+  content="https://aipm26.dev/og-image.png"
+/>
+
+<!-- 기본 스타일 -->
+<style>
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+  }
+
+  #root {
+    height: 100%;
+  }
+</style>
+
+<!-- 초기 테마 적용 : 화면 깜빡임 방지 -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("pmate-theme");
+
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      }
+
+      if (t === "dark") {
+        document.documentElement.classList.add("dark");
+      }
+
+      document.documentElement.style.colorScheme = t;
+    } catch (e) {}
+  })();
+</script>
+
+</head>
+
+<body>
+
+  <div id="root"></div>
+
+  <script
+    type="module"
+    src="/src/main.tsx"
+  ></script>
+
+</body>

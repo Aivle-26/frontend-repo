@@ -109,6 +109,57 @@ function linesOf(text: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+const SCRUM_REQUEST_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+function scrumRequestStorageKey(projectId: string | number, weekStart: string): string {
+  return `pmate:scrum-request-cooldown:${projectId}:${weekStart}`;
+}
+
+function readStoredRequestTimes(
+  projectId: string | number,
+  weekStart: string,
+): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(scrumRequestStorageKey(projectId, weekStart));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([, value]) => typeof value === "number" && Number.isFinite(value),
+      ),
+    ) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredRequestTimes(
+  projectId: string | number,
+  weekStart: string,
+  values: Record<string, number>,
+) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      scrumRequestStorageKey(projectId, weekStart),
+      JSON.stringify(values),
+    );
+  } catch {
+    // localStorage 사용이 불가능한 환경에서는 서버 이력만 사용한다.
+  }
+}
+
+function formatRequestCooldown(remainingMs: number): string {
+  const totalMinutes = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}분 후 재요청 가능`;
+  if (minutes === 0) return `${hours}시간 후 재요청 가능`;
+  return `${hours}시간 ${minutes}분 후 재요청 가능`;
+}
+
 interface MemberRow {
   employeeNumber: string;
   name: string;
@@ -163,9 +214,8 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   const [loadingSubs, setLoadingSubs] = useState(true);
   const [subsError, setSubsError] = useState("");
   const [selectedEmp, setSelectedEmp] = useState<string>("");
-  const [requestedEmployees, setRequestedEmployees] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [requestTimes, setRequestTimes] = useState<Record<string, number>>({});
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
 
   const [analysis, setAnalysis] = useState<WeeklyScrumReportResponse | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -193,6 +243,18 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
   useEffect(() => {
     setCalendarMonth(selectedMonday);
   }, [selectedMonday]);
+
+  // 화면을 열어둔 상태에서도 재요청 가능 시각이 자동으로 갱신되도록 1분마다 현재 시각을 업데이트한다.
+  useEffect(() => {
+    const timer = window.setInterval(() => setCooldownNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // 로그아웃/페이지 이탈/새로고침 후에도 프로젝트·주차별 마지막 요청 시각을 즉시 복원한다.
+  useEffect(() => {
+    setCooldownNow(Date.now());
+    setRequestTimes(readStoredRequestTimes(project.id, weekStart));
+  }, [project.id, weekStart]);
 
   // 제출 현황 + 팀원 이름 로드
   useEffect(() => {
@@ -224,17 +286,28 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
             submission: subByEmp.get(emp) ?? null,
           };
         });
-        const requestedForWeek = new Set(
-          requests
-            .filter(
-              (request) =>
-                request.type === "SCRUM_REQUEST" &&
-                request.targetWeekStart === weekStart &&
-                request.recipientEmployeeNumber,
-            )
-            .map((request) => request.recipientEmployeeNumber as string),
-        );
-        setRequestedEmployees(requestedForWeek);
+        const storedRequestTimes = readStoredRequestTimes(project.id, weekStart);
+        const mergedRequestTimes: Record<string, number> = { ...storedRequestTimes };
+
+        requests
+          .filter(
+            (request) =>
+              request.type === "SCRUM_REQUEST" &&
+              request.targetWeekStart === weekStart &&
+              request.recipientEmployeeNumber,
+          )
+          .forEach((request) => {
+            const employeeNumber = request.recipientEmployeeNumber as string;
+            const createdAt = new Date(request.createdAt).getTime();
+            if (!Number.isFinite(createdAt)) return;
+            mergedRequestTimes[employeeNumber] = Math.max(
+              mergedRequestTimes[employeeNumber] ?? 0,
+              createdAt,
+            );
+          });
+
+        setRequestTimes(mergedRequestTimes);
+        writeStoredRequestTimes(project.id, weekStart, mergedRequestTimes);
 
         rows.sort((a, b) => a.name.localeCompare(b.name));
         setMembers(rows);
@@ -319,20 +392,30 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
   const [requestingFor, setRequestingFor] = useState<string | null>(null);
   const handleRequestSubmission = async (employeeNumber: string, name: string) => {
-    if (requestingFor || requestedEmployees.has(employeeNumber)) return;
+    const previousRequestAt = requestTimes[employeeNumber] ?? 0;
+    const remainingMs = previousRequestAt + SCRUM_REQUEST_COOLDOWN_MS - Date.now();
+    if (requestingFor || remainingMs > 0) return;
 
     setRequestingFor(employeeNumber);
     try {
-      await projectRepository.createScrumRequests(project.id, {
+      const created = await projectRepository.createScrumRequests(project.id, {
         weekStartDate: weekStart,
         recipientEmployeeNumbers: [employeeNumber],
       });
-      setRequestedEmployees((current) => {
-        const next = new Set(current);
-        next.add(employeeNumber);
+      const serverCreatedAt = created
+        .filter((request) => request.recipientEmployeeNumber === employeeNumber)
+        .map((request) => new Date(request.createdAt).getTime())
+        .filter(Number.isFinite)
+        .sort((a, b) => b - a)[0];
+      const requestedAt = serverCreatedAt ?? Date.now();
+
+      setRequestTimes((current) => {
+        const next = { ...current, [employeeNumber]: requestedAt };
+        writeStoredRequestTimes(project.id, weekStart, next);
         return next;
       });
-      toast.success(`${name}님에게 제출 요청을 보냈어요.`);
+      setCooldownNow(Date.now());
+      toast.success(`${name}님에게 제출 요청을 보냈어요. 6시간 후 다시 요청할 수 있습니다.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : "제출 요청에 실패했습니다.");
     } finally {
@@ -483,6 +566,12 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
               members.map((member) => {
                 const active = member.employeeNumber === selected?.employeeNumber;
                 const sub = member.submission;
+                const lastRequestedAt = requestTimes[member.employeeNumber] ?? 0;
+                const cooldownRemainingMs = Math.max(
+                  0,
+                  lastRequestedAt + SCRUM_REQUEST_COOLDOWN_MS - cooldownNow,
+                );
+                const requestOnCooldown = cooldownRemainingMs > 0;
                 return (
                   <button
                     key={member.employeeNumber}
@@ -534,15 +623,13 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                             size="sm"
                             variant="outline"
                             className={cn(
-                              "h-8 rounded-[4px] px-3 text-[0.82rem] font-semibold",
-                              requestingFor === member.employeeNumber ||
-                              requestedEmployees.has(member.employeeNumber)
+                              "h-8 min-w-[142px] rounded-[4px] px-3 text-[0.78rem] font-semibold",
+                              requestingFor === member.employeeNumber || requestOnCooldown
                                 ? "cursor-not-allowed !border-slate-200 !bg-slate-100 !text-slate-400 shadow-none hover:!bg-slate-100 hover:!text-slate-400 dark:!border-zinc-800 dark:!bg-zinc-900 dark:!text-zinc-500"
                                 : "!border-teal-300 !bg-white !text-teal-700 hover:!border-teal-400 hover:!bg-teal-50 hover:!text-teal-800 dark:!border-violet-700 dark:!bg-black/30 dark:!text-violet-200 dark:hover:!bg-violet-950/55",
                             )}
                             disabled={
-                              requestingFor === member.employeeNumber ||
-                              requestedEmployees.has(member.employeeNumber)
+                              requestingFor === member.employeeNumber || requestOnCooldown
                             }
                             onClick={(e) => {
                               e.stopPropagation();
@@ -551,9 +638,11 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
                           >
                             {requestingFor === member.employeeNumber
                               ? "요청 중…"
-                              : requestedEmployees.has(member.employeeNumber)
-                                ? "요청 완료"
-                                : "제출 요청"}
+                              : requestOnCooldown
+                                ? formatRequestCooldown(cooldownRemainingMs)
+                                : lastRequestedAt > 0
+                                  ? "다시 제출 요청"
+                                  : "제출 요청"}
                           </Button>
                           <span className="inline-flex shrink-0 items-center gap-1.5 text-[0.82rem] font-semibold text-rose-700 dark:text-rose-300">
                             <ClockAlert className="size-3.5" /> 미제출

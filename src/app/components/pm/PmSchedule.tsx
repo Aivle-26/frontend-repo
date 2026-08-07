@@ -502,14 +502,24 @@ export function PmSchedule({
  * 카테고리(단계)별 막대 색상. 단계 순서(index)가 커질수록(아래로 내려갈수록)
  * 채도는 높이고 명도는 낮춰 더 깊은 색으로 표현한다.
  */
-function categoryColor(index: number, total: number): string {
-  // 카테고리별로 다른 파스텔 색상. 아래로 갈수록(index↑) 채도만 살짝 올려 톤을 맞춘다.
-  const hues = [210, 190, 162, 138, 45, 22, 275, 330];
-  const hue = hues[index % hues.length];
+function categoryColors(index: number, total: number): { light: string; dark: string } {
+  // 라이트 모드는 기존의 부드러운 파스텔 계열을 유지한다.
+  const lightHues = [210, 190, 162, 138, 45, 22, 275, 330];
+  const lightHue = lightHues[index % lightHues.length];
   const t = total > 1 ? index / (total - 1) : 0;
-  const saturation = Math.round(52 + t * 16); // 52% → 68% (파스텔 유지)
-  const lightness = Math.round(85 - t * 13); // 85% → 72% (부드러운 톤)
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  const lightSaturation = Math.round(52 + t * 16);
+  const lightLightness = Math.round(85 - t * 13);
+
+  // 다크 모드는 블랙 + 퍼플 테마에 맞춘 보라/인디고/마젠타 계열.
+  const darkHues = [250, 263, 276, 290, 304, 238, 270, 318];
+  const darkHue = darkHues[index % darkHues.length];
+  const darkSaturation = Math.round(54 + t * 10);
+  const darkLightness = Math.round(56 - t * 7);
+
+  return {
+    light: `hsl(${lightHue}, ${lightSaturation}%, ${lightLightness}%)`,
+    dark: `hsl(${darkHue}, ${darkSaturation}%, ${darkLightness}%)`,
+  };
 }
 
 /** 추천 일정을 간트 차트(막대 타임라인)로 표시한다. */
@@ -594,7 +604,7 @@ function ScheduleGantt({
       {/* 각 일정 행 */}
       {rows.map((row) => {
         const catIndex = phaseIndexOf(row);
-        const barColor = categoryColor(catIndex, phaseCount);
+        const barColors = categoryColors(catIndex, phaseCount);
 
         // 단계(카테고리) 행: 막대 없이 그룹 헤더로만 표시한다.
         if (row.itemType === "PHASE") {
@@ -602,8 +612,13 @@ function ScheduleGantt({
             <div key={row.scheduleId} className="flex items-center pt-2.5">
               <div className={`${NAME_COL} flex items-center gap-1.5`}>
                 <span
-                  className="size-2.5 shrink-0 rounded-[2px]"
-                  style={{ backgroundColor: barColor }}
+                  className="size-2.5 shrink-0 rounded-[2px] bg-[var(--gantt-light)] shadow-sm dark:bg-[var(--gantt-dark)] dark:shadow-[0_0_10px_rgba(139,92,246,0.16)]"
+                  style={
+                    {
+                      "--gantt-light": barColors.light,
+                      "--gantt-dark": barColors.dark,
+                    } as React.CSSProperties
+                  }
                 />
                 <span
                   className="truncate text-foreground text-sm font-semibold"
@@ -612,7 +627,7 @@ function ScheduleGantt({
                   {row.wbsName}
                 </span>
               </div>
-              <div className="relative h-5 flex-1 border-b border-dashed border-border/60" />
+              <div className="relative h-5 flex-1 border-b border-dashed border-border/60 dark:border-violet-900/45" />
             </div>
           );
         }
@@ -627,25 +642,38 @@ function ScheduleGantt({
         return (
           <div key={row.scheduleId} className="flex items-center">
             <div className={`${NAME_COL} flex items-center gap-1.5 pl-3`}>
-              {row.milestone && <Flag className="size-3.5 shrink-0 text-blue-600" />}
+              {row.milestone && <Flag className="size-3.5 shrink-0 text-blue-600 dark:text-violet-300" />}
               <span className="truncate text-foreground text-sm" title={row.wbsName}>
                 {row.wbsName}
               </span>
             </div>
-            <div className="relative h-7 flex-1 rounded bg-muted/40">
+            <div className="relative h-7 flex-1 rounded bg-muted/40 ring-1 ring-inset ring-transparent dark:bg-zinc-900/75 dark:ring-violet-950/70">
               {row.milestone ? (
                 <div
-                  className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
-                  style={{ left: `${left}%`, backgroundColor: barColor }}
+                  className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] bg-[var(--gantt-light)] shadow-sm ring-1 ring-black/5 dark:bg-[var(--gantt-dark)] dark:ring-white/10 dark:shadow-[0_0_12px_rgba(139,92,246,0.22)]"
+                  style={
+                    {
+                      left: `${left}%`,
+                      "--gantt-light": barColors.light,
+                      "--gantt-dark": barColors.dark,
+                    } as React.CSSProperties
+                  }
                   title={title}
                 />
               ) : (
                 <div
-                  className="absolute inset-y-1 flex items-center justify-end overflow-hidden rounded pr-1.5"
-                  style={{ left: `${left}%`, width: `${width}%`, backgroundColor: barColor }}
+                  className="absolute inset-y-1 flex items-center justify-end overflow-hidden rounded pr-1.5 bg-[var(--gantt-light)] shadow-sm ring-1 ring-black/5 dark:bg-[var(--gantt-dark)] dark:ring-white/10 dark:shadow-[0_4px_14px_rgba(76,29,149,0.18)]"
+                  style={
+                    {
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      "--gantt-light": barColors.light,
+                      "--gantt-dark": barColors.dark,
+                    } as React.CSSProperties
+                  }
                   title={title}
                 >
-                  <span className="whitespace-nowrap text-[10px] text-slate-700">
+                  <span className="whitespace-nowrap text-[10px] font-medium text-slate-700 dark:text-violet-50">
                     {row[version].estimatedDays}일
                   </span>
                 </div>
@@ -662,21 +690,20 @@ function ScheduleGantt({
           <div className="relative flex-1">
             {/* 오늘 열 하이라이트 밴드 */}
             <div
-              className="absolute bottom-0 top-7 -translate-x-1/2 rounded"
+              className="absolute bottom-0 top-7 -translate-x-1/2 rounded bg-slate-500/10 dark:bg-violet-400/10"
               style={{
                 left: `${todayPct}%`,
                 width: "14px",
-                backgroundColor: "rgba(100, 116, 139, 0.10)",
               }}
             />
             {/* 점선 기준선 (배지 아래부터) */}
             <div
-              className="absolute bottom-0 top-7 -translate-x-1/2 border-l-2 border-dashed"
-              style={{ left: `${todayPct}%`, borderColor: "rgba(100, 116, 139, 0.7)" }}
+              className="absolute bottom-0 top-7 -translate-x-1/2 border-l-2 border-dashed border-slate-500/70 dark:border-violet-400/75"
+              style={{ left: `${todayPct}%` }}
             />
             {/* "오늘" 배지 */}
             <div
-              className="absolute top-0 -translate-x-1/2 rounded-full bg-slate-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm"
+              className="absolute top-0 -translate-x-1/2 rounded-full bg-slate-500 px-2 py-0.5 text-[10px] font-medium text-white shadow-sm dark:bg-violet-700 dark:text-violet-50 dark:ring-1 dark:ring-violet-400/25"
               style={{ left: `${todayPct}%` }}
             >
               오늘

@@ -24,6 +24,7 @@ import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { getProjectPlanningProgress } from "@/app/projects/projectProgress";
+import { useForcedLightTheme } from "@/app/hooks/useTheme";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
@@ -292,6 +293,10 @@ function DemoApplication() {
     setLoginEmail(options?.email ?? "");
     setLoginMessage(options?.message ?? "");
   };
+
+  // 로그인/회원가입 화면(role 없음)에서는 다크모드를 끄고 라이트로 고정한다.
+  // 훅은 조건부로 호출할 수 없으므로 early return 위에 둔다.
+  useForcedLightTheme(!role);
 
   if (!role) {
     return (

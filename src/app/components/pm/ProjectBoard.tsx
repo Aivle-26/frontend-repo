@@ -960,26 +960,35 @@ function mapCreatedDraft(
 }
 
 function ddayLabel(endDate?: string | null): {
-  label: string;
+  prefix: string;
+  value: string;
   overdue: boolean;
   soon: boolean;
 } {
-  if (!endDate) return { label: "마감일 미정", overdue: false, soon: false };
+  if (!endDate) {
+    return { prefix: "마감", value: "일정 미정", overdue: false, soon: false };
+  }
   const end = new Date(`${endDate}T00:00:00`).getTime();
-  if (Number.isNaN(end)) return { label: "마감일 미정", overdue: false, soon: false };
+  if (Number.isNaN(end)) {
+    return { prefix: "마감", value: "일정 미정", overdue: false, soon: false };
+  }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round((end - today.getTime()) / 86_400_000);
-  if (days === 0) return { label: "오늘 마감", overdue: false, soon: true };
+  if (days === 0) {
+    return { prefix: "마감", value: "오늘", overdue: false, soon: true };
+  }
   if (days > 0) {
     return {
-      label: `마감까지 ${days}일`,
+      prefix: "마감까지",
+      value: `${days}일`,
       overdue: false,
       soon: days <= 7,
     };
   }
   return {
-    label: `마감 ${Math.abs(days)}일 경과`,
+    prefix: "마감 후",
+    value: `${Math.abs(days)}일 경과`,
     overdue: true,
     soon: false,
   };
@@ -1039,15 +1048,17 @@ function RealStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold",
-        isActive ? "text-teal-700 dark:text-teal-300" : "text-slate-600 dark:text-slate-300",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold",
+        isActive
+          ? "border-teal-300 bg-teal-100/90 text-teal-800 dark:border-teal-800 dark:bg-teal-950/55 dark:text-teal-200"
+          : "border-amber-300 bg-amber-100/90 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
           "size-2 rounded-sm",
-          isActive ? "bg-teal-500" : "bg-slate-400",
+          isActive ? "bg-teal-600 dark:bg-teal-400" : "bg-amber-500 dark:bg-amber-400",
         )}
       />
       {label}
@@ -1103,7 +1114,7 @@ function ProjectCard({
     <Button
       variant="ghost"
       size="sm"
-      className="text-slate-500 hover:bg-rose-50 hover:text-rose-700 dark:text-slate-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+      className="text-rose-600 hover:bg-rose-100/80 hover:text-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/45 dark:hover:text-rose-200"
       disabled={isDeleting}
       onClick={onDelete}
     >
@@ -1173,8 +1184,13 @@ function ProjectCard({
                     <CalendarClock className="size-4" />
                     <span className="text-xs font-semibold opacity-75">마감 일정</span>
                   </div>
-                  <span className="text-base font-bold tracking-tight">
-                    {dday.label}
+                  <span className="flex items-baseline gap-1.5 text-right">
+                    <span className="text-xs font-normal opacity-70">
+                      {dday.prefix}
+                    </span>
+                    <span className="text-lg font-bold tracking-tight">
+                      {dday.value}
+                    </span>
                   </span>
                 </div>
               </div>

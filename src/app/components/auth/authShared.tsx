@@ -47,7 +47,7 @@ function RevealChars({ text, startDelay }: { text: string; startDelay: number })
             whiteSpace: "pre",
           }}
         >
-          {char === " " ? " " : char}
+          {char === " " ? " " : char}
         </span>
       ))}
     </>
@@ -426,7 +426,7 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
               >
                 <span
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-50 to-cyan-50 ring-1 ring-sky-100/80",
+                    "flex shrink-0 items-center justify-center",
                     expanded ? "size-12" : "size-10",
                   )}
                 >
@@ -434,8 +434,8 @@ function LandingPanel({ expanded = false }: { expanded?: boolean }) {
                     src={feature.icon}
                     alt=""
                     className={cn(
-                      "object-contain transition-transform duration-300 ease-out group-hover:scale-105",
-                      expanded ? "size-9" : "size-7",
+                      "object-contain drop-shadow-[0_8px_14px_rgba(45,126,160,0.14)] transition-transform duration-300 ease-out group-hover:scale-110",
+                      expanded ? "size-11" : "size-9",
                     )}
                   />
                 </span>
@@ -524,10 +524,13 @@ export function AuthShell({
   return (
     <div
       className={cn(
-        "relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-center bg-no-repeat",
+        "relative flex min-h-screen flex-col bg-[#f8fbff] bg-cover bg-no-repeat",
         fitViewport && "lg:h-screen lg:min-h-0 lg:overflow-hidden",
       )}
-      style={{ backgroundImage: `url(${loginPageBackground})` }}
+      style={{
+        backgroundImage: `url(${loginPageBackground})`,
+        backgroundPosition: "center 52%",
+      }}
     >
       <div className="pointer-events-none absolute inset-0 bg-white/12" />
       <div
@@ -547,7 +550,7 @@ export function AuthShell({
           <div
             ref={gridRef}
             className={cn(
-              "grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:gap-16",
+              "relative grid w-full items-center gap-8 lg:top-3 lg:grid-cols-[minmax(0,1.65fr)_minmax(460px,1fr)] lg:gap-12 xl:top-4 xl:gap-16",
               matchPanelHeight && "lg:items-stretch",
             )}
             style={

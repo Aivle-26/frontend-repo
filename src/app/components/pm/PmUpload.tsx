@@ -123,6 +123,32 @@ function finalRequirements(result: RequirementsResult) {
     : [];
 }
 
+function DocumentMeta({
+  label,
+  value,
+  emphasize = false,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 md:block">
+      <span className="text-xs font-medium text-muted-foreground md:hidden">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "text-sm leading-5",
+          emphasize ? "font-semibold text-primary" : "text-muted-foreground",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export function PmUpload({
   mode = "demo",
   project,
@@ -481,10 +507,12 @@ export function PmUpload({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>프로젝트 문서 업로드</CardTitle>
-          <CardDescription>
-            프로젝트 계획과 요구사항 조정에 사용할 문서를 안전하게 등록합니다.
+        <CardHeader className="space-y-1.5">
+          <CardTitle className="text-xl font-semibold tracking-tight">
+            프로젝트 문서 업로드
+          </CardTitle>
+          <CardDescription className="text-sm leading-5">
+            분석할 프로젝트 문서를 등록하세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -539,121 +567,121 @@ export function PmUpload({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>업로드된 문서</CardTitle>
-          <CardDescription>
-            업로드한 프로젝트 문서 목록과 요구사항 분석 상태입니다.
+        <CardHeader className="space-y-1.5">
+          <CardTitle className="text-xl font-semibold tracking-tight">
+            업로드된 문서
+          </CardTitle>
+          <CardDescription className="text-sm leading-5">
+            문서별 분석 상태와 추출 결과를 확인하세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table className="min-w-[760px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>파일명</TableHead>
-                  <TableHead className="w-24">용량</TableHead>
-                  <TableHead className="w-40">업로드</TableHead>
-                  <TableHead className="w-24">추출 요구사항</TableHead>
-                  <TableHead className="w-24">상태</TableHead>
-                  <TableHead className="w-32 text-right">작업</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div className="overflow-hidden rounded-xl border border-border/80">
+            <div className="hidden grid-cols-[minmax(0,2.2fr)_0.7fr_1fr_0.9fr_0.8fr_1.25fr] items-center gap-4 border-b bg-muted/35 px-4 py-3 text-xs font-semibold text-muted-foreground md:grid">
+              <div>파일명</div>
+              <div>용량</div>
+              <div>업로드</div>
+              <div>추출 요구사항</div>
+              <div>상태</div>
+              <div className="text-right">작업</div>
+            </div>
+
+            <div className="divide-y divide-border/70">
               {files.map((file) => (
-                <TableRow key={file.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="flex size-8 items-center justify-center rounded-md bg-red-50 text-red-600">
+                <div
+                  key={file.id}
+                  className="grid gap-3 px-4 py-4 transition-colors hover:bg-muted/20 md:grid-cols-[minmax(0,2.2fr)_0.7fr_1fr_0.9fr_0.8fr_1.25fr] md:items-center md:gap-4"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-200/80 bg-rose-50 text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/35 dark:text-rose-300">
                         <FileText className="size-4" />
                       </span>
-                      <span className="text-sm text-foreground">{file.name}</span>
+                      <span className="min-w-0 break-all text-sm font-medium leading-5 text-foreground">
+                        {file.name}
+                      </span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {file.size}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {file.uploadedAt}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {file.requirementCount > 0 ? `${file.requirementCount}건` : "—"}
-                  </TableCell>
-                  <TableCell>
+                  </div>
+
+                  <DocumentMeta label="용량" value={file.size} />
+                  <DocumentMeta label="업로드" value={file.uploadedAt} />
+                  <DocumentMeta
+                    label="추출 요구사항"
+                    value={file.requirementCount > 0 ? `${file.requirementCount}건` : "없음"}
+                    emphasize={file.requirementCount > 0}
+                  />
+
+                  <div className="flex items-center justify-between gap-3 md:block">
+                    <span className="text-xs font-medium text-muted-foreground md:hidden">상태</span>
                     <Badge
                       variant="outline"
-                      className={cn("font-normal", statusClass(file.status))}
+                      className={cn("font-medium", statusClass(file.status))}
                     >
                       {file.status}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1 text-muted-foreground">
-                      <button
-                        disabled={analyzingDocumentId !== null || isReadjusting}
-                        onClick={() => void reanalyze(file.id)}
-                        className="rounded p-1 hover:bg-muted hover:text-foreground disabled:opacity-50"
-                        aria-label="다시 분석"
-                        title="다시 분석"
-                      >
-                        {analyzingDocumentId === file.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="size-4" />
-                        )}
-                      </button>
-                      {mode === "demo" ? (
-                        <>
-                          <button
-                            onClick={() => toast(`"${file.name}" 다운로드`)}
-                            className="rounded p-1 hover:bg-muted hover:text-foreground"
-                            aria-label="다운로드"
-                            title="다운로드"
-                          >
-                            <Download className="size-4" />
-                          </button>
-                          <button
-                            onClick={() => remove(file.id)}
-                            className="rounded p-1 hover:bg-muted hover:text-destructive"
-                            aria-label="삭제"
-                            title="삭제"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      disabled={analyzingDocumentId !== null || isReadjusting}
+                      onClick={() => void reanalyze(file.id)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="다시 분석"
+                      title="다시 분석"
+                    >
+                      {analyzingDocumentId === file.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-3.5" />
+                      )}
+                      재분석
+                    </button>
+                    {mode === "demo" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => toast(`"${file.name}" 다운로드`)}
+                          className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
+                          aria-label="다운로드"
+                          title="다운로드"
+                        >
+                          <Download className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(file.id)}
+                          className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                          aria-label="삭제"
+                          title="삭제"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               ))}
 
               {isLoadingDocuments && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="size-4 animate-spin" />
-                      프로젝트 문서를 불러오는 중입니다.
-                    </span>
-                  </TableCell>
-                </TableRow>
+                <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  프로젝트 문서를 불러오는 중입니다.
+                </div>
               )}
 
               {!isLoadingDocuments && loadError && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-destructive">
-                    {loadError}
-                  </TableCell>
-                </TableRow>
+                <div className="px-4 py-10 text-center text-sm text-destructive">
+                  {loadError}
+                </div>
               )}
 
               {!isLoadingDocuments && !loadError && files.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                    업로드된 문서가 없습니다.
-                  </TableCell>
-                </TableRow>
+                <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  업로드된 문서가 없습니다.
+                </div>
               )}
-              </TableBody>
-            </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -665,11 +693,11 @@ export function PmUpload({
               <ClipboardList className="size-5" />
             </div>
             <div>
-              <CardTitle>도출된 요구사항</CardTitle>
-              <CardDescription className="mt-1">
-                {mode === "real"
-                  ? "서버에 저장된 요구사항 제목·유형·검토 상태를 표시합니다."
-                  : "서버에 저장된 요구사항 제목·설명·검토 상태를 표시합니다."}
+              <CardTitle className="text-xl font-semibold tracking-tight">
+                도출된 요구사항
+              </CardTitle>
+              <CardDescription className="mt-1 text-sm leading-5">
+                분석된 요구사항과 검토 상태를 확인하세요.
               </CardDescription>
             </div>
           </div>
@@ -684,7 +712,7 @@ export function PmUpload({
           {analysisInProgress && (
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               <Loader2 className="size-4 animate-spin" />
-              요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.
+              요구사항을 분석하고 있습니다. 잠시만 기다려 주세요.
             </div>
           )}
 
@@ -809,7 +837,7 @@ export function PmUpload({
                   아직 도출된 요구사항이 없습니다.
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  업로드한 문서를 선택하고 요구사항 분석을 실행해 주세요.
+                  업로드 문서를 선택한 뒤 분석을 시작하세요.
                 </p>
               </div>
               <Button
@@ -831,10 +859,10 @@ export function PmUpload({
             <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-border p-5">
               <div>
                 <div className="font-medium text-foreground">
-                  요구사항을 분석하려면 먼저 프로젝트 문서를 업로드해 주세요.
+                  분석할 프로젝트 문서가 필요합니다.
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  위 업로드 영역에서 분석할 문서를 등록할 수 있습니다.
+                  위 영역에서 문서를 먼저 등록하세요.
                 </p>
               </div>
               <Button
@@ -858,13 +886,13 @@ export function PmUpload({
               <SlidersHorizontal className="size-5" />
             </div>
             <div>
-              <CardTitle>
+              <CardTitle className="text-xl font-semibold tracking-tight">
                 {requirements.length > 0 ? "요구사항 재조정" : "요구사항 분석"}
               </CardTitle>
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-1 text-sm leading-5">
                 {requirements.length > 0
-                  ? "추가 문서를 기준으로 변경 후보를 만들고 PM 검토 후 승인한 결과만 반영합니다."
-                  : "업로드한 문서를 선택해 프로젝트 요구사항을 분석합니다."}
+                  ? "추가 문서로 변경 후보를 만든 뒤 승인된 내용만 반영합니다."
+                  : "분석할 문서를 선택해 요구사항을 생성하세요."}
               </CardDescription>
             </div>
           </div>
@@ -874,11 +902,10 @@ export function PmUpload({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
             <div>
               <div className="text-sm font-medium text-foreground">
-                재조정에 반영할 문서 선택
+                분석에 사용할 문서
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                기존 요구사항이 있으면 변경 후보만 생성하며 즉시 반영하지
-                않습니다.
+                기존 요구사항은 바로 바뀌지 않고 변경 후보로 생성됩니다.
               </div>
             </div>
             <Button
@@ -924,7 +951,7 @@ export function PmUpload({
 
             {!isLoadingDocuments && files.length === 0 && (
               <div className="md:col-span-2 rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                먼저 재조정에 사용할 문서를 업로드하세요.
+                분석에 사용할 문서를 먼저 업로드하세요.
               </div>
             )}
           </div>
@@ -955,11 +982,12 @@ export function PmUpload({
 
       {changeCandidates.length > 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle>AI 재조정 검토</CardTitle>
-            <CardDescription>
-              추가·수정·삭제·유지 후보를 비교하고 PM이 승인한 항목만
-              반영합니다.
+          <CardHeader className="space-y-1.5">
+            <CardTitle className="text-xl font-semibold tracking-tight">
+              AI 재조정 검토
+            </CardTitle>
+            <CardDescription className="text-sm leading-5">
+              변경 후보를 확인하고 적용할 항목을 승인하세요.
             </CardDescription>
           </CardHeader>
           <CardContent>

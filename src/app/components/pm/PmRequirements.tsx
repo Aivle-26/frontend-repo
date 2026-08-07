@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
   Card,
@@ -34,14 +33,6 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import { Input } from "@/app/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table";
 import { Textarea } from "@/app/components/ui/textarea";
 import { cn } from "@/app/components/ui/utils";
 import {
@@ -117,10 +108,38 @@ function priorityLabel(priority: string) {
   return "미지정";
 }
 
-function priorityVariant(priority: string) {
-  if (priority === "HIGH") return "destructive" as const;
-  if (priority === "MEDIUM") return "secondary" as const;
-  return "outline" as const;
+function typeTone(type: string) {
+  const tones: Record<string, string> = {
+    FUNCTIONAL:
+      "border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-900/60 dark:bg-cyan-950/35 dark:text-cyan-200",
+    NON_FUNCTIONAL:
+      "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/35 dark:text-sky-200",
+    SECURITY:
+      "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/35 dark:text-violet-200",
+    DATA:
+      "border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-900/60 dark:bg-teal-950/35 dark:text-teal-200",
+    INTERFACE:
+      "border-indigo-200 bg-indigo-50 text-indigo-800 dark:border-indigo-900/60 dark:bg-indigo-950/35 dark:text-indigo-200",
+    OPERATION:
+      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200",
+    PROJECT_MANAGEMENT:
+      "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-200",
+  };
+  return tones[type] ??
+    "border-border bg-muted/45 text-muted-foreground";
+}
+
+function priorityTone(priority: string) {
+  if (priority === "HIGH") {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-200";
+  }
+  if (priority === "MEDIUM") {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200";
+  }
+  if (priority === "LOW") {
+    return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300";
+  }
+  return "border-border bg-muted/45 text-muted-foreground";
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -472,10 +491,10 @@ export function PmRequirements({
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="size-4" /> 요구사항
+              <CardTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+                <FileText className="size-5 text-primary" /> 요구사항 검토
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="mt-1 text-sm leading-5">
                 {project.name} · {itemCountLabel}
               </CardDescription>
             </div>
@@ -561,7 +580,7 @@ export function PmRequirements({
             <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
               <RequirementTable
                 title="AI 최초 제안"
-                description="서버에 저장된 최초 분석 결과이며 읽기 전용입니다."
+                description="AI가 처음 추출한 요구사항입니다."
                 items={aiSuggestions}
               />
               <EditableRequirementTable
@@ -580,8 +599,8 @@ export function PmRequirements({
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-            <span className="text-xs text-muted-foreground">
-              오른쪽 최종 편집본 전체가 저장되며, 목록에서 제거한 항목은 최종 목록에서 제외됩니다.
+            <span className="max-w-2xl text-sm leading-5 text-muted-foreground">
+              최종 편집본 전체를 저장합니다. 삭제한 항목은 저장 대상에서 제외됩니다.
             </span>
             <div className="flex gap-2">
               <Button
@@ -638,61 +657,69 @@ function RequirementTable({
   items: RequirementResponse[];
 }) {
   return (
-    <div className="min-w-0 rounded-lg border">
-      <div className="border-b bg-muted/30 px-4 py-3">
-        <div className="font-medium text-foreground">{title}</div>
-        <div className="text-xs text-muted-foreground">{description}</div>
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card">
+      <div className="border-b border-border/70 bg-muted/25 px-5 py-4">
+        <div className="text-lg font-semibold tracking-tight text-foreground">
+          {title}
+        </div>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+          {description}
+        </p>
       </div>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">참조</TableHead>
-              <TableHead className="min-w-72">요구사항</TableHead>
-              <TableHead className="w-24">유형</TableHead>
-              <TableHead className="w-24">우선순위</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.requirementId}>
-                <TableCell className="text-muted-foreground">
-                  {item.externalReferenceId ?? "-"}
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium text-foreground">{item.title}</div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {item.description}
-                  </p>
-                  {item.sourceDocumentName && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      출처: {item.sourceDocumentName}
-                    </p>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-normal">
-                    {typeLabel(item.type)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={priorityVariant(item.priority)}>
-                    {priorityLabel(item.priority)}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                  AI 제안 요구사항이 없습니다.
-                </TableCell>
-              </TableRow>
+
+      <div className="space-y-3 p-4">
+        {items.map((item, index) => (
+          <article
+            key={item.requirementId}
+            className="rounded-xl border border-border/75 bg-background/80 p-4 shadow-sm transition-colors hover:border-primary/25 hover:bg-primary/[0.02]"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-7 items-center rounded-md border border-border bg-muted/45 px-2 text-xs font-semibold text-muted-foreground">
+                #{index + 1}
+              </span>
+              <span className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
+                참조 {item.externalReferenceId ?? "-"}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
+                  typeTone(item.type),
+                )}
+              >
+                {typeLabel(item.type)}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
+                  priorityTone(item.priority),
+                )}
+              >
+                우선순위 {priorityLabel(item.priority)}
+              </span>
+            </div>
+
+            <h3 className="mt-3 break-words text-base font-semibold leading-6 text-foreground">
+              {item.title || "제목 없음"}
+            </h3>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+              {item.description || "설명 없음"}
+            </p>
+
+            {item.sourceDocumentName && (
+              <div className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                출처 · {item.sourceDocumentName}
+              </div>
             )}
-          </TableBody>
-        </Table>
+          </article>
+        ))}
+
+        {items.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">
+            AI 제안 요구사항이 없습니다.
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -708,103 +735,112 @@ function EditableRequirementTable({
   onDelete: (clientId: string) => void;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border">
-      <div className="border-b bg-muted/30 px-4 py-3">
-        <div className="font-medium text-foreground">최종 요구사항 편집본</div>
-        <div className="text-xs text-muted-foreground">
-          추가·수정·삭제·순서 변경 후 전체 목록을 저장합니다.
+    <section className="min-w-0 overflow-hidden rounded-xl border border-primary/20 bg-card">
+      <div className="border-b border-primary/15 bg-primary/[0.035] px-5 py-4">
+        <div className="text-lg font-semibold tracking-tight text-foreground">
+          최종 요구사항 편집본
         </div>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+          수정할 내용을 정리하고 순서를 조정하세요.
+        </p>
       </div>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">순서</TableHead>
-              <TableHead className="w-16">참조</TableHead>
-              <TableHead className="min-w-64">요구사항</TableHead>
-              <TableHead className="w-24">유형</TableHead>
-              <TableHead className="w-40 text-right">편집</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((item, index) => (
-              <TableRow key={item.clientId}>
-                <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {item.externalReferenceId ?? "-"}
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium text-foreground">
-                    {item.title || "제목 없음"}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {item.description || "설명 없음"}
-                  </p>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="font-normal">
-                    {typeLabel(item.type)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      disabled={index === 0}
-                      onClick={() => onMove(index, -1)}
-                      aria-label="위로 이동"
-                    >
-                      <ArrowUp className="size-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      disabled={index === items.length - 1}
-                      onClick={() => onMove(index, 1)}
-                      aria-label="아래로 이동"
-                    >
-                      <ArrowDown className="size-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => onEdit(item)}
-                      aria-label="요구사항 수정"
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-red-700"
-                      onClick={() => onDelete(item.clientId)}
-                      aria-label="요구사항 삭제"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                  최종 편집본이 없습니다. AI 제안을 복사하거나 요구사항을 추가하세요.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+
+      <div className="space-y-3 p-4">
+        {items.map((item, index) => (
+          <article
+            key={item.clientId}
+            className="rounded-xl border border-border/75 bg-background/85 p-4 shadow-sm transition-colors hover:border-primary/30"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-7 items-center rounded-md border border-primary/20 bg-primary/5 px-2 text-xs font-semibold text-primary">
+                순서 {index + 1}
+              </span>
+              <span className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
+                참조 {item.externalReferenceId ?? "-"}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
+                  typeTone(item.type),
+                )}
+              >
+                {typeLabel(item.type)}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold",
+                  priorityTone(item.priority),
+                )}
+              >
+                우선순위 {priorityLabel(item.priority)}
+              </span>
+            </div>
+
+            <h3 className="mt-3 break-words text-base font-semibold leading-6 text-foreground">
+              {item.title || "제목 없음"}
+            </h3>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+              {item.description || "설명 없음"}
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-1.5 border-t border-border/60 pt-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 rounded-md px-2.5 text-xs"
+                disabled={index === 0}
+                onClick={() => onMove(index, -1)}
+                aria-label="위로 이동"
+              >
+                <ArrowUp className="size-3.5" />
+                위로
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 rounded-md px-2.5 text-xs"
+                disabled={index === items.length - 1}
+                onClick={() => onMove(index, 1)}
+                aria-label="아래로 이동"
+              >
+                <ArrowDown className="size-3.5" />
+                아래로
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-primary hover:bg-primary/5 hover:text-primary"
+                onClick={() => onEdit(item)}
+                aria-label="요구사항 수정"
+              >
+                <Pencil className="size-3.5" />
+                수정
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                onClick={() => onDelete(item.clientId)}
+                aria-label="요구사항 삭제"
+              >
+                <Trash2 className="size-3.5" />
+                삭제
+              </Button>
+            </div>
+          </article>
+        ))}
+
+        {items.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border px-4 py-12 text-center text-sm leading-6 text-muted-foreground">
+            최종 편집본이 없습니다.<br />AI 제안을 복사하거나 요구사항을 추가하세요.
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -831,12 +867,12 @@ function RequirementEditorDialog({
                 {editor.mode === "new" ? "최종 요구사항 추가" : "최종 요구사항 수정"}
               </DialogTitle>
               <DialogDescription>
-                sourceDocumentId와 externalReferenceId는 저장 필수값입니다.
+                출처 문서 ID와 요구사항 참조 번호는 필수입니다.
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-2 sm:grid-cols-2">
-              <Field label="sourceDocumentId">
+              <Field label="출처 문서 ID">
                 <Input
                   type="number"
                   min={1}
@@ -851,7 +887,7 @@ function RequirementEditorDialog({
                   }
                 />
               </Field>
-              <Field label="externalReferenceId">
+              <Field label="요구사항 참조 번호">
                 <Input
                   type="number"
                   min={1}
@@ -962,7 +998,7 @@ function RequirementEditorDialog({
                   }
                 />
               </Field>
-              <Field label="analysisResultId">
+              <Field label="분석 결과 ID">
                 <Input
                   type="number"
                   min={1}

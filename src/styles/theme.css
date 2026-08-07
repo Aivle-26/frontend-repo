@@ -4,50 +4,87 @@
 :root {
   /* Cool White Mint Light — 흰색 중심 + 아래로 짙어지는 차가운 민트 */
   --font-size: 17px;
-  --background: #f8fcfd;
-  --foreground: #102b2d;
+  --background: #f7faf9;
+  --foreground: #173132;
   --card: #ffffff;
-  --card-foreground: #123033;
+  --card-foreground: #173334;
   --popover: #ffffff;
-  --popover-foreground: #123033;
-  --primary: #0f9f9a;
-  --primary-foreground: #f7ffff;
-  --secondary: #def7f5;
-  --secondary-foreground: #0b6d70;
-  --muted: #eaf5f5;
-  --muted-foreground: #668284;
-  --accent: #d9f5f3;
-  --accent-foreground: #0a696d;
+  --popover-foreground: #173334;
+  --primary: #3f8580;
+  --primary-foreground: #ffffff;
+  --secondary: #e4efed;
+  --secondary-foreground: #3b6d69;
+  --muted: #edf3f2;
+  --muted-foreground: #6f8281;
+  --accent: #dcebe8;
+  --accent-foreground: #386965;
   --destructive: #e5485a;
   --destructive-foreground: #ffffff;
-  --border: rgba(13, 116, 116, 0.18);
-  --input: rgba(13, 116, 116, 0.18);
+  --border: rgba(61, 111, 107, 0.18);
+  --input: rgba(61, 111, 107, 0.18);
   --input-background: rgba(255, 255, 255, 0.94);
-  --switch-background: #a8d8d5;
+  --switch-background: #b7cfcb;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #14b8a6;
-  --chart-1: #0f9f9a;
-  --chart-2: #22b8cf;
-  --chart-3: #3b82f6;
-  --chart-4: #8b5cf6;
-  --chart-5: #14b8a6;
+  --ring: #5d9b95;
+  --chart-1: #3f8580;
+  --chart-2: #6397a0;
+  --chart-3: #6b88aa;
+  --chart-4: #7f79a6;
+  --chart-5: #6a9b91;
   --radius: 1rem;
-  --sidebar: #eafaf9;
-  --sidebar-foreground: #102b2d;
-  --sidebar-primary: #0f9f9a;
-  --sidebar-primary-foreground: #f7ffff;
-  --sidebar-accent: #d8f5f2;
-  --sidebar-accent-foreground: #0a696d;
-  --sidebar-border: rgba(8, 145, 178, 0.18);
-  --sidebar-ring: #22b8cf;
-  --shadow-card: 0 1px 2px rgba(8, 86, 91, 0.05), 0 10px 28px rgba(8, 145, 178, 0.08);
-  --shadow-pop: 0 16px 38px rgba(8, 86, 91, 0.16);
+  --sidebar: #eef6f4;
+  --sidebar-foreground: #173132;
+  --sidebar-primary: #3f8580;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dfeeea;
+  --sidebar-accent-foreground: #386965;
+  --sidebar-border: rgba(80, 126, 130, 0.18);
+  --sidebar-ring: #6397a0;
+  --shadow-card: 0 1px 2px rgba(42, 70, 69, 0.04), 0 10px 28px rgba(72, 119, 116, 0.07);
+  --shadow-pop: 0 16px 38px rgba(42, 70, 69, 0.14);
   --page-gradient:
-    radial-gradient(circle at 8% 0%, rgba(34, 211, 238, 0.16), transparent 31%),
-    radial-gradient(circle at 82% 8%, rgba(45, 212, 191, 0.18), transparent 30%),
-    linear-gradient(135deg, #f5fdfd 0%, #edfafa 48%, #eef8ff 100%);
+    radial-gradient(circle at 8% 0%, rgba(126, 175, 180, 0.12), transparent 31%),
+    radial-gradient(circle at 82% 8%, rgba(126, 181, 170, 0.13), transparent 30%),
+    linear-gradient(135deg, #f8fbfa 0%, #f1f7f5 48%, #f1f6f7 100%);
   --card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.995) 0%, rgba(249, 253, 253, 0.975) 100%);
+}
+
+
+/* 라이트 모드 포인트 컬러: 형광감이 적은 뮤트 틸 · 미스트 시안 · 세이지 */
+html:not(.dark) {
+  --color-teal-50: #f2f7f5;
+  --color-teal-100: #e3efec;
+  --color-teal-200: #c8dfda;
+  --color-teal-300: #a6cbc3;
+  --color-teal-400: #78aaa2;
+  --color-teal-500: #5a918a;
+  --color-teal-600: #477a75;
+  --color-teal-700: #3c6561;
+  --color-teal-800: #345451;
+  --color-teal-900: #2e4745;
+
+  --color-cyan-50: #f3f7f8;
+  --color-cyan-100: #e4eef0;
+  --color-cyan-200: #cadde1;
+  --color-cyan-300: #aac8ce;
+  --color-cyan-400: #82a9b1;
+  --color-cyan-500: #63949d;
+  --color-cyan-600: #507b83;
+  --color-cyan-700: #44666d;
+  --color-cyan-800: #3b555a;
+  --color-cyan-900: #34484c;
+
+  --color-emerald-50: #f3f7f5;
+  --color-emerald-100: #e5eee9;
+  --color-emerald-200: #ccded5;
+  --color-emerald-300: #abc8ba;
+  --color-emerald-400: #82a997;
+  --color-emerald-500: #67917f;
+  --color-emerald-600: #527765;
+  --color-emerald-700: #456354;
+  --color-emerald-800: #3b5146;
+  --color-emerald-900: #33443b;
 }
 
 .dark {
@@ -153,16 +190,16 @@
 
   /* 라이트 모드의 본문 영역만 적용: 상단은 거의 흰색, 아래로 갈수록 옅은 쿨 민트 */
   html:not(.dark) main {
-    background-color: #f5fbfc;
+    background-color: #f5f8f7;
     background-image:
       radial-gradient(circle at 50% -12%, rgba(255, 255, 255, 0.98) 0%, transparent 42%),
       linear-gradient(
         180deg,
         #ffffff 0%,
-        #fcffff 20%,
-        #f8fcfd 48%,
-        #f1f9fa 74%,
-        #e9f5f7 100%
+        #fbfdfc 20%,
+        #f6faf8 48%,
+        #f0f6f4 74%,
+        #e9f2f0 100%
       );
     background-repeat: no-repeat;
     background-size: 100% 100%;
@@ -225,8 +262,8 @@
  * 토스 방향 유지 + 실행 품질 향상 (그림자 위계 · 숫자 타이포 · 절제된 모션)
  * ===================================================================*/
 :root {
-  --shadow-card: 0 1px 2px rgba(8, 86, 91, 0.05), 0 10px 28px rgba(8, 145, 178, 0.09);
-  --shadow-pop: 0 16px 38px rgba(8, 86, 91, 0.17);
+  --shadow-card: 0 1px 2px rgba(42, 70, 69, 0.04), 0 10px 28px rgba(72, 119, 116, 0.075);
+  --shadow-pop: 0 16px 38px rgba(42, 70, 69, 0.15);
 }
 .dark {
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.72), 0 8px 24px rgba(88, 28, 135, 0.18);
@@ -246,21 +283,21 @@
   /* 프로젝트 탭 카드: 외곽선을 한 단계 더 진하게 표시 */
   [data-testid="real-project-card"] {
     border-width: 2px !important;
-    border-color: rgba(34, 184, 207, 0.62) !important;
-    outline: 1px solid rgba(20, 184, 166, 0.2);
+    border-color: rgba(86, 139, 143, 0.50) !important;
+    outline: 1px solid rgba(95, 148, 138, 0.16);
     outline-offset: 2px;
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.78),
-      0 14px 30px -20px rgba(8, 145, 178, 0.72);
+      0 14px 30px -20px rgba(73, 120, 123, 0.55);
   }
 
   [data-testid="real-project-card"]:hover {
     transform: translateY(-2px);
-    border-color: rgba(13, 148, 136, 0.88) !important;
-    outline-color: rgba(34, 211, 238, 0.38);
+    border-color: rgba(63, 133, 128, 0.78) !important;
+    outline-color: rgba(99, 151, 160, 0.25);
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.9),
-      0 18px 38px -20px rgba(8, 145, 178, 0.84);
+      0 18px 38px -20px rgba(73, 120, 123, 0.65);
   }
 
   .dark [data-testid="real-project-card"] {

@@ -1,669 +1,330 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { Sparkles, AlertCircle, Save, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/app/components/ui/card";
-import { Badge } from "@/app/components/ui/badge";
-import { cn } from "@/app/components/ui/utils";
-import { AiFeatureHeader } from "@/app/components/common/AiFeatureHeader";
-import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
-import { Checkbox } from "@/app/components/ui/checkbox";
-import { Skeleton } from "@/app/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table";
+  AlertCircle,
+  BrainCircuit,
+  Check,
+  ChevronDown,
+  CirclePlus,
+  Loader2,
+  ReceiptText,
+  RefreshCw,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/app/components/ui/button";
+import { Checkbox } from "@/app/components/ui/checkbox";
+import { Input } from "@/app/components/ui/input";
+import { cn } from "@/app/components/ui/utils";
 import {
-  projectRepository,
   ApiError,
-  type WbsTask,
+  projectRepository,
+  type KosaCostRequestBody,
+  type KosaCostResponse,
+  type KosaExpenseItem,
+  type KosaPersonnel,
+  type KosaWbsEvidence,
   type ProjectSummary,
-  type ServiceScale,
-  type CostEstimateResponse,
-  type CostEstimateRequestBody,
 } from "@/app/api/projectRepository";
 import { markProjectBudgetCompleted } from "@/app/projects/projectProgress";
 
-/**
- * [예산] 페이지.
- *
- * WBS별 예상 공수(MM)는 실제 WBS API에서 가져오고, 비용 계산은 실제 백엔드
- * 비용 견적 API(POST /costs/estimate, PUT /costs/final)를 그대로 사용한다.
- */
+const KOSA_JOBS = [
+  "IT 기획자", "IT 컨설턴트", "업무분석가", "데이터분석가", "IT PM",
+  "IT 아키텍트", "UI/UX 기획·개발자", "UI/UX 디자이너", "응용 SW 개발자",
+  "시스템 SW 개발자", "정보시스템운용자", "IT 지원기술자", "IT 마케터",
+  "IT 품질관리자", "IT 테스터", "IT 감리", "정보보안전문가",
+] as const;
 
-const WORKING_HOURS_PER_MM = 160;
+const EMPTY_EXPENSE: KosaExpenseItem = {
+  name: "", quantity: 1, unit: "건", unitPrice: 0, included: true,
+};
 
-/**
- * "AI 견적 분석" 결과를 프로젝트별로 메모리에 기억해둔다.
- * 다른 화면에 갔다가 돌아와도 그래프가 사라지지 않게 하기 위한 것으로,
- * 새로고침하면 사라진다(의도된 동작). PmAssign의 추천 캐시와 같은 방식.
- */
-const costEstimateCache = new Map<string, CostEstimateResponse>();
-
-const SCALE_OPTIONS: { value: ServiceScale; label: string }[] = [
-  { value: "SMALL", label: "소규모" },
-  { value: "MEDIUM", label: "중규모" },
-  { value: "LARGE", label: "대규모" },
-];
-
-const DURATION_OPTIONS = [3, 6, 12, 18, 24];
-
-function formatWon(value: number) {
+function won(value = 0) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
 
-function renderPiePercentLabel({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-  payload,
-}: any) {
-  if (!percent || percent <= 0) return null;
-
-  const RADIAN = Math.PI / 180;
-  const centerX = Number(cx);
-  const centerY = Number(cy);
-  const inner = Number(innerRadius);
-  const outer = Number(outerRadius);
-  const radius = inner + (outer - inner) * 0.53;
-  const x = centerX + radius * Math.cos(-midAngle * RADIAN);
-  const y = centerY + radius * Math.sin(-midAngle * RADIAN);
-  const textColor = payload?.labelColor ?? "#ffffff";
-
-  return (
-    <text
-      x={x}
-      y={y}
-      fill={textColor}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontSize={11}
-      fontWeight={700}
-      style={{ pointerEvents: "none" }}
-    >
-      {(percent * 100).toFixed(1)}%
-    </text>
-  );
+function numberValue(value: string) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-interface PmBudgetProps {
-  project: ProjectSummary;
+function errorMessage(error: unknown) {
+  if (!(error instanceof ApiError)) return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  const messages: Record<string, string> = {
+    CONFIRMED_WBS_NOT_FOUND: "확정된 WBS가 없습니다. WBS를 먼저 확정해 주세요.",
+    UNASSIGNED_WBS_EXISTS: "담당자가 없는 WBS가 있습니다. 모든 말단 WBS에 담당자를 배정해 주세요.",
+    FINAL_ASSIGNMENTS_NOT_FOUND: "최종 저장된 담당자 배정이 없습니다. 담당자 배정을 먼저 저장해 주세요.",
+    PLANNING_EFFORT_UNAVAILABLE: "AI 산정 서버가 잠시 응답하지 않습니다. 잠시 후 다시 시도해 주세요.",
+    INVALID_PLANNING_EFFORT_RESPONSE: "AI 산정 결과 형식에 문제가 있습니다. 다시 시도해 주세요.",
+  };
+  const code = typeof error.payload === "object" && error.payload !== null && "code" in error.payload
+    ? String((error.payload as { code?: unknown }).code ?? "")
+    : "";
+  return messages[code] ?? error.message;
 }
+
+interface PmBudgetProps { project: ProjectSummary }
 
 export function PmBudget({ project }: PmBudgetProps) {
-  const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
-  const [wbsLoading, setWbsLoading] = useState(true);
-  const [wbsError, setWbsError] = useState("");
-
-  const [unitCost, setUnitCost] = useState(8000000);
-  const [durationMonths, setDurationMonths] = useState(12);
-  const [scale, setScale] = useState<ServiceScale>("MEDIUM");
-  const [licenseUsers, setLicenseUsers] = useState(20);
-  const [includeAiApi, setIncludeAiApi] = useState(true);
+  const [personnel, setPersonnel] = useState<KosaPersonnel[]>([]);
+  const [evidence, setEvidence] = useState<KosaWbsEvidence[]>([]);
+  const [expenses, setExpenses] = useState<KosaExpenseItem[]>([]);
+  const [result, setResult] = useState<KosaCostResponse | null>(null);
+  const [overheadRate, setOverheadRate] = useState(30);
+  const [technicalFeeRate, setTechnicalFeeRate] = useState(10);
+  const [directExpense, setDirectExpense] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [includeVat, setIncludeVat] = useState(true);
-
-  const [result, setResult] = useState<CostEstimateResponse | null>(
-    () => costEstimateCache.get(String(project.id)) ?? null,
-  );
-  const [estimating, setEstimating] = useState(false);
-  const [estimateError, setEstimateError] = useState("");
+  const [note, setNote] = useState("2026년 KOSA 평균임금 기준");
+  const [openEvidenceGroups, setOpenEvidenceGroups] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const initialized = useRef(false);
 
-  useEffect(() => {
-    let ignore = false;
-    setWbsLoading(true);
-    setWbsError("");
-
-    projectRepository
-      .getWbs(project.id)
-      .then((res) => {
-        if (ignore) return;
-        setWbsTasks([...(res.finalTasks ?? [])].sort((a, b) => a.orderIndex - b.orderIndex));
-      })
-      .catch((caught) => {
-        if (ignore) return;
-        if (caught instanceof ApiError && caught.status === 404) {
-          setWbsTasks([]);
-        } else {
-          setWbsError("WBS 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
-        }
-      })
-      .finally(() => {
-        if (!ignore) setWbsLoading(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [project.id]);
-
-  // 저장된 최종 견적이 있으면 화면 진입 시 복원한다.
-  // 메모리 캐시만으로는 새로고침이나 앱 재진입 때 그래프가 사라진다.
-  useEffect(() => {
-    let ignore = false;
-    projectRepository
-      .getFinalCostEstimate(project.id)
-      .then((saved) => {
-        if (ignore) return;
-        setResult(saved);
-        costEstimateCache.set(String(project.id), saved);
-      })
-      .catch(() => {
-        // 저장된 견적이 없으면(404) 아무것도 하지 않는다. 캐시가 있으면 그대로 유지된다.
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [project.id]);
-
-  const wbsRows = useMemo(
-    () =>
-      wbsTasks.map((t) => ({
-        id: t.externalTaskId,
-        taskId: t.taskId,
-        name: t.taskName,
-        role: t.requiredSkills.length > 0 ? t.requiredSkills.join(", ") : "-",
-        mm: t.estimatedHours / WORKING_HOURS_PER_MM,
-      })),
-    [wbsTasks],
-  );
-
-  const totalMm = wbsRows.reduce((sum, r) => sum + r.mm, 0);
-  const wbsByRole = useMemo(() => {
-    const map = new Map<string, typeof wbsRows>();
-    for (const row of wbsRows) {
-      const list = map.get(row.role) ?? [];
-      list.push(row);
-      map.set(row.role, list);
+  const hydrate = useCallback((data: KosaCostResponse, keepEvidence = false) => {
+    setResult(data);
+    setPersonnel(data.personnel ?? []);
+    setExpenses(data.expenseItems ?? []);
+    setOverheadRate(data.overheadRate ?? 30);
+    setTechnicalFeeRate(data.technicalFeeRate ?? 10);
+    setDirectExpense(data.directExpense ?? 0);
+    setDiscountAmount(data.discountAmount ?? 0);
+    setIncludeVat(data.includeVat ?? true);
+    setNote(data.note ?? "2026년 KOSA 평균임금 기준");
+    if (!keepEvidence) {
+      setEvidence(data.wbsEfforts ?? data.personnel.flatMap((row) => row.wbsEvidence ?? []));
     }
-    return Array.from(map.entries()).map(([role, rows]) => ({
-      role,
-      rows,
-      totalMm: rows.reduce((sum, r) => sum + r.mm, 0),
-    }));
-  }, [wbsRows]);
-  const [openRoles, setOpenRoles] = useState<Set<string>>(new Set());
-  const toggleRole = (role: string) => {
-    setOpenRoles((prev) => {
-      const next = new Set(prev);
-      if (next.has(role)) next.delete(role);
-      else next.add(role);
-      return next;
-    });
-  };
-  const unsavedCount = wbsRows.filter((r) => r.taskId == null).length;
+  }, []);
 
-  const buildRequestBody = useCallback((): CostEstimateRequestBody | null => {
-    // 백엔드는 리프(자식 없는) WBS 태스크만 billable로 받는다.
-    // 다른 태스크의 parentExternalTaskId로 참조되는 부모/단계 노드는 제외한다.
-    const parentExternalIds = new Set(
-      wbsTasks
-        .map((t) => t.parentExternalTaskId)
-        .filter((p): p is string => p != null),
-    );
-    const wbsEfforts = wbsRows
-      .filter((r): r is typeof r & { taskId: number } => r.taskId != null)
-      .filter((r) => !parentExternalIds.has(r.id))
-      .map((r) => ({ wbsId: r.taskId, estimatedMm: r.mm }));
-
-    if (wbsEfforts.length === 0) return null;
-
-    return {
-      wbsEfforts,
-      averageMonthlyUnitPrice: unitCost,
-      operationMonths: durationMonths,
-      serviceScale: scale,
-      usesAiApi: includeAiApi,
-      paidLicenseUserCount: licenseUsers,
-      includeVat,
-    };
-  }, [wbsRows, wbsTasks, unitCost, durationMonths, scale, includeAiApi, licenseUsers, includeVat]);
-
-  const runEstimate = useCallback(async () => {
-    const body = buildRequestBody();
-    if (!body) {
-      setEstimateError("확정된(저장된) WBS 항목이 없어 견적을 계산할 수 없습니다.");
-      return;
-    }
-    setEstimating(true);
-    setEstimateError("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    initialized.current = false;
     try {
-      const estimated = await projectRepository.estimateProjectCost(
-        project.id,
-        body,
-      );
-      setResult(estimated);
-      costEstimateCache.set(String(project.id), estimated);
+      try {
+        const saved = await projectRepository.getEditedKosaCost(project.id);
+        hydrate(saved);
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
+        const generated = await projectRepository.generateKosaEffortEstimate(project.id);
+        hydrate(generated);
+      }
+      setDirty(false);
     } catch (caught) {
-      setEstimateError(
-        caught instanceof ApiError ? caught.message : "견적 계산에 실패했습니다.",
-      );
+      setError(errorMessage(caught));
     } finally {
-      setEstimating(false);
+      initialized.current = true;
+      setLoading(false);
     }
-  }, [buildRequestBody, project.id]);
+  }, [hydrate, project.id]);
 
-  // 자동 실행하지 않는다. 페이지 로드마다 API가 낭비되므로, 사용자가 "분석하기" 버튼을
-  // 눌렀을 때만 runEstimate()가 호출된다.
+  useEffect(() => { void load(); }, [load]);
 
-  const handleSaveFinal = async () => {
-    const body = buildRequestBody();
-    if (!body) {
-      toast.error("확정된 WBS 항목이 없어 저장할 수 없습니다.");
-      return;
-    }
+  const requestBody = useMemo<KosaCostRequestBody>(() => ({
+    personnel: personnel.map((row) => ({
+      employeeNumber: row.employeeNumber,
+      kosaJobCategory: row.kosaJobCategory,
+      detailedJob: row.detailedJob,
+      headcount: row.headcount,
+      durationMonths: row.durationMonths,
+      utilizationRate: row.utilizationRate,
+      proposedMonthlyRate: row.proposedMonthlyRate,
+    })),
+    overheadRate, technicalFeeRate, directExpense,
+    expenseItems: expenses.map(({ amount: _amount, ...item }) => item),
+    discountAmount, includeVat, note,
+  }), [personnel, overheadRate, technicalFeeRate, directExpense, expenses, discountAmount, includeVat, note]);
+
+  useEffect(() => {
+    if (!initialized.current || loading || personnel.length === 0 || !dirty) return;
+    const timer = window.setTimeout(async () => {
+      setDirty(false);
+      setCalculating(true);
+      try {
+        const calculated = await projectRepository.calculateKosaCost(project.id, requestBody);
+        hydrate(calculated, true);
+        setError("");
+      } catch (caught) {
+        setError(errorMessage(caught));
+      } finally {
+        setCalculating(false);
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [dirty, hydrate, loading, personnel.length, project.id, requestBody]);
+
+  const updatePerson = (index: number, patch: Partial<KosaPersonnel>) => {
+    setPersonnel((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
+    setDirty(true);
+  };
+  const updateExpense = (index: number, patch: Partial<KosaExpenseItem>) => {
+    setExpenses((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
+    setDirty(true);
+  };
+  const setCostValue = (setter: (value: number) => void, value: string) => {
+    setter(numberValue(value)); setDirty(true);
+  };
+
+  const save = async () => {
     setSaving(true);
     try {
-      const saved = await projectRepository.saveFinalCostEstimate(project.id, body);
-      setResult(saved);
-      costEstimateCache.set(String(project.id), saved);
-      if (saved.confirmed === true) {
-        markProjectBudgetCompleted(project.id);
-      }
-      toast.success(
-        "최종 견적을 저장했습니다. 프로젝트 화면에서 대시보드를 열 수 있습니다.",
-      );
+      const saved = await projectRepository.saveEditedKosaCost(project.id, requestBody);
+      hydrate(saved, true);
+      setDirty(false);
+      markProjectBudgetCompleted(project.id);
+      toast.success("최종 견적을 저장했습니다.");
     } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : "저장에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
+      toast.error(errorMessage(caught));
+    } finally { setSaving(false); }
   };
 
-  const chartData = result
-    ? [
-        {
-          name: "인건비",
-          value: result.costSummary.laborCost,
-          color: "var(--budget-labor)",
-          labelColor: "var(--budget-light-label)",
-        },
-        {
-          name: "서버비",
-          value: result.costSummary.serverCost,
-          color: "var(--budget-server)",
-          labelColor: "var(--budget-light-label)",
-        },
-        {
-          name: "라이선스",
-          value: result.costSummary.licenseCost,
-          color: "var(--budget-license)",
-          labelColor: "var(--budget-license-label)",
-        },
-        {
-          name: "AI API",
-          value: result.costSummary.aiApiCost,
-          color: "var(--budget-ai)",
-          labelColor: "var(--budget-light-label)",
-        },
-      ].filter((d) => d.value > 0)
-    : [];
-  const chartTotal = chartData.reduce((sum, item) => sum + item.value, 0);
+  const evidenceGroups = useMemo(() => {
+    const groups = new Map<string, KosaWbsEvidence[]>();
+    for (const item of evidence) {
+      const key = item.detailedJob || item.kosaJobCategory || "기타";
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    }
+    return Array.from(groups, ([role, items]) => ({
+      role,
+      items,
+      totalMm: items.reduce((sum, item) => sum + item.estimatedMm, 0),
+    }));
+  }, [evidence]);
+  const totalEvidenceMm = evidence.reduce((sum, item) => sum + item.estimatedMm, 0);
+  const projectStart = result?.projectStartDate ?? project.server?.plannedStartDate ?? "미정";
+  const projectEnd = result?.projectEndDate ?? project.server?.plannedEndDate ?? project.dueDate ?? "미정";
+  const totalAmount = result?.totalAmount ?? 0;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-foreground text-xl font-semibold tracking-tight">예산</h2>
-          <p className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
-            WBS 예상 공수(MM)를 바탕으로 프로젝트 예산을 산정합니다.
-          </p>
-        </div>
-        <Badge variant="outline" className="border-blue-200 bg-blue-50 font-normal text-blue-700">
-          <Sparkles className="mr-1 size-3" /> AI 연동
-        </Badge>
-      </div>
-
-      {/* 견적 조건 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold tracking-tight">견적 조건</CardTitle>
-          <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">값을 바꾼 뒤 아래 "AI 견적 분석하기"를 눌러주세요.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-sm">월평균 인력 단가</label>
-              <Input
-                type="number"
-                value={unitCost}
-                onChange={(e) => setUnitCost(Number(e.target.value) || 0)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-sm">운영 기간</label>
-              <Select
-                value={String(durationMonths)}
-                onValueChange={(v) => setDurationMonths(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_OPTIONS.map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m}개월
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-sm">서비스 규모</label>
-              <Select value={scale} onValueChange={(v) => setScale(v as ServiceScale)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCALE_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-sm">유료 라이선스 사용자</label>
-              <Input
-                type="number"
-                value={licenseUsers}
-                onChange={(e) => setLicenseUsers(Number(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={includeAiApi} onCheckedChange={(v) => setIncludeAiApi(!!v)} />
-              AI API 비용 포함
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={includeVat} onCheckedChange={(v) => setIncludeVat(!!v)} />
-              VAT 포함
-            </label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* WBS별 예상 공수 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold tracking-tight">WBS별 예상 공수</CardTitle>
-          <CardDescription className="mt-1 text-[0.82rem] leading-5 text-muted-foreground">
-            WBS 조회 결과에서 자동 반영 · 총 {totalMm.toFixed(2)} MM
-            {unsavedCount > 0 && ` · 저장 전 항목 ${unsavedCount}건은 견적에서 제외돼요`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {wbsLoading && (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          )}
-          {!wbsLoading && wbsError && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <AlertCircle className="size-4" /> {wbsError}
-            </div>
-          )}
-          {!wbsLoading && !wbsError && (
-            <>
-              <div className="space-y-2">
-                {wbsByRole.map(({ role, rows, totalMm: roleMm }) => {
-                  const open = openRoles.has(role);
-                  return (
-                    <div key={role} className="rounded-lg border border-border">
-                      <button
-                        type="button"
-                        onClick={() => toggleRole(role)}
-                        className="flex w-full items-center justify-between px-3 py-2.5 text-left"
-                      >
-                        <span className="flex items-center gap-2">
-                          <ChevronDown
-                            className={cn(
-                              "size-4 text-muted-foreground transition-transform",
-                              open && "rotate-180",
-                            )}
-                          />
-                          <span className="text-foreground text-sm">{role}</span>
-                          <Badge variant="outline" className="font-normal">
-                            {rows.length}건
-                          </Badge>
-                        </span>
-                        <span className="text-muted-foreground text-sm">
-                          {roleMm.toFixed(2)} MM
-                        </span>
-                      </button>
-                      {open && (
-                        <Table>
-                          <TableBody>
-                            {rows.map((row) => (
-                              <TableRow key={row.id}>
-                                <TableCell className="pl-9">{row.name}</TableCell>
-                                <TableCell className="text-right">{row.mm.toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </div>
-                  );
-                })}
-                {wbsRows.length === 0 && (
-                  <p className="py-8 text-center text-muted-foreground text-sm">
-                    아직 생성된 WBS가 없습니다.
-                  </p>
-                )}
-              </div>
-              <Button
-                className="w-full"
-                onClick={() => void runEstimate()}
-                disabled={estimating || wbsRows.length === 0}
-              >
-                <Sparkles className="size-4" />
-                {estimating
-                  ? "분석 중…"
-                  : result
-                    ? "AI 견적 다시 분석"
-                    : "AI 견적 분석하기"}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* AI 추천 견적 */}
-      <Card>
-        <CardHeader className="relative pr-32">
-          <AiFeatureHeader
-            icon={Sparkles}
-            title="AI 추천 견적"
-            description="WBS 공수와 운영 조건을 바탕으로 비용 구성을 항목별로 계산합니다."
-            titleClassName="text-lg font-semibold tracking-tight"
-            descriptionClassName="text-[0.82rem] leading-5"
-          />
-          {result?.llmStatus ? (
-            <Badge
-              variant="outline"
-              className="absolute right-6 top-6 border-teal-200 bg-white/80 font-medium text-teal-700 dark:border-violet-700 dark:bg-zinc-950/80 dark:text-violet-200"
-            >
-              {result.llmStatus}
-            </Badge>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {estimating && (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-32 w-full" />
-            </div>
-          )}
-
-          {!estimating && estimateError && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <AlertCircle className="size-4" /> {estimateError}
-            </div>
-          )}
-
-          {!estimating && !estimateError && !result && (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground text-sm">
-              <Sparkles className="size-5" />
-              위의 “AI 견적 분석하기” 버튼을 눌러 AI 예상 견적을 계산하세요.
-            </div>
-          )}
-
-          {!estimating && !estimateError && result && (
-            <>
-              <div>
-                <p className="text-muted-foreground text-sm">
-                  {includeVat ? "VAT 포함 최종 예상 금액" : "최종 예상 금액"}
-                </p>
-                <p className="mt-1 text-foreground text-3xl">
-                  {formatWon(result.estimate.totalAmount)}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  공급가액 {formatWon(result.estimate.supplyAmount)}
-                </p>
-                {result.warning && (
-                  <p className="mt-2 flex items-center gap-1.5 text-amber-600 text-xs">
-                    <AlertCircle className="size-3.5" /> {result.warning}
-                  </p>
-                )}
-              </div>
-
-              <div className="border-t border-border/80 pt-5">
-                <div className="mb-3">
-                  <p className="text-base font-semibold text-foreground">기본 비용 구성</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">항목별 금액과 전체 비용 대비 비중을 확인하세요.</p>
-                </div>
-
-                <div className="grid grid-cols-1 items-center gap-7 [--budget-labor:#0F9F9A] [--budget-server:#22B8CF] [--budget-license:#7DD3FC] [--budget-ai:#8B5CF6] [--budget-light-label:#FFFFFF] [--budget-license-label:#0F172A] [--budget-pie-stroke:transparent] dark:[--budget-labor:#6658B8] dark:[--budget-server:#7A659E] dark:[--budget-license:#586DA7] dark:[--budget-ai:#956184] dark:[--budget-light-label:#F5F3FF] dark:[--budget-license-label:#F5F3FF] dark:[--budget-pie-stroke:#18181B] lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
-                  <div className="relative h-60 min-h-60 rounded-xl dark:bg-violet-950/10 dark:ring-1 dark:ring-inset dark:ring-violet-900/20">
-                    {chartData.length > 0 ? (
-                      <>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={chartData}
-                              dataKey="value"
-                              nameKey="name"
-                              innerRadius="55%"
-                              outerRadius="92%"
-                              paddingAngle={2.5}
-                              labelLine={false}
-                              label={renderPiePercentLabel}
-                            >
-                              {chartData.map((d) => (
-                                <Cell
-                                  key={d.name}
-                                  fill={d.color}
-                                  stroke="var(--budget-pie-stroke)"
-                                  strokeWidth={1.5}
-                                />
-                              ))}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                          <span className="text-xs font-medium text-muted-foreground">기본 비용</span>
-                          <span className="mt-1 max-w-28 text-sm font-semibold leading-5 text-foreground">
-                            {formatWon(result.costSummary.baseCost)}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                        비용 구성 없음
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="divide-y divide-border/70 border-y border-border/70">
-                    {chartData.map((d) => {
-                      const percentage = chartTotal > 0 ? (d.value / chartTotal) * 100 : 0;
-                      return (
-                        <div key={d.name} className="flex items-center justify-between gap-4 py-3">
-                          <span className="flex min-w-0 items-center gap-2.5 text-[0.98rem] font-semibold text-foreground">
-                            <span
-                              className="size-3 shrink-0 rounded-sm"
-                              style={{ backgroundColor: d.color }}
-                            />
-                            {d.name}
-                          </span>
-                          <span className="shrink-0 text-right">
-                            <span className="block text-[0.9rem] font-medium text-foreground">{formatWon(d.value)}</span>
-                            <span className="mt-0.5 block text-xs font-medium text-muted-foreground">{percentage.toFixed(1)}%</span>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 border-t border-border pt-4 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">기본 비용</span>
-                  <span className="text-foreground">
-                    {formatWon(result.costSummary.baseCost)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">
-                    예비비 ({result.estimate.contingencyRate}%)
-                  </span>
-                  <span className="text-foreground">
-                    {formatWon(result.estimate.contingencyAmount)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">VAT</span>
-                  <span className="text-foreground">{formatWon(result.estimate.vat)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-border pt-1.5">
-                  <span className="text-foreground">최종 예상 금액</span>
-                  <span className="text-foreground">
-                    {formatWon(result.estimate.totalAmount)}
-                  </span>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => void handleSaveFinal()}
-                disabled={saving}
-              >
-                <Save className="size-4" />
-                {saving ? "저장 중…" : "최종 견적 저장"}
-              </Button>
-            </>
-          )}
-
-        </CardContent>
-      </Card>
+  if (loading) return (
+    <div className="flex min-h-[520px] items-center justify-center rounded-2xl border border-border bg-card/80">
+      <div className="text-center"><Loader2 className="mx-auto size-7 animate-spin text-primary" /><p className="mt-3 text-sm text-muted-foreground">저장된 견적과 AI 공수를 불러오는 중입니다</p></div>
     </div>
   );
+
+  if (error && personnel.length === 0) return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-border bg-card px-6 text-center shadow-sm">
+      <AlertCircle className="size-9 text-amber-500" /><h2 className="mt-4 text-lg font-semibold">견적을 준비하지 못했습니다</h2><p className="mt-2 max-w-lg text-sm text-muted-foreground">{error}</p>
+      <Button className="mt-5" onClick={() => void load()}><RefreshCw className="size-4" /> 다시 시도</Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 pb-6">
+      <section className="overflow-hidden rounded-2xl border border-slate-800/10 bg-[#102c46] text-white shadow-[0_18px_45px_rgba(15,45,70,0.16)] dark:border-violet-900/50 dark:bg-[#160e21]">
+        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-xl border border-white/15 bg-white/10"><ReceiptText className="size-5" /></div>
+            <div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200 dark:text-violet-300">Project cost desk</p><h2 className="text-xl font-semibold tracking-tight">프로젝트 견적</h2></div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">KOSA {result?.kosaRateYear ?? 2026}</span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">{dirty ? "편집 중" : result?.confirmed ? "저장됨" : "AI 초안"}</span>
+            <Button size="sm" className="bg-white text-[#12324c] hover:bg-cyan-50" onClick={() => void save()} disabled={saving || calculating || personnel.length === 0}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} {saving ? "저장 중" : "최종 견적 저장"}
+            </Button>
+          </div>
+        </div>
+        <div className="grid border-t border-white/10 bg-black/10 sm:grid-cols-[1fr_auto]">
+          <div className="px-5 py-3"><span className="text-xs text-white/55">프로젝트명</span><p className="mt-0.5 text-sm font-medium">{result?.projectName ?? project.name}</p></div>
+          <div className="border-t border-white/10 px-5 py-3 sm:min-w-72 sm:border-l sm:border-t-0"><span className="text-xs text-white/55">프로젝트 기간</span><p className="mt-0.5 font-mono text-sm">{projectStart} — {projectEnd}</p></div>
+        </div>
+      </section>
+
+      {error && <div className="flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-200"><AlertCircle className="size-4 shrink-0" />{error}</div>}
+
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between border-b border-border bg-muted/45 px-5 py-3.5"><div><h3 className="text-sm font-semibold">프로젝트 투입인력</h3><p className="mt-0.5 text-xs text-muted-foreground">배정된 인력의 직무와 투입 조건을 조정하면 자동으로 다시 계산됩니다.</p></div>{calculating && <span className="flex items-center gap-1.5 text-xs text-primary"><Loader2 className="size-3.5 animate-spin" /> 계산 중</span>}</div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] border-collapse text-sm">
+            <thead className="bg-[#eaf1f5] text-[#26445a] dark:bg-muted dark:text-foreground"><tr className="border-b border-border">
+              {['No','이름','세부직무','KOSA 직무','인원','기간(개월)','투입률(%)','M/M','표준단가(M/M)','제안단가(M/M)','금액'].map((label) => <th key={label} className="whitespace-nowrap border-r border-border/70 px-2.5 py-2.5 text-center text-xs font-semibold last:border-r-0">{label}</th>)}
+            </tr></thead>
+            <tbody>{personnel.map((row, index) => (
+              <tr key={`${row.employeeNumber}-${index}`} className="border-b border-border/80 bg-card align-middle hover:bg-muted/20">
+                <td className="px-2 py-2 text-center text-xs text-muted-foreground">{index + 1}</td>
+                <td className="min-w-28 px-2 py-2 font-medium">{row.employeeName}</td>
+                <td className="min-w-44 px-1.5 py-1.5"><Input className="h-8 rounded-md text-xs" value={row.detailedJob} maxLength={100} onChange={(e) => updatePerson(index, { detailedJob: e.target.value })} /></td>
+                <td className="min-w-44 px-1.5 py-1.5"><select className="h-8 w-full rounded-md border border-input bg-input-background px-2 text-xs" value={row.kosaJobCategory} onChange={(e) => updatePerson(index, { kosaJobCategory: e.target.value })}>{KOSA_JOBS.map((job) => <option key={job}>{job}</option>)}</select></td>
+                <td className="w-20 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="1" value={row.headcount} onChange={(e) => updatePerson(index, { headcount: numberValue(e.target.value) })} /></td>
+                <td className="w-24 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" step="0.1" value={row.durationMonths} onChange={(e) => updatePerson(index, { durationMonths: numberValue(e.target.value) })} /></td>
+                <td className="w-24 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" max="100" value={row.utilizationRate} onChange={(e) => updatePerson(index, { utilizationRate: numberValue(e.target.value) })} /></td>
+                <td className="whitespace-nowrap px-3 text-right font-mono font-semibold text-primary">{(row.calculatedMm ?? row.estimatedMm ?? 0).toFixed(2)}</td>
+                <td className="whitespace-nowrap px-3 text-right font-mono text-xs text-muted-foreground">{won(row.standardMonthlyRate)}</td>
+                <td className="w-36 px-1.5"><Input className="h-8 text-right font-mono text-xs" type="number" min="0" step="10000" value={row.proposedMonthlyRate} onChange={(e) => updatePerson(index, { proposedMonthlyRate: numberValue(e.target.value) })} /></td>
+                <td className="whitespace-nowrap px-3 text-right font-mono font-bold text-[#153f5e] dark:text-violet-200">{won(row.amount)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card px-5 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2"><BrainCircuit className="size-5 text-primary" /><h3 className="text-base font-semibold">WBS별 AI 산정 근거</h3></div>
+            <p className="mt-1.5 text-xs text-muted-foreground">AI 공수 산정 결과를 직무별로 모아 표시합니다 · 총 {totalEvidenceMm.toFixed(2)} MM</p>
+          </div>
+          <span className="text-xs text-muted-foreground">총 {evidence.length}개 WBS</span>
+        </div>
+        <div className="mt-5 space-y-2.5">
+          {evidenceGroups.map(({ role, items, totalMm }) => {
+            const open = openEvidenceGroups.has(role);
+            return (
+              <div key={role} className="overflow-hidden rounded-xl border border-border bg-card">
+                <button type="button" className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/35" onClick={() => setOpenEvidenceGroups((current) => { const next = new Set(current); next.has(role) ? next.delete(role) : next.add(role); return next; })}>
+                  <span className="flex min-w-0 items-center gap-3"><ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} /><strong className="truncate text-sm">{role}</strong><span className="shrink-0 text-xs text-muted-foreground">{items.length}건</span></span>
+                  <span className="shrink-0 font-mono text-sm font-semibold text-muted-foreground">{totalMm.toFixed(2)} MM</span>
+                </button>
+                {open && <div className="grid gap-2 border-t border-border bg-[#f7fbfc] p-3 dark:bg-black/10 lg:grid-cols-2">{items.map((item) => <article key={`${item.wbsId}-${item.employeeNumber}`} className="rounded-lg border border-border bg-card px-3.5 py-3"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.wbsName}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{item.employeeName} · {item.estimatedPersonDays} 인일</p></div><span className="shrink-0 font-mono text-xs font-bold text-primary">{item.estimatedMm.toFixed(2)} MM</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.estimationReason}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(0, Math.min(100, item.confidence * 100))}%` }} /></div><p className="mt-1 text-right text-[10px] text-muted-foreground">신뢰도 {Math.round(item.confidence * 100)}%</p></article>)}</div>}
+              </div>
+            );
+          })}
+          {evidenceGroups.length === 0 && <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">저장된 견적에는 AI 산정 근거가 포함되지 않습니다. 새 AI 산정 시 이곳에 표시됩니다.</div>}
+        </div>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div className="border-b border-border bg-muted/45 px-5 py-3.5"><h3 className="text-sm font-semibold">개발비 산출</h3><p className="mt-0.5 text-xs text-muted-foreground">직접인건비를 기준으로 제경비와 기술료를 계산합니다.</p></div>
+          <div className="divide-y divide-border/70 text-sm">
+            <CostRow label="직접인건비" description="투입인력 금액 합계" value={result?.directLaborCost} />
+            <CostInputRow label="제경비" description="직접인건비 × 적용률" value={overheadRate} suffix="%" onChange={(v) => setCostValue(setOverheadRate, v)} amount={result?.overheadAmount} />
+            <CostInputRow label="기술료·이윤" description="(직접인건비 + 제경비) × 적용률" value={technicalFeeRate} suffix="%" onChange={(v) => setCostValue(setTechnicalFeeRate, v)} amount={result?.technicalFeeAmount} />
+            <CostInputRow label="직접경비" description="출장비·장비비 등" value={directExpense} suffix="원" onChange={(v) => setCostValue(setDirectExpense, v)} amount={directExpense} />
+            <div className="flex items-center justify-between bg-primary/8 px-5 py-4"><span className="font-semibold">개발비 소계</span><strong className="font-mono text-base text-primary">{won(result?.developmentCost)}</strong></div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div className="flex items-center justify-between border-b border-border bg-muted/45 px-5 py-3.5"><div><h3 className="text-sm font-semibold">추가 비용</h3><p className="mt-0.5 text-xs text-muted-foreground">라이선스, 클라우드 등 별도 비용을 관리합니다.</p></div><Button variant="outline" size="sm" onClick={() => { setExpenses((rows) => [...rows, { ...EMPTY_EXPENSE }]); setDirty(true); }}><CirclePlus className="size-3.5" /> 항목 추가</Button></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-xs"><thead className="border-b border-border bg-muted/20 text-muted-foreground"><tr>{['품목명','수량','단위','단가','금액','포함',''].map((x, i) => <th key={`${x}-${i}`} className="px-2 py-2 font-medium">{x}</th>)}</tr></thead><tbody>{expenses.map((item, index) => <tr key={index} className="border-b border-border/70"><td className="w-40 px-1.5 py-1.5"><Input className="h-8 text-xs" value={item.name} placeholder="비용 항목" onChange={(e) => updateExpense(index, { name: e.target.value })} /></td><td className="w-16 px-1"><Input className="h-8 text-right text-xs" type="number" min="0" value={item.quantity} onChange={(e) => updateExpense(index, { quantity: numberValue(e.target.value) })} /></td><td className="w-20 px-1"><Input className="h-8 text-xs" value={item.unit} onChange={(e) => updateExpense(index, { unit: e.target.value })} /></td><td className="w-28 px-1"><Input className="h-8 text-right font-mono text-xs" type="number" min="0" value={item.unitPrice} onChange={(e) => updateExpense(index, { unitPrice: numberValue(e.target.value) })} /></td><td className="whitespace-nowrap px-2 text-right font-mono font-semibold">{won(item.amount ?? item.quantity * item.unitPrice)}</td><td className="px-2 text-center"><Checkbox checked={item.included} onCheckedChange={(v) => updateExpense(index, { included: v === true })} /></td><td className="px-1"><button className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => { setExpenses((rows) => rows.filter((_, i) => i !== index)); setDirty(true); }} aria-label="비용 항목 삭제"><Trash2 className="size-3.5" /></button></td></tr>)}{expenses.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">추가 비용이 없습니다.</td></tr>}</tbody></table></div>
+          <div className="flex items-center justify-between bg-primary/8 px-5 py-4 text-sm"><span className="font-semibold">추가 비용 소계</span><strong className="font-mono text-base text-primary">{won(result?.expenseItemTotal)}</strong></div>
+        </section>
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border border-[#183d58]/20 bg-card shadow-[0_14px_35px_rgba(15,45,70,0.12)] dark:border-violet-900/50">
+        <div className="grid gap-px bg-border lg:grid-cols-[1fr_1fr_1.2fr_2fr]">
+          <SummaryCell label="개발비" value={won(result?.developmentCost)} />
+          <SummaryCell label="추가 비용" value={won(result?.expenseItemTotal)} />
+          <div className="flex items-center gap-3 bg-card px-4 py-3"><label className="text-xs text-muted-foreground">할인</label><Input className="h-8 text-right font-mono text-xs" type="number" min="0" value={discountAmount} onChange={(e) => setCostValue(setDiscountAmount, e.target.value)} /><span className="text-xs text-muted-foreground">원</span></div>
+          <div className="flex items-center justify-between bg-[#155d91] px-5 py-3 text-white dark:bg-violet-800"><div><p className="text-xs text-white/65">최종 금액</p><p className="text-[10px] text-white/50">공급가액 {won(result?.supplyAmount)}</p></div><strong className="font-mono text-2xl tracking-tight">{won(totalAmount)}</strong></div>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between"><Input className="h-9 flex-1 text-xs" value={note} placeholder="견적 메모" onChange={(e) => { setNote(e.target.value); setDirty(true); }} /><label className="flex items-center gap-2 text-xs text-muted-foreground"><Checkbox checked={includeVat} onCheckedChange={(v) => { setIncludeVat(v === true); setDirty(true); }} />VAT 10% 포함</label><span className="flex items-center gap-1.5 text-xs text-muted-foreground">{result?.confirmed ? <Check className="size-3.5 text-emerald-500" /> : null}{result?.confirmed ? "저장된 최종 견적" : "저장 전 견적"}</span></div>
+      </section>
+    </div>
+  );
+}
+
+function CostRow({ label, description, value }: { label: string; description: string; value?: number }) {
+  return <div className="grid grid-cols-[1fr_auto] items-center px-5 py-3"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><strong className="font-mono text-sm">{won(value)}</strong></div>;
+}
+
+function CostInputRow({ label, description, value, suffix, onChange, amount }: { label: string; description: string; value: number; suffix: string; onChange: (value: string) => void; amount?: number }) {
+  return <div className="grid grid-cols-[1fr_110px_120px] items-center gap-3 px-5 py-2.5"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><div className="relative"><Input className="h-8 pr-8 text-right font-mono text-xs" type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} /><span className="absolute right-2 top-2 text-[10px] text-muted-foreground">{suffix}</span></div><strong className="text-right font-mono text-xs">{won(amount)}</strong></div>;
+}
+
+function SummaryCell({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between bg-card px-4 py-3"><span className="text-xs text-muted-foreground">{label}</span><strong className="font-mono text-sm">{value}</strong></div>;
 }

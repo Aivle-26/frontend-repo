@@ -5,7 +5,6 @@ import {
   Eye,
   FileText,
   Loader2,
-  RefreshCw,
   SlidersHorizontal,
   Trash2,
   UploadCloud,
@@ -50,10 +49,10 @@ import type { UploadedRfp } from "@/app/data/demoData";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 function statusClass(status: UploadedRfp["status"]) {
-  if (status === "분석 완료") {
+  if (status === "분석 ?�료") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
-  if (status === "분석 중") {
+  if (status === "분석 �?) {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
   return "border-amber-200 bg-amber-50 text-amber-700";
@@ -68,16 +67,16 @@ function formatFileSize(fileSize: number) {
 function toUploadRow(document: ProjectDocumentUploadItem): UploadedRfp {
   const status: UploadedRfp["status"] =
     document.status === "ANALYZED"
-      ? "분석 완료"
+      ? "분석 ?�료"
       : document.status === "ANALYZING"
-        ? "분석 중"
-        : "대기";
+        ? "분석 �?
+        : "?��?;
 
   return {
     id: String(document.documentId),
     name: document.originalFileName,
     size: formatFileSize(document.fileSize),
-    uploadedAt: "서버 저장됨",
+    uploadedAt: "?�버 ?�?�됨",
     status,
     requirementCount: 0,
   };
@@ -85,26 +84,26 @@ function toUploadRow(document: ProjectDocumentUploadItem): UploadedRfp {
 
 function analysisErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) {
-    return "요구사항 분석 중 오류가 발생했습니다.";
+    return "?�구?�항 분석 �??�류가 발생?�습?�다.";
   }
 
   const messages: Partial<Record<number, string>> = {
-    400: "분석할 프로젝트 문서를 확인해 주세요.",
-    403: "이 프로젝트를 분석할 권한이 없습니다.",
-    409: "동일한 문서 분석 결과가 이미 존재하거나 분석 중입니다.",
-    422: "문서 형식을 분석 서버가 처리할 수 없습니다.",
-    502: "분석 결과 형식이 올바르지 않습니다. 잠시 후 다시 시도해 주세요.",
-    503: "분석 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-    504: "문서 분석 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
+    400: "분석???�로?�트 문서�??�인??주세??",
+    403: "???�로?�트�?분석??권한???�습?�다.",
+    409: "?�일??문서 분석 결과가 ?��? 존재?�거??분석 중입?�다.",
+    422: "문서 ?�식??분석 ?�버가 처리?????�습?�다.",
+    502: "분석 결과 ?�식???�바르�? ?�습?�다. ?�시 ???�시 ?�도??주세??",
+    503: "분석 ?�버???�결?????�습?�다. ?�시 ???�시 ?�도??주세??",
+    504: "문서 분석 ?�간??초과?�었?�니?? ?�시 ???�시 ?�도??주세??",
   };
 
   return messages[error.status] ?? error.message;
 }
 
 function requirementStatusLabel(status: RequirementResponse["status"]) {
-  if (status === "CONFIRMED") return "확정";
+  if (status === "CONFIRMED") return "?�정";
   if (status === "REJECTED") return "반려";
-  return "검토 전";
+  return "검????;
 }
 
 function requirementStatusClass(status: RequirementResponse["status"]) {
@@ -169,9 +168,6 @@ export function PmUpload({
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
   const [requirementsLoadError, setRequirementsLoadError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
-  const [analyzingDocumentId, setAnalyzingDocumentId] = useState<string | null>(
-    null,
-  );
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -200,7 +196,7 @@ export function PmUpload({
       setLoadError(
         error instanceof ApiError
           ? error.message
-          : "프로젝트 문서 목록을 불러오지 못했습니다.",
+          : "?�로?�트 문서 목록??불러?��? 못했?�니??",
       );
     } finally {
       setIsLoadingDocuments(false);
@@ -228,7 +224,7 @@ export function PmUpload({
           setRequirementsLoadError(
             error instanceof ApiError
               ? error.message
-              : "요구사항을 불러오지 못했습니다.",
+              : "?�구?�항??불러?��? 못했?�니??",
           );
         }
       })
@@ -287,12 +283,12 @@ export function PmUpload({
       );
       await loadDocuments();
       onDocumentsUploaded?.(response.documents);
-      toast.success(`${response.documents.length}개 프로젝트 문서를 업로드했습니다.`);
+      toast.success(`${response.documents.length}�??�로?�트 문서�??�로?�했?�니??`);
     } catch (caught) {
       const message =
         caught instanceof ApiError
           ? caught.message
-          : "파일 업로드 중 오류가 발생했습니다.";
+          : "?�일 ?�로??�??�류가 발생?�습?�다.";
       toast.error(message);
     } finally {
       setIsUploading(false);
@@ -307,72 +303,6 @@ export function PmUpload({
     void addFiles(selectedFiles);
   };
 
-  const reanalyze = async (id: string) => {
-    if (analyzingDocumentId || isReadjusting) return;
-
-    const documentId = Number(id);
-    if (!Number.isSafeInteger(documentId) || documentId <= 0) {
-      toast.error("분석할 프로젝트 문서를 확인해 주세요.");
-      return;
-    }
-
-    const previous = files.find((file) => file.id === id);
-    setAnalysisError("");
-    setAnalyzingDocumentId(id);
-    setFiles((current) =>
-      current.map((file) =>
-        file.id === id ? { ...file, status: "분석 중" } : file,
-      ),
-    );
-
-    try {
-      if (requirements.length > 0) {
-        const result = await projectRepository.readjustProjectRequirements(
-          project.id,
-          { documentIds: [documentId] },
-        );
-        setChangeCandidates(result.changeCandidates);
-        await loadDocuments();
-        toast.success(
-          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다.`,
-        );
-        return;
-      }
-      await projectRepository.analyzeProjectRequirements(project.id, {
-        documentIds: [documentId],
-      });
-      const persisted = await projectRepository.getRequirements(project.id);
-      const persistedRequirements = finalRequirements(persisted);
-      setRequirements(persistedRequirements);
-      setRequirementsLoadError("");
-      const requirementCount = persistedRequirements.filter(
-        (requirement) => requirement.sourceDocumentId === documentId,
-      ).length;
-
-      setFiles((current) =>
-        current.map((file) =>
-          file.id === id
-            ? { ...file, status: "분석 완료", requirementCount }
-            : file,
-        ),
-      );
-      toast.success("요구사항 분석을 완료했습니다.");
-      onAnalysisComplete?.();
-    } catch (error) {
-      setFiles((current) =>
-        current.map((file) =>
-          file.id === id && previous
-            ? { ...file, status: previous.status }
-            : file,
-        ),
-      );
-      const message = analysisErrorMessage(error);
-      setAnalysisError(message);
-      toast.error(message);
-    } finally {
-      setAnalyzingDocumentId(null);
-    }
-  };
 
   const toggleDocument = (id: string) => {
     setSelectedDocumentIds((current) => {
@@ -392,7 +322,6 @@ export function PmUpload({
   };
 
   const readjustRequirements = async (documentIdsOverride?: string[]) => {
-    if (isReadjusting || analyzingDocumentId) return;
 
     const activeDocumentIds = new Set(
       documentIdsOverride ?? [...selectedDocumentIds],
@@ -404,7 +333,7 @@ export function PmUpload({
       .filter((id) => Number.isSafeInteger(id) && id > 0);
 
     if (documentIds.length === 0) {
-      toast.error("재조정에 사용할 문서를 확인해 주세요.");
+      toast.error("?�조?�에 ?�용??문서�??�인??주세??");
       return;
     }
 
@@ -425,7 +354,7 @@ export function PmUpload({
     setFiles((current) =>
       current.map((file) =>
         activeDocumentIds.has(file.id)
-          ? { ...file, status: "분석 중" }
+          ? { ...file, status: "분석 �? }
           : file,
       ),
     );
@@ -446,10 +375,10 @@ export function PmUpload({
             const requirementCount = persistedRequirements.filter(
               (requirement) => requirement.sourceDocumentId === documentId,
             ).length;
-            return { ...file, status: "분석 완료", requirementCount };
+            return { ...file, status: "분석 ?�료", requirementCount };
           }),
         );
-        toast.success("요구사항 분석을 완료했습니다.");
+        toast.success("?�구?�항 분석???�료?�습?�다.");
         onAnalysisComplete?.();
       } else {
         const result = await projectRepository.readjustProjectRequirements(
@@ -463,7 +392,7 @@ export function PmUpload({
         );
         await loadDocuments();
         toast.success(
-          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다. 승인 전에는 기존 요구사항이 바뀌지 않습니다.`,
+          `변�??�보 ${result.changeCandidates.length}건을 ?�성?�습?�다. ?�인 ?�에??기존 ?�구?�항??바뀌�? ?�습?�다.`,
         );
       }
       setSelectedDocumentIds(new Set());
@@ -489,11 +418,10 @@ export function PmUpload({
       next.delete(id);
       return next;
     });
-    toast("파일을 목록에서 제거했습니다.");
+    toast("?�일??목록?�서 ?�거?�습?�다.");
   };
 
-  const analysisInProgress =
-    analyzingDocumentId !== null || isReadjusting;
+  const analysisInProgress = isReadjusting;
   const projectDataLoading =
     isLoadingDocuments || isLoadingRequirements;
 
@@ -509,10 +437,10 @@ export function PmUpload({
       <Card>
         <CardHeader className="space-y-1.5">
           <CardTitle className="text-xl font-semibold tracking-tight">
-            프로젝트 문서 업로드
+            ?�로?�트 문서 ?�로??
           </CardTitle>
           <CardDescription className="text-sm leading-5">
-            분석할 프로젝트 문서를 등록하세요.
+            분석???�로?�트 문서�??�록?�세??
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -556,11 +484,11 @@ export function PmUpload({
             )}
             <div className="text-foreground">
               {isUploading
-                ? "프로젝트 문서를 업로드하는 중입니다."
-                : "파일을 끌어다 놓거나 클릭하여 업로드"}
+                ? "?�로?�트 문서�??�로?�하??중입?�다."
+                : "?�일???�어???�거???�릭?�여 ?�로??}
             </div>
             <div className="text-xs text-muted-foreground">
-              PDF · DOCX · XLSX · PPTX · TXT · 파일당 최대 10MB
+              PDF · DOCX · XLSX · PPTX · TXT · ?�일??최�? 10MB
             </div>
           </button>
         </CardContent>
@@ -569,21 +497,21 @@ export function PmUpload({
       <Card>
         <CardHeader className="space-y-1.5">
           <CardTitle className="text-xl font-semibold tracking-tight">
-            업로드된 문서
+            ?�로?�된 문서
           </CardTitle>
           <CardDescription className="text-sm leading-5">
-            문서별 분석 상태와 추출 결과를 확인하세요.
+            문서�?분석 ?�태?� 추출 결과�??�인?�세??
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-hidden rounded-xl border border-border/80">
             <div className="hidden grid-cols-[minmax(0,2.2fr)_0.7fr_1fr_0.9fr_0.8fr_1.25fr] items-center gap-4 border-b bg-muted/35 px-4 py-3 text-xs font-semibold text-muted-foreground md:grid">
-              <div>파일명</div>
-              <div>용량</div>
-              <div>업로드</div>
-              <div>추출 요구사항</div>
-              <div>상태</div>
-              <div className="text-right">작업</div>
+              <div>?�일�?/div>
+              <div>?�량</div>
+              <div>?�로??/div>
+              <div>추출 ?�구?�항</div>
+              <div>?�태</div>
+              <div className="text-right">?�업</div>
             </div>
 
             <div className="divide-y divide-border/70">
@@ -603,16 +531,16 @@ export function PmUpload({
                     </div>
                   </div>
 
-                  <DocumentMeta label="용량" value={file.size} />
-                  <DocumentMeta label="업로드" value={file.uploadedAt} />
+                  <DocumentMeta label="?�량" value={file.size} />
+                  <DocumentMeta label="?�로?? value={file.uploadedAt} />
                   <DocumentMeta
-                    label="추출 요구사항"
-                    value={file.requirementCount > 0 ? `${file.requirementCount}건` : "없음"}
+                    label="추출 ?�구?�항"
+                    value={file.requirementCount > 0 ? `${file.requirementCount}�? : "?�음"}
                     emphasize={file.requirementCount > 0}
                   />
 
                   <div className="flex items-center justify-between gap-3 md:block">
-                    <span className="text-xs font-medium text-muted-foreground md:hidden">상태</span>
+                    <span className="text-xs font-medium text-muted-foreground md:hidden">?�태</span>
                     <Badge
                       variant="outline"
                       className={cn("font-medium", statusClass(file.status))}
@@ -621,30 +549,14 @@ export function PmUpload({
                     </Badge>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      disabled={analyzingDocumentId !== null || isReadjusting}
-                      onClick={() => void reanalyze(file.id)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="다시 분석"
-                      title="다시 분석"
-                    >
-                      {analyzingDocumentId === file.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-3.5" />
-                      )}
-                      재분석
-                    </button>
-                    {mode === "demo" ? (
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">`r`n                    {mode === "demo" ? (
                       <>
                         <button
                           type="button"
-                          onClick={() => toast(`"${file.name}" 다운로드`)}
+                          onClick={() => toast(`"${file.name}" ?�운로드`)}
                           className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
-                          aria-label="다운로드"
-                          title="다운로드"
+                          aria-label="?�운로드"
+                          title="?�운로드"
                         >
                           <Download className="size-3.5" />
                         </button>
@@ -652,8 +564,8 @@ export function PmUpload({
                           type="button"
                           onClick={() => remove(file.id)}
                           className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-                          aria-label="삭제"
-                          title="삭제"
+                          aria-label="??��"
+                          title="??��"
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -666,7 +578,7 @@ export function PmUpload({
               {isLoadingDocuments && (
                 <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" />
-                  프로젝트 문서를 불러오는 중입니다.
+                  ?�로?�트 문서�?불러?�는 중입?�다.
                 </div>
               )}
 
@@ -678,7 +590,7 @@ export function PmUpload({
 
               {!isLoadingDocuments && !loadError && files.length === 0 && (
                 <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  업로드된 문서가 없습니다.
+                  ?�로?�된 문서가 ?�습?�다.
                 </div>
               )}
             </div>
@@ -694,10 +606,10 @@ export function PmUpload({
             </div>
             <div>
               <CardTitle className="text-xl font-semibold tracking-tight">
-                도출된 요구사항
+                ?�출???�구?�항
               </CardTitle>
               <CardDescription className="mt-1 text-sm leading-5">
-                분석된 요구사항과 검토 상태를 확인하세요.
+                분석???�구?�항�?검???�태�??�인?�세??
               </CardDescription>
             </div>
           </div>
@@ -712,7 +624,7 @@ export function PmUpload({
           {analysisInProgress && (
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
               <Loader2 className="size-4 animate-spin" />
-              요구사항을 분석하고 있습니다. 잠시만 기다려 주세요.
+              ?�구?�항??분석?�고 ?�습?�다. ?�시�?기다??주세??
             </div>
           )}
 
@@ -725,7 +637,7 @@ export function PmUpload({
           {projectDataLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              프로젝트 문서와 요구사항을 불러오는 중입니다.
+              ?�로?�트 문서?� ?�구?�항??불러?�는 중입?�다.
             </div>
           ) : requirements.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -735,13 +647,13 @@ export function PmUpload({
                     <TableHead
                       className={cn("font-semibold text-teal-950 dark:text-teal-100", mode === "real" ? "w-auto" : "min-w-52")}
                     >
-                      제목
+                      ?�목
                     </TableHead>
                     {mode === "demo" ? (
-                      <TableHead className="min-w-72 font-semibold text-teal-950 dark:text-teal-100">설명</TableHead>
+                      <TableHead className="min-w-72 font-semibold text-teal-950 dark:text-teal-100">?�명</TableHead>
                     ) : null}
-                    <TableHead className="w-32 font-semibold text-teal-950 dark:text-teal-100">유형</TableHead>
-                    <TableHead className="w-24 font-semibold text-teal-950 dark:text-teal-100">상태</TableHead>
+                    <TableHead className="w-32 font-semibold text-teal-950 dark:text-teal-100">?�형</TableHead>
+                    <TableHead className="w-24 font-semibold text-teal-950 dark:text-teal-100">?�태</TableHead>
                     <TableHead className="w-20 text-right font-semibold text-teal-950 dark:text-teal-100">근거</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -811,7 +723,7 @@ export function PmUpload({
                           size="icon"
                           variant="ghost"
                           disabled={!canOpenEvidence}
-                          title="원문 근거 확인"
+                          title="?�문 근거 ?�인"
                           onClick={(event) => {
                             event.stopPropagation();
                             setEvidenceRequirement(requirement);
@@ -834,10 +746,10 @@ export function PmUpload({
             <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-border p-5">
               <div>
                 <div className="font-medium text-foreground">
-                  아직 도출된 요구사항이 없습니다.
+                  ?�직 ?�출???�구?�항???�습?�다.
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  업로드 문서를 선택한 뒤 분석을 시작하세요.
+                  ?�로??문서�??�택????분석???�작?�세??
                 </p>
               </div>
               <Button
@@ -850,19 +762,18 @@ export function PmUpload({
                 {isReadjusting ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <RefreshCw className="size-4" />
                 )}
-                {isReadjusting ? "요구사항 분석 중" : "전체 문서 분석"}
+                {isReadjusting ? "?�구?�항 분석 �? : "?�체 문서 분석"}
               </Button>
             </div>
           ) : !requirementsLoadError ? (
             <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-border p-5">
               <div>
                 <div className="font-medium text-foreground">
-                  분석할 프로젝트 문서가 필요합니다.
+                  분석???�로?�트 문서가 ?�요?�니??
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  위 영역에서 문서를 먼저 등록하세요.
+                  ???�역?�서 문서�?먼�? ?�록?�세??
                 </p>
               </div>
               <Button
@@ -872,7 +783,7 @@ export function PmUpload({
                 onClick={handlePick}
               >
                 <UploadCloud className="size-4" />
-                문서 업로드
+                문서 ?�로??
               </Button>
             </div>
           ) : null}
@@ -887,12 +798,12 @@ export function PmUpload({
             </div>
             <div>
               <CardTitle className="text-xl font-semibold tracking-tight">
-                {requirements.length > 0 ? "요구사항 재조정" : "요구사항 분석"}
+                {requirements.length > 0 ? "?�구?�항 ?�조?? : "?�구?�항 분석"}
               </CardTitle>
               <CardDescription className="mt-1 text-sm leading-5">
                 {requirements.length > 0
-                  ? "추가 문서로 변경 후보를 만든 뒤 승인된 내용만 반영합니다."
-                  : "분석할 문서를 선택해 요구사항을 생성하세요."}
+                  ? "추�? 문서�?변�??�보�?만든 ???�인???�용�?반영?�니??"
+                  : "분석??문서�??�택???�구?�항???�성?�세??"}
               </CardDescription>
             </div>
           </div>
@@ -902,10 +813,10 @@ export function PmUpload({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
             <div>
               <div className="text-sm font-medium text-foreground">
-                분석에 사용할 문서
+                분석???�용??문서
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                기존 요구사항은 바로 바뀌지 않고 변경 후보로 생성됩니다.
+                기존 ?�구?�항?� 바로 바뀌�? ?�고 변�??�보�??�성?�니??
               </div>
             </div>
             <Button
@@ -916,8 +827,8 @@ export function PmUpload({
               onClick={toggleAllDocuments}
             >
               {selectedDocumentIds.size === files.length && files.length > 0
-                ? "전체 해제"
-                : "전체 선택"}
+                ? "?�체 ?�제"
+                : "?�체 ?�택"}
             </Button>
           </div>
 
@@ -951,14 +862,14 @@ export function PmUpload({
 
             {!isLoadingDocuments && files.length === 0 && (
               <div className="md:col-span-2 rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                분석에 사용할 문서를 먼저 업로드하세요.
+                분석???�용??문서�?먼�? ?�로?�하?�요.
               </div>
             )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <span className="text-sm text-muted-foreground">
-              선택 문서 {selectedDocumentIds.size}개
+              ?�택 문서 {selectedDocumentIds.size}�?
             </span>
             <Button
               type="button"
@@ -968,13 +879,12 @@ export function PmUpload({
               {isReadjusting ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
-                <RefreshCw className="size-4" />
               )}
               {isReadjusting
-                ? "요구사항 분석 중"
+                ? "?�구?�항 분석 �?
                 : requirements.length > 0
-                  ? "선택 문서로 요구사항 재조정"
-                  : "선택 문서로 요구사항 분석"}
+                  ? "?�택 문서�??�구?�항 ?�조??
+                  : "?�택 문서�??�구?�항 분석"}
             </Button>
           </div>
         </CardContent>
@@ -984,10 +894,10 @@ export function PmUpload({
         <Card>
           <CardHeader className="space-y-1.5">
             <CardTitle className="text-xl font-semibold tracking-tight">
-              AI 재조정 검토
+              AI ?�조??검??
             </CardTitle>
             <CardDescription className="text-sm leading-5">
-              변경 후보를 확인하고 적용할 항목을 승인하세요.
+              변�??�보�??�인?�고 ?�용????��???�인?�세??
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1010,7 +920,7 @@ export function PmUpload({
           if (!open) setEvidenceRequirement(null);
         }}
         projectId={project.id}
-        requirementTitle={evidenceRequirement?.title ?? "요구사항 근거"}
+        requirementTitle={evidenceRequirement?.title ?? "?�구?�항 근거"}
         evidences={
           Array.isArray(evidenceRequirement?.evidences)
             ? evidenceRequirement.evidences
@@ -1022,3 +932,5 @@ export function PmUpload({
     </div>
   );
 }
+
+

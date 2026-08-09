@@ -1,25 +1,11 @@
 import { useRef } from "react";
 import { FileText, UploadCloud, X } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
-import {
   PROJECT_DOCUMENT_ACCEPT,
   createPendingProjectDocuments,
   validateProjectDocumentFiles,
   type PendingProjectDocument,
 } from "@/app/components/pm/projectDocumentUpload";
-import type { ProjectDocType } from "@/app/data/demoData";
-
-export const DOC_TYPE_OPTIONS: ProjectDocType[] = [
-  "RFP",
-  "요구사항정의서",
-  "제안서",
-];
 
 interface DocPickerProps {
   documents: PendingProjectDocument[];
@@ -51,10 +37,7 @@ export function DocPicker({
     }
 
     onError?.("");
-    onChange([
-      ...documents,
-      ...createPendingProjectDocuments(selectedFiles),
-    ]);
+    onChange([...documents, ...createPendingProjectDocuments(selectedFiles)]);
   };
 
   return (
@@ -84,7 +67,7 @@ export function DocPicker({
       >
         <UploadCloud className="size-6 text-muted-foreground" />
         <span className="text-foreground text-sm">
-          문서를 끌어다 놓거나 클릭해 선택
+          문서를 드래그하거나 클릭해서 선택
         </span>
         <span className="text-muted-foreground text-xs">
           PDF · DOCX · XLSX · PPTX · TXT · 파일당 최대 10MB
@@ -95,7 +78,7 @@ export function DocPicker({
           {documents.map((document) => (
             <div
               key={document.id}
-              className="grid min-w-0 w-full grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+              className="grid min-w-0 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5"
             >
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
@@ -106,37 +89,11 @@ export function DocPicker({
                   {document.file.name}
                 </span>
               </div>
-              <Select
-                value={document.type}
-                disabled={disabled}
-                onValueChange={(value) =>
-                  onChange(
-                    documents.map((current) =>
-                      current.id === document.id
-                        ? { ...current, type: value as ProjectDocType }
-                        : current,
-                    ),
-                  )
-                }
-              >
-                <SelectTrigger className="h-7 min-w-0 w-full text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOC_TYPE_OPTIONS.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() =>
-                  onChange(
-                    documents.filter((current) => current.id !== document.id),
-                  )
+                  onChange(documents.filter((current) => current.id !== document.id))
                 }
                 className="shrink-0 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
                 aria-label={`${document.file.name} 제거`}

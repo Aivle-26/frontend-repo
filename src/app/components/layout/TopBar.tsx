@@ -57,7 +57,7 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "flex h-[80px] shrink-0 items-center justify-between border-b-[3px] border-cyan-200/90 bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-7 shadow-[0_6px_24px_-15px_rgba(8,145,178,0.9)] dark:border-violet-950/90 dark:from-black dark:via-zinc-950 dark:to-purple-950",
+        "relative z-20 flex h-[80px] shrink-0 items-center justify-between bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-7 shadow-[0_10px_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:shadow-[0_10px_24px_-20px_rgba(139,92,246,0.36)]",
         compactOnMobile && "gap-2 px-3 sm:px-6",
       )}
     >

@@ -71,9 +71,10 @@ import {
 import { mapApiProject } from "@/app/projects/projectMapping";
 import { RealApplication } from "@/app/real/RealApplication";
 
-// 업무 중심(Task Flow) IA. 공지사항은 프로젝트 화면에서 분리해 사이드바 하단 독립 메뉴로 둔다.
+// 업무 중심(Task Flow) IA. 공지사항은 접근성이 높도록 첫 메뉴로 둔다.
 const PM_MENU: SidebarItem[] = [
   // [개요]
+  { key: "notice", label: "공지사항", icon: Megaphone },
   { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
   { key: "orgChart", label: "조직도", icon: Workflow, group: "개요" },
   // [계획]
@@ -90,10 +91,6 @@ const PM_MENU: SidebarItem[] = [
   { key: "search", label: "통합 질의응답", icon: MessagesSquare, group: "도구" },
   // 사이드바에는 숨겼지만 기능/라우팅은 그대로 살아있음 (pmMenu === "similar")
   // { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
-];
-
-const PM_BOTTOM_MENU: SidebarItem[] = [
-  { key: "notice", label: "공지사항", icon: Megaphone },
 ];
 
 const STAFF_MENU: SidebarItem[] = [
@@ -687,7 +684,6 @@ function DemoApplication() {
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
       <Sidebar
         items={menu}
-        bottomItems={isPm ? PM_BOTTOM_MENU : undefined}
         active={activeMenu}
         onSelect={handleSelect}
       />

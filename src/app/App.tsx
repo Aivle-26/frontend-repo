@@ -81,7 +81,7 @@ const PM_MENU: SidebarItem[] = [
   { key: "wbs", label: "WBS", icon: Network, group: "계획" },
   { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
   { key: "assign", label: "업무 배정", icon: Users, group: "계획" },
-  { key: "budget", label: "예산", icon: Wallet, group: "계획" },
+  { key: "budget", label: "견적", icon: Wallet, group: "계획" },
   { key: "uiPrototype", label: "UI 프로토타입", icon: LayoutTemplate, group: "계획" },
   // [실행]
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
@@ -482,7 +482,7 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "budget") {
-      subtitle = "예산";
+      subtitle = "견적";
       body = <PmBudget key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "uiPrototype") {
       subtitle = "UI 프로토타입";

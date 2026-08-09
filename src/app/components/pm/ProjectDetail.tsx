@@ -279,7 +279,7 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
     },
     {
       key: "budget",
-      label: "예산",
+      label: "견적",
       count: finalBudget ? 1 : 0,
       icon: <Wallet className="size-4" />,
     },
@@ -686,7 +686,7 @@ function PlanningStagePreview({
   }
 
   // budget
-  if (!finalBudget) return <EmptyStage text="확정된 예산이 없습니다." />;
+  if (!finalBudget) return <EmptyStage text="확정된 견적이 없습니다." />;
   return (
     <div className="space-y-1.5 text-sm">
       <div className="flex items-center justify-between">

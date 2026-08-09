@@ -7,7 +7,6 @@ import {
   CirclePlus,
   Loader2,
   ReceiptText,
-  RefreshCw,
   Save,
   Trash2,
 } from "lucide-react";
@@ -79,6 +78,8 @@ export function PmBudget({ project }: PmBudgetProps) {
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [needsEstimate, setNeedsEstimate] = useState(false);
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
   const initialized = useRef(false);
@@ -106,10 +107,10 @@ export function PmBudget({ project }: PmBudgetProps) {
       try {
         const saved = await projectRepository.getEditedKosaCost(project.id);
         hydrate(saved);
+        setNeedsEstimate(false);
       } catch (caught) {
         if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
-        const generated = await projectRepository.generateKosaEffortEstimate(project.id);
-        hydrate(generated);
+        setNeedsEstimate(true);
       }
       setDirty(false);
     } catch (caught) {
@@ -121,6 +122,41 @@ export function PmBudget({ project }: PmBudgetProps) {
   }, [hydrate, project.id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const buildRequestFrom = useCallback((data: KosaCostResponse): KosaCostRequestBody => ({
+    personnel: data.personnel.map((row) => ({
+      employeeNumber: row.employeeNumber,
+      kosaJobCategory: row.kosaJobCategory,
+      detailedJob: row.detailedJob,
+      headcount: row.headcount,
+      durationMonths: row.durationMonths,
+      utilizationRate: row.utilizationRate,
+      proposedMonthlyRate: row.proposedMonthlyRate,
+    })),
+    overheadRate: data.overheadRate ?? 30,
+    technicalFeeRate: data.technicalFeeRate ?? 10,
+    directExpense: data.directExpense ?? 0,
+    expenseItems: data.expenseItems ?? [],
+    discountAmount: data.discountAmount ?? 0,
+    includeVat: data.includeVat ?? true,
+    note: data.note ?? "2026년 KOSA 평균임금 기준",
+  }), []);
+
+  const generateEstimate = async () => {
+    setGenerating(true);
+    setError("");
+    try {
+      const generated = await projectRepository.generateKosaEffortEstimate(project.id);
+      const calculated = await projectRepository.calculateKosaCost(project.id, buildRequestFrom(generated));
+      hydrate({ ...generated, ...calculated, wbsEfforts: generated.wbsEfforts });
+      setNeedsEstimate(false);
+      toast.success("AI 공수와 견적 계산을 완료했습니다.");
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const requestBody = useMemo<KosaCostRequestBody>(() => ({
     personnel: personnel.map((row) => ({
@@ -199,14 +235,17 @@ export function PmBudget({ project }: PmBudgetProps) {
 
   if (loading) return (
     <div className="flex min-h-[520px] items-center justify-center rounded-2xl border border-border bg-card/80">
-      <div className="text-center"><Loader2 className="mx-auto size-7 animate-spin text-primary" /><p className="mt-3 text-sm text-muted-foreground">저장된 견적과 AI 공수를 불러오는 중입니다</p></div>
+      <div className="text-center"><Loader2 className="mx-auto size-7 animate-spin text-primary" /><p className="mt-3 text-sm text-muted-foreground">저장된 견적을 불러오는 중입니다</p></div>
     </div>
   );
 
-  if (error && personnel.length === 0) return (
+  if (needsEstimate) return (
     <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-border bg-card px-6 text-center shadow-sm">
-      <AlertCircle className="size-9 text-amber-500" /><h2 className="mt-4 text-lg font-semibold">견적을 준비하지 못했습니다</h2><p className="mt-2 max-w-lg text-sm text-muted-foreground">{error}</p>
-      <Button className="mt-5" onClick={() => void load()}><RefreshCw className="size-4" /> 다시 시도</Button>
+      <div className="grid size-12 place-items-center rounded-2xl bg-primary/10"><BrainCircuit className="size-6 text-primary" /></div>
+      <h2 className="mt-4 text-lg font-semibold">아직 생성된 견적이 없습니다</h2>
+      <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">확정된 WBS·일정·담당자를 기준으로 AI가 공수를 산정하고, 직접인건비와 제경비·기술료를 자동 계산합니다.</p>
+      {error && <p className="mt-3 flex items-center gap-1.5 text-sm text-amber-600"><AlertCircle className="size-4" />{error}</p>}
+      <Button className="mt-5" onClick={() => void generateEstimate()} disabled={generating}>{generating ? <Loader2 className="size-4 animate-spin" /> : <BrainCircuit className="size-4" />}{generating ? "AI 공수 산정 중…" : "AI 공수 산정하기"}</Button>
     </div>
   );
 
@@ -228,7 +267,7 @@ export function PmBudget({ project }: PmBudgetProps) {
         </div>
         <div className="grid border-t border-white/10 bg-black/10 sm:grid-cols-[1fr_auto]">
           <div className="px-5 py-3"><span className="text-xs text-white/55">프로젝트명</span><p className="mt-0.5 text-sm font-medium">{result?.projectName ?? project.name}</p></div>
-          <div className="border-t border-white/10 px-5 py-3 sm:min-w-72 sm:border-l sm:border-t-0"><span className="text-xs text-white/55">프로젝트 기간</span><p className="mt-0.5 font-mono text-sm">{projectStart} — {projectEnd}</p></div>
+          <div className="border-t border-white/10 px-5 py-3 sm:min-w-72 sm:border-l sm:border-t-0"><span className="text-xs text-white/55">프로젝트 기간</span><p className="mt-0.5 text-sm">{projectStart} — {projectEnd}</p></div>
         </div>
       </section>
 
@@ -250,10 +289,10 @@ export function PmBudget({ project }: PmBudgetProps) {
                 <td className="w-20 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="1" value={row.headcount} onChange={(e) => updatePerson(index, { headcount: numberValue(e.target.value) })} /></td>
                 <td className="w-24 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" step="0.1" value={row.durationMonths} onChange={(e) => updatePerson(index, { durationMonths: numberValue(e.target.value) })} /></td>
                 <td className="w-24 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" max="100" value={row.utilizationRate} onChange={(e) => updatePerson(index, { utilizationRate: numberValue(e.target.value) })} /></td>
-                <td className="whitespace-nowrap px-3 text-right font-mono font-semibold text-primary">{(row.calculatedMm ?? row.estimatedMm ?? 0).toFixed(2)}</td>
-                <td className="whitespace-nowrap px-3 text-right font-mono text-xs text-muted-foreground">{won(row.standardMonthlyRate)}</td>
-                <td className="w-36 px-1.5"><Input className="h-8 text-right font-mono text-xs" type="number" min="0" step="10000" value={row.proposedMonthlyRate} onChange={(e) => updatePerson(index, { proposedMonthlyRate: numberValue(e.target.value) })} /></td>
-                <td className="whitespace-nowrap px-3 text-right font-mono font-bold text-[#153f5e] dark:text-violet-200">{won(row.amount)}</td>
+                <td className="whitespace-nowrap px-3 text-right font-semibold text-primary">{(row.calculatedMm ?? row.estimatedMm ?? 0).toFixed(2)}</td>
+                <td className="whitespace-nowrap px-3 text-right text-xs text-muted-foreground">{won(row.standardMonthlyRate)}</td>
+                <td className="w-36 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" step="10000" value={row.proposedMonthlyRate} onChange={(e) => updatePerson(index, { proposedMonthlyRate: numberValue(e.target.value) })} /></td>
+                <td className="whitespace-nowrap px-3 text-right font-bold text-[#153f5e] dark:text-violet-200">{won(row.amount)}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -275,9 +314,9 @@ export function PmBudget({ project }: PmBudgetProps) {
               <div key={role} className="overflow-hidden rounded-xl border border-border bg-card">
                 <button type="button" className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/35" onClick={() => setOpenEvidenceGroups((current) => { const next = new Set(current); next.has(role) ? next.delete(role) : next.add(role); return next; })}>
                   <span className="flex min-w-0 items-center gap-3"><ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} /><strong className="truncate text-sm">{role}</strong><span className="shrink-0 text-xs text-muted-foreground">{items.length}건</span></span>
-                  <span className="shrink-0 font-mono text-sm font-semibold text-muted-foreground">{totalMm.toFixed(2)} MM</span>
+                  <span className="shrink-0 text-sm font-semibold text-muted-foreground">{totalMm.toFixed(2)} MM</span>
                 </button>
-                {open && <div className="grid gap-2 border-t border-border bg-[#f7fbfc] p-3 dark:bg-black/10 lg:grid-cols-2">{items.map((item) => <article key={`${item.wbsId}-${item.employeeNumber}`} className="rounded-lg border border-border bg-card px-3.5 py-3"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.wbsName}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{item.employeeName} · {item.estimatedPersonDays} 인일</p></div><span className="shrink-0 font-mono text-xs font-bold text-primary">{item.estimatedMm.toFixed(2)} MM</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.estimationReason}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(0, Math.min(100, item.confidence * 100))}%` }} /></div><p className="mt-1 text-right text-[10px] text-muted-foreground">신뢰도 {Math.round(item.confidence * 100)}%</p></article>)}</div>}
+                {open && <div className="grid gap-2 border-t border-border bg-[#f7fbfc] p-3 dark:bg-black/10 lg:grid-cols-2">{items.map((item) => <article key={`${item.wbsId}-${item.employeeNumber}`} className="rounded-lg border border-border bg-card px-3.5 py-3"><div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold">{item.wbsName}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{item.employeeName} · {item.estimatedPersonDays} 인일</p></div><span className="shrink-0 text-xs font-bold text-primary">{item.estimatedMm.toFixed(2)} MM</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.estimationReason}</p><div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(0, Math.min(100, item.confidence * 100))}%` }} /></div><p className="mt-1 text-right text-[10px] text-muted-foreground">신뢰도 {Math.round(item.confidence * 100)}%</p></article>)}</div>}
               </div>
             );
           })}
@@ -293,14 +332,14 @@ export function PmBudget({ project }: PmBudgetProps) {
             <CostInputRow label="제경비" description="직접인건비 × 적용률" value={overheadRate} suffix="%" onChange={(v) => setCostValue(setOverheadRate, v)} amount={result?.overheadAmount} />
             <CostInputRow label="기술료·이윤" description="(직접인건비 + 제경비) × 적용률" value={technicalFeeRate} suffix="%" onChange={(v) => setCostValue(setTechnicalFeeRate, v)} amount={result?.technicalFeeAmount} />
             <CostInputRow label="직접경비" description="출장비·장비비 등" value={directExpense} suffix="원" onChange={(v) => setCostValue(setDirectExpense, v)} amount={directExpense} />
-            <div className="flex items-center justify-between bg-primary/8 px-5 py-4"><span className="font-semibold">개발비 소계</span><strong className="font-mono text-base text-primary">{won(result?.developmentCost)}</strong></div>
+            <div className="flex items-center justify-between bg-primary/8 px-5 py-4"><span className="font-semibold">개발비 소계</span><strong className="text-base text-primary">{won(result?.developmentCost)}</strong></div>
           </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="flex items-center justify-between border-b border-border bg-muted/45 px-5 py-3.5"><div><h3 className="text-sm font-semibold">추가 비용</h3><p className="mt-0.5 text-xs text-muted-foreground">라이선스, 클라우드 등 별도 비용을 관리합니다.</p></div><Button variant="outline" size="sm" onClick={() => { setExpenses((rows) => [...rows, { ...EMPTY_EXPENSE }]); setDirty(true); }}><CirclePlus className="size-3.5" /> 항목 추가</Button></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-xs"><thead className="border-b border-border bg-muted/20 text-muted-foreground"><tr>{['품목명','수량','단위','단가','금액','포함',''].map((x, i) => <th key={`${x}-${i}`} className="px-2 py-2 font-medium">{x}</th>)}</tr></thead><tbody>{expenses.map((item, index) => <tr key={index} className="border-b border-border/70"><td className="w-40 px-1.5 py-1.5"><Input className="h-8 text-xs" value={item.name} placeholder="비용 항목" onChange={(e) => updateExpense(index, { name: e.target.value })} /></td><td className="w-16 px-1"><Input className="h-8 text-right text-xs" type="number" min="0" value={item.quantity} onChange={(e) => updateExpense(index, { quantity: numberValue(e.target.value) })} /></td><td className="w-20 px-1"><Input className="h-8 text-xs" value={item.unit} onChange={(e) => updateExpense(index, { unit: e.target.value })} /></td><td className="w-28 px-1"><Input className="h-8 text-right font-mono text-xs" type="number" min="0" value={item.unitPrice} onChange={(e) => updateExpense(index, { unitPrice: numberValue(e.target.value) })} /></td><td className="whitespace-nowrap px-2 text-right font-mono font-semibold">{won(item.amount ?? item.quantity * item.unitPrice)}</td><td className="px-2 text-center"><Checkbox checked={item.included} onCheckedChange={(v) => updateExpense(index, { included: v === true })} /></td><td className="px-1"><button className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => { setExpenses((rows) => rows.filter((_, i) => i !== index)); setDirty(true); }} aria-label="비용 항목 삭제"><Trash2 className="size-3.5" /></button></td></tr>)}{expenses.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">추가 비용이 없습니다.</td></tr>}</tbody></table></div>
-          <div className="flex items-center justify-between bg-primary/8 px-5 py-4 text-sm"><span className="font-semibold">추가 비용 소계</span><strong className="font-mono text-base text-primary">{won(result?.expenseItemTotal)}</strong></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-xs"><thead className="border-b border-border bg-muted/20 text-muted-foreground"><tr>{['품목명','수량','단위','단가','금액','포함',''].map((x, i) => <th key={`${x}-${i}`} className="px-2 py-2 font-medium">{x}</th>)}</tr></thead><tbody>{expenses.map((item, index) => <tr key={index} className="border-b border-border/70"><td className="w-40 px-1.5 py-1.5"><Input className="h-8 text-xs" value={item.name} placeholder="비용 항목" onChange={(e) => updateExpense(index, { name: e.target.value })} /></td><td className="w-16 px-1"><Input className="h-8 text-right text-xs" type="number" min="0" value={item.quantity} onChange={(e) => updateExpense(index, { quantity: numberValue(e.target.value) })} /></td><td className="w-20 px-1"><Input className="h-8 text-xs" value={item.unit} onChange={(e) => updateExpense(index, { unit: e.target.value })} /></td><td className="w-28 px-1"><Input className="h-8 text-right text-xs" type="number" min="0" value={item.unitPrice} onChange={(e) => updateExpense(index, { unitPrice: numberValue(e.target.value) })} /></td><td className="whitespace-nowrap px-2 text-right font-semibold">{won(item.amount ?? item.quantity * item.unitPrice)}</td><td className="px-2 text-center"><Checkbox checked={item.included} onCheckedChange={(v) => updateExpense(index, { included: v === true })} /></td><td className="px-1"><button className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => { setExpenses((rows) => rows.filter((_, i) => i !== index)); setDirty(true); }} aria-label="비용 항목 삭제"><Trash2 className="size-3.5" /></button></td></tr>)}{expenses.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">추가 비용이 없습니다.</td></tr>}</tbody></table></div>
+          <div className="flex items-center justify-between bg-primary/8 px-5 py-4 text-sm"><span className="font-semibold">추가 비용 소계</span><strong className="text-base text-primary">{won(result?.expenseItemTotal)}</strong></div>
         </section>
       </div>
 
@@ -308,8 +347,8 @@ export function PmBudget({ project }: PmBudgetProps) {
         <div className="grid gap-px bg-border lg:grid-cols-[1fr_1fr_1.2fr_2fr]">
           <SummaryCell label="개발비" value={won(result?.developmentCost)} />
           <SummaryCell label="추가 비용" value={won(result?.expenseItemTotal)} />
-          <div className="flex items-center gap-3 bg-card px-4 py-3"><label className="text-xs text-muted-foreground">할인</label><Input className="h-8 text-right font-mono text-xs" type="number" min="0" value={discountAmount} onChange={(e) => setCostValue(setDiscountAmount, e.target.value)} /><span className="text-xs text-muted-foreground">원</span></div>
-          <div className="flex items-center justify-between bg-[#155d91] px-5 py-3 text-white dark:bg-violet-800"><div><p className="text-xs text-white/65">최종 금액</p><p className="text-[10px] text-white/50">공급가액 {won(result?.supplyAmount)}</p></div><strong className="font-mono text-2xl tracking-tight">{won(totalAmount)}</strong></div>
+          <div className="flex items-center gap-3 bg-card px-4 py-3"><label className="text-xs text-muted-foreground">할인</label><Input className="h-8 text-right text-xs" type="number" min="0" value={discountAmount} onChange={(e) => setCostValue(setDiscountAmount, e.target.value)} /><span className="text-xs text-muted-foreground">원</span></div>
+          <div className="flex items-center justify-between bg-[#155d91] px-5 py-3 text-white dark:bg-violet-800"><div><p className="text-xs text-white/65">최종 금액</p><p className="text-[10px] text-white/50">공급가액 {won(result?.supplyAmount)}</p></div><strong className="text-2xl tracking-tight">{won(totalAmount)}</strong></div>
         </div>
         <div className="flex flex-col gap-3 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between"><Input className="h-9 flex-1 text-xs" value={note} placeholder="견적 메모" onChange={(e) => { setNote(e.target.value); setDirty(true); }} /><label className="flex items-center gap-2 text-xs text-muted-foreground"><Checkbox checked={includeVat} onCheckedChange={(v) => { setIncludeVat(v === true); setDirty(true); }} />VAT 10% 포함</label><span className="flex items-center gap-1.5 text-xs text-muted-foreground">{result?.confirmed ? <Check className="size-3.5 text-emerald-500" /> : null}{result?.confirmed ? "저장된 최종 견적" : "저장 전 견적"}</span></div>
       </section>
@@ -318,13 +357,13 @@ export function PmBudget({ project }: PmBudgetProps) {
 }
 
 function CostRow({ label, description, value }: { label: string; description: string; value?: number }) {
-  return <div className="grid grid-cols-[1fr_auto] items-center px-5 py-3"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><strong className="font-mono text-sm">{won(value)}</strong></div>;
+  return <div className="grid grid-cols-[1fr_auto] items-center px-5 py-3"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><strong className="text-sm">{won(value)}</strong></div>;
 }
 
 function CostInputRow({ label, description, value, suffix, onChange, amount }: { label: string; description: string; value: number; suffix: string; onChange: (value: string) => void; amount?: number }) {
-  return <div className="grid grid-cols-[1fr_110px_120px] items-center gap-3 px-5 py-2.5"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><div className="relative"><Input className="h-8 pr-8 text-right font-mono text-xs" type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} /><span className="absolute right-2 top-2 text-[10px] text-muted-foreground">{suffix}</span></div><strong className="text-right font-mono text-xs">{won(amount)}</strong></div>;
+  return <div className="grid grid-cols-[1fr_110px_120px] items-center gap-3 px-5 py-2.5"><div><p className="font-medium">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{description}</p></div><div className="relative"><Input className="h-8 pr-8 text-right text-xs" type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} /><span className="absolute right-2 top-2 text-[10px] text-muted-foreground">{suffix}</span></div><strong className="text-right text-xs">{won(amount)}</strong></div>;
 }
 
 function SummaryCell({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between bg-card px-4 py-3"><span className="text-xs text-muted-foreground">{label}</span><strong className="font-mono text-sm">{value}</strong></div>;
+  return <div className="flex items-center justify-between bg-card px-4 py-3"><span className="text-xs text-muted-foreground">{label}</span><strong className="text-sm">{value}</strong></div>;
 }

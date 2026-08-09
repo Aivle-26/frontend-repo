@@ -380,6 +380,91 @@ export interface FinalCostEstimateResponse extends CostEstimateResponse {
   updatedAt: string;
 }
 
+export interface KosaWbsEvidence {
+  wbsId: number;
+  wbsName: string;
+  employeeNumber: string;
+  employeeName: string;
+  kosaJobCategory: string;
+  detailedJob: string;
+  estimatedPersonDays: number;
+  estimatedMm: number;
+  estimationReason: string;
+  confidence: number;
+}
+
+export interface KosaPersonnel {
+  employeeNumber: string;
+  employeeName: string;
+  kosaJobCategory: string;
+  detailedJob: string;
+  headcount: number;
+  durationMonths: number;
+  utilizationRate: number;
+  estimatedPersonDays?: number;
+  estimatedMm?: number;
+  calculatedMm?: number;
+  standardMonthlyRate: number;
+  proposedMonthlyRate: number;
+  amount: number;
+  wbsEvidence?: KosaWbsEvidence[];
+}
+
+export interface KosaExpenseItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  included: boolean;
+  amount?: number;
+}
+
+export interface KosaCostRequestBody {
+  personnel: Array<Pick<KosaPersonnel, "employeeNumber" | "kosaJobCategory" | "detailedJob" | "headcount" | "durationMonths" | "utilizationRate" | "proposedMonthlyRate">>;
+  overheadRate: number;
+  technicalFeeRate: number;
+  directExpense: number;
+  expenseItems: KosaExpenseItem[];
+  discountAmount: number;
+  includeVat: boolean;
+  note: string;
+}
+
+export interface KosaCostResponse {
+  costEstimateId?: number | null;
+  projectId: number;
+  projectName?: string;
+  projectStartDate?: string;
+  projectEndDate?: string;
+  confirmed?: boolean;
+  kosaRateYear: number;
+  workdaysPerMonth?: number;
+  totalEstimatedPersonDays?: number;
+  totalEstimatedMm?: number;
+  totalPersonnelAmount?: number;
+  currency: string;
+  llmStatus?: string;
+  personnel: KosaPersonnel[];
+  wbsEfforts?: KosaWbsEvidence[];
+  expenseItems?: KosaExpenseItem[];
+  totalMm?: number;
+  directLaborCost?: number;
+  overheadRate?: number;
+  overheadAmount?: number;
+  technicalFeeRate?: number;
+  technicalFeeAmount?: number;
+  directExpense?: number;
+  developmentCost?: number;
+  expenseItemTotal?: number;
+  discountAmount?: number;
+  supplyAmount?: number;
+  includeVat?: boolean;
+  vat?: number;
+  totalAmount?: number;
+  note?: string;
+  updatedAt?: string | null;
+}
+
 export interface AssignmentRecommendationCandidate {
   employeeNumber: string;
   availableHoursPerWeek: number;
@@ -1328,6 +1413,34 @@ export const projectRepository = {
   getFinalCostEstimate(projectId: string | number) {
     return apiFetch<FinalCostEstimateResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
+      { auth: true },
+    );
+  },
+
+  generateKosaEffortEstimate(projectId: string | number) {
+    return apiFetch<KosaCostResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/effort-estimate`,
+      { method: "POST", auth: true },
+    );
+  },
+
+  calculateKosaCost(projectId: string | number, input: KosaCostRequestBody) {
+    return apiFetch<KosaCostResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/calculate`,
+      { method: "POST", body: JSON.stringify(input), auth: true },
+    );
+  },
+
+  saveEditedKosaCost(projectId: string | number, input: KosaCostRequestBody) {
+    return apiFetch<KosaCostResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
+      { method: "PUT", body: JSON.stringify(input), auth: true },
+    );
+  },
+
+  getEditedKosaCost(projectId: string | number) {
+    return apiFetch<KosaCostResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
       { auth: true },
     );
   },

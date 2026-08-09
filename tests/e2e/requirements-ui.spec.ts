@@ -645,8 +645,18 @@ test("shows analysis progress and blocks duplicate submissions", async ({
     name: "전체 문서 분석",
     exact: true,
   });
+  const documentRow = page
+    .getByRole("row")
+    .filter({ hasText: document.originalFileName });
+  await expect(documentRow.getByText("대기", { exact: true })).toBeVisible();
+  await expect(
+    documentRow.getByRole("button", { name: "다시 분석" }),
+  ).toHaveCount(0);
   await analyzeButton.click();
 
+  await expect(
+    documentRow.getByText("분석 중", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText(
       "요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.",
@@ -663,6 +673,9 @@ test("shows analysis progress and blocks duplicate submissions", async ({
   releaseAnalysis?.();
   await expect(
     page.getByText("요구사항 분석을 완료했습니다.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    documentRow.getByText("분석 완료", { exact: true }),
   ).toBeVisible();
   expect(analyzeCalls).toBe(1);
 });
@@ -685,8 +698,13 @@ test("keeps existing requirements visible when analysis fails", async ({
     requirements: [requirement],
   });
 
-  const row = page.getByRole("row").filter({ hasText: document.originalFileName });
-  await row.getByRole("button", { name: "다시 분석" }).click();
+  const readjustmentCard = page
+    .getByRole("heading", { name: "요구사항 재조정" })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await readjustmentCard.getByRole("checkbox").check();
+  await readjustmentCard
+    .getByRole("button", { name: "선택 문서로 요구사항 재조정" })
+    .click();
 
   await expect(
     page
@@ -696,7 +714,9 @@ test("keeps existing requirements visible when analysis fails", async ({
         { exact: true },
       ),
   ).toBeVisible();
-  await expect(page.getByText(requirement.title, { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: requirement.title, exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(staleNotice, { exact: true })).toHaveCount(0);
 });
 
@@ -993,7 +1013,7 @@ async function openUpload(
       : "/",
   );
   if (!options.real) {
-    await page.getByRole("button", { name: "문서 업로드", exact: true }).click();
+    await page.getByRole("button", { name: "요구사항", exact: true }).click();
   }
   await expect(
     page.getByRole("heading", { name: "도출된 요구사항", exact: true }),

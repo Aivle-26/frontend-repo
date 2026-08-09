@@ -159,6 +159,7 @@ export interface OrganizationChartDownload {
 
 export interface AnalyzeProjectRequirementsRequest {
   documentIds: number[];
+  force?: boolean;
 }
 
 
@@ -173,6 +174,25 @@ export type RequirementType =
   | "OPERATION"
   | "PROJECT_MANAGEMENT"
   | "UNSPECIFIED";
+
+export interface NormalizedBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface RequirementEvidence {
+  evidenceId: number | null;
+  documentId: number;
+  sourceDocument: string;
+  pageNumber: number | null;
+  chunkId: string;
+  quoteText: string;
+  startOffset: number | null;
+  endOffset: number | null;
+  boundingBoxes: NormalizedBoundingBox[];
+}
 
 export interface RequirementResponse {
   requirementId: number;
@@ -193,6 +213,7 @@ export interface RequirementResponse {
   confirmed: boolean;
   createdAt: string;
   updatedAt: string;
+  evidences: RequirementEvidence[];
 }
 
 export interface RequirementsResult {
@@ -201,6 +222,11 @@ export interface RequirementsResult {
   finalRequirements: RequirementResponse[];
 }
 
+export type RequirementChangeType =
+  | "ADDED"
+  | "MODIFIED"
+  | "REMOVED"
+  | "UNCHANGED";
 export type RequirementChangeReviewStatus =
   | "PENDING_REVIEW"
   | "APPROVED"
@@ -219,18 +245,18 @@ export interface RequirementChangeProposal {
   securityCondition: string | null;
   sourceDocument: string | null;
   sourceExcerpt: string | null;
-  evidences: unknown[];
+  evidences: RequirementEvidence[];
 }
 
 export interface RequirementChangeCandidate {
   candidateId: number;
   existingRequirementId: number | null;
-  changeType: "ADDED" | "MODIFIED" | "REMOVED" | "UNCHANGED";
+  changeType: RequirementChangeType;
   reviewStatus: RequirementChangeReviewStatus;
   changeReason: string | null;
   existingRequirement: RequirementChangeProposal | null;
   proposedRequirement: RequirementChangeProposal | null;
-  evidences: unknown[];
+  evidences: RequirementEvidence[];
   applied: boolean;
   createdAt: string;
   reviewedAt: string | null;
@@ -239,6 +265,11 @@ export interface RequirementChangeCandidate {
 export interface RequirementReadjustmentResult {
   projectId: number;
   changeCandidates: RequirementChangeCandidate[];
+}
+
+export interface ReviewRequirementChangeRequest {
+  reviewStatus: RequirementChangeReviewStatus;
+  proposedRequirement?: RequirementChangeProposal | null;
 }
 
 export interface SaveFinalRequirement {
@@ -1654,6 +1685,31 @@ export const projectRepository = {
     );
   },
 
+  deleteProjectDocument(
+    projectId: string | number,
+    documentId: string | number,
+  ) {
+    return apiFetch<void>(
+      `/projects/${encodeURIComponent(String(projectId))}/documents/${encodeURIComponent(String(documentId))}`,
+      {
+        method: "DELETE",
+        auth: true,
+        expectedStatuses: [204],
+      },
+    );
+  },
+
+  getProjectDocumentContent(
+    projectId: string | number,
+    documentId: string | number,
+    signal?: AbortSignal,
+  ) {
+    return apiFetchBlob(
+      `/projects/${encodeURIComponent(String(projectId))}/documents/${encodeURIComponent(String(documentId))}/content`,
+      { auth: true, signal },
+    );
+  },
+
   analyzeProjectRequirements(
     projectId: string | number,
     input: AnalyzeProjectRequirementsRequest,
@@ -1679,6 +1735,7 @@ export const projectRepository = {
         method: "POST",
         body: JSON.stringify(input),
         auth: true,
+        expectedStatuses: [200],
       },
     );
   },
@@ -1693,10 +1750,7 @@ export const projectRepository = {
   reviewRequirementChange(
     projectId: string | number,
     candidateId: string | number,
-    input: {
-      reviewStatus: RequirementChangeReviewStatus;
-      proposedRequirement?: RequirementChangeProposal | null;
-    },
+    input: ReviewRequirementChangeRequest,
   ) {
     return apiFetch<RequirementChangeCandidate>(
       `/projects/${encodeURIComponent(String(projectId))}/requirements/readjustments/${encodeURIComponent(String(candidateId))}`,
@@ -1726,7 +1780,8 @@ export const projectRepository = {
     const documents = await this.listProjectDocuments(projectId);
     return this.analyzeProjectRequirements(projectId, {
       documentIds: documents.documents.map((document) => document.documentId),
+      force: true,
     });
   },
 
-};;
+};

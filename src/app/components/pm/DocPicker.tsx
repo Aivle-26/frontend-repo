@@ -26,6 +26,7 @@ interface DocPickerProps {
   onChange: (documents: PendingProjectDocument[]) => void;
   onError?: (message: string) => void;
   disabled?: boolean;
+  showTypeSelector?: boolean;
 }
 
 export function DocPicker({
@@ -33,6 +34,7 @@ export function DocPicker({
   onChange,
   onError,
   disabled = false,
+  showTypeSelector = true,
 }: DocPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -95,7 +97,11 @@ export function DocPicker({
           {documents.map((document) => (
             <div
               key={document.id}
-              className="grid min-w-0 w-full grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+              className={
+                showTypeSelector
+                  ? "grid min-w-0 w-full grid-cols-[minmax(0,1fr)_7rem_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5 sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+                  : "grid min-w-0 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md border border-border px-2.5 py-1.5"
+              }
             >
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
@@ -106,30 +112,32 @@ export function DocPicker({
                   {document.file.name}
                 </span>
               </div>
-              <Select
-                value={document.type}
-                disabled={disabled}
-                onValueChange={(value) =>
-                  onChange(
-                    documents.map((current) =>
-                      current.id === document.id
-                        ? { ...current, type: value as ProjectDocType }
-                        : current,
-                    ),
-                  )
-                }
-              >
-                <SelectTrigger className="h-7 min-w-0 w-full text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOC_TYPE_OPTIONS.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {showTypeSelector ? (
+                <Select
+                  value={document.type}
+                  disabled={disabled}
+                  onValueChange={(value) =>
+                    onChange(
+                      documents.map((current) =>
+                        current.id === document.id
+                          ? { ...current, type: value as ProjectDocType }
+                          : current,
+                      ),
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-7 min-w-0 w-full text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOC_TYPE_OPTIONS.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
               <button
                 type="button"
                 disabled={disabled}

@@ -6,7 +6,6 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-  SlidersHorizontal,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -101,25 +100,9 @@ function analysisErrorMessage(error: unknown) {
   return messages[error.status] ?? error.message;
 }
 
-function requirementStatusLabel(status: RequirementResponse["status"]) {
-  if (status === "CONFIRMED") return "확정";
-  if (status === "REJECTED") return "반려";
-  return "검토 전";
-}
-
-function requirementStatusClass(status: RequirementResponse["status"]) {
-  if (status === "CONFIRMED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (status === "REJECTED") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-  return "border-amber-200 bg-amber-50 text-amber-700";
-}
-
-function finalRequirements(result: RequirementsResult) {
-  return Array.isArray(result.finalRequirements)
-    ? result.finalRequirements
+function analyzedRequirements(result: RequirementsResult) {
+  return Array.isArray(result.aiSuggestions)
+    ? result.aiSuggestions
     : [];
 }
 
@@ -169,8 +152,8 @@ export function PmUpload({
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
   const [requirementsLoadError, setRequirementsLoadError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
-  const [analyzingDocumentId, setAnalyzingDocumentId] = useState<string | null>(
-    null,
+  const [deletingDocumentIds, setDeletingDocumentIds] = useState<Set<string>>(
+    () => new Set(),
   );
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
     () => new Set(),
@@ -220,7 +203,7 @@ export function PmUpload({
       .getRequirements(project.id)
       .then((result) => {
         if (!ignore) {
-          setRequirements(finalRequirements(result));
+          setRequirements(analyzedRequirements(result));
         }
       })
       .catch((error) => {
@@ -242,6 +225,29 @@ export function PmUpload({
       ignore = true;
     };
   }, [project.id]);
+
+  useEffect(() => {
+    if (isLoadingDocuments || isLoadingRequirements) return;
+
+    const requirementCounts = new Map<string, number>();
+    requirements.forEach((requirement) => {
+      if (requirement.sourceDocumentId == null) return;
+      const documentId = String(requirement.sourceDocumentId);
+      requirementCounts.set(
+        documentId,
+        (requirementCounts.get(documentId) ?? 0) + 1,
+      );
+    });
+    setFiles((current) =>
+      current.map((file) => ({
+        ...file,
+        requirementCount:
+          file.status === "분석 완료"
+            ? requirementCounts.get(file.id) ?? 0
+            : 0,
+      })),
+    );
+  }, [isLoadingDocuments, isLoadingRequirements, requirements]);
 
   useEffect(() => {
     let ignore = false;
@@ -307,73 +313,6 @@ export function PmUpload({
     void addFiles(selectedFiles);
   };
 
-  const reanalyze = async (id: string) => {
-    if (analyzingDocumentId || isReadjusting) return;
-
-    const documentId = Number(id);
-    if (!Number.isSafeInteger(documentId) || documentId <= 0) {
-      toast.error("분석할 프로젝트 문서를 확인해 주세요.");
-      return;
-    }
-
-    const previous = files.find((file) => file.id === id);
-    setAnalysisError("");
-    setAnalyzingDocumentId(id);
-    setFiles((current) =>
-      current.map((file) =>
-        file.id === id ? { ...file, status: "분석 중" } : file,
-      ),
-    );
-
-    try {
-      if (requirements.length > 0) {
-        const result = await projectRepository.readjustProjectRequirements(
-          project.id,
-          { documentIds: [documentId] },
-        );
-        setChangeCandidates(result.changeCandidates);
-        await loadDocuments();
-        toast.success(
-          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다.`,
-        );
-        return;
-      }
-      await projectRepository.analyzeProjectRequirements(project.id, {
-        documentIds: [documentId],
-      });
-      const persisted = await projectRepository.getRequirements(project.id);
-      const persistedRequirements = finalRequirements(persisted);
-      setRequirements(persistedRequirements);
-      setRequirementsLoadError("");
-      const requirementCount = persistedRequirements.filter(
-        (requirement) => requirement.sourceDocumentId === documentId,
-      ).length;
-
-      setFiles((current) =>
-        current.map((file) =>
-          file.id === id
-            ? { ...file, status: "분석 완료", requirementCount }
-            : file,
-        ),
-      );
-      toast.success("요구사항 분석을 완료했습니다.");
-      onAnalysisComplete?.();
-    } catch (error) {
-      setFiles((current) =>
-        current.map((file) =>
-          file.id === id && previous
-            ? { ...file, status: previous.status }
-            : file,
-        ),
-      );
-      const message = analysisErrorMessage(error);
-      setAnalysisError(message);
-      toast.error(message);
-    } finally {
-      setAnalyzingDocumentId(null);
-    }
-  };
-
   const toggleDocument = (id: string) => {
     setSelectedDocumentIds((current) => {
       const next = new Set(current);
@@ -392,7 +331,7 @@ export function PmUpload({
   };
 
   const readjustRequirements = async (documentIdsOverride?: string[]) => {
-    if (isReadjusting || analyzingDocumentId) return;
+    if (isReadjusting) return;
 
     const activeDocumentIds = new Set(
       documentIdsOverride ?? [...selectedDocumentIds],
@@ -410,62 +349,55 @@ export function PmUpload({
 
     const isInitialAnalysis = requirements.length === 0;
     const previousFileStates = new Map(
-      files
-        .filter((file) => activeDocumentIds.has(file.id))
-        .map((file) => [
-          file.id,
-          {
-            status: file.status,
-            requirementCount: file.requirementCount,
-          },
-        ] as const),
+      files.map((file) => [
+        file.id,
+        {
+          status: file.status,
+          requirementCount: file.requirementCount,
+        },
+      ] as const),
     );
     setAnalysisError("");
     setIsReadjusting(true);
     setFiles((current) =>
       current.map((file) =>
         activeDocumentIds.has(file.id)
-          ? { ...file, status: "분석 중" }
-          : file,
+          ? { ...file, status: "분석 중", requirementCount: 0 }
+          : { ...file, status: "대기", requirementCount: 0 },
       ),
     );
 
     try {
-      if (isInitialAnalysis) {
-        await projectRepository.analyzeProjectRequirements(project.id, {
-          documentIds,
-        });
-        const persisted = await projectRepository.getRequirements(project.id);
-        const persistedRequirements = finalRequirements(persisted);
-        setRequirements(persistedRequirements);
-        setRequirementsLoadError("");
-        setFiles((current) =>
-          current.map((file) => {
-            if (!activeDocumentIds.has(file.id)) return file;
-            const documentId = Number(file.id);
-            const requirementCount = persistedRequirements.filter(
-              (requirement) => requirement.sourceDocumentId === documentId,
-            ).length;
-            return { ...file, status: "분석 완료", requirementCount };
-          }),
-        );
-        toast.success("요구사항 분석을 완료했습니다.");
-        onAnalysisComplete?.();
-      } else {
-        const result = await projectRepository.readjustProjectRequirements(
-          project.id,
-          { documentIds },
-        );
-        setChangeCandidates(
-          Array.isArray(result.changeCandidates)
-            ? result.changeCandidates
-            : [],
-        );
-        await loadDocuments();
-        toast.success(
-          `변경 후보 ${result.changeCandidates.length}건을 생성했습니다. 승인 전에는 기존 요구사항이 바뀌지 않습니다.`,
-        );
-      }
+      const result = await projectRepository.analyzeProjectRequirements(
+        project.id,
+        { documentIds, force: true },
+      );
+      const latestRequirements = analyzedRequirements(result).filter(
+        (requirement) =>
+          requirement.sourceDocumentId != null &&
+          activeDocumentIds.has(String(requirement.sourceDocumentId)),
+      );
+      setRequirements(latestRequirements);
+      setRequirementsLoadError("");
+      setChangeCandidates([]);
+      setFiles((current) =>
+        current.map((file) => {
+          if (!activeDocumentIds.has(file.id)) {
+            return { ...file, status: "대기", requirementCount: 0 };
+          }
+          const documentId = Number(file.id);
+          const requirementCount = latestRequirements.filter(
+            (requirement) => requirement.sourceDocumentId === documentId,
+          ).length;
+          return { ...file, status: "분석 완료", requirementCount };
+        }),
+      );
+      toast.success(
+        isInitialAnalysis
+          ? "요구사항 분석을 완료했습니다."
+          : "선택한 문서 기준으로 요구사항을 다시 분석했습니다.",
+      );
+      onAnalysisComplete?.();
       setSelectedDocumentIds(new Set());
     } catch (error) {
       setFiles((current) =>
@@ -482,18 +414,32 @@ export function PmUpload({
     }
   };
 
-  const remove = (id: string) => {
-    setFiles((current) => current.filter((file) => file.id !== id));
-    setSelectedDocumentIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-    toast("파일을 목록에서 제거했습니다.");
+  const remove = async (id: string) => {
+    if (deletingDocumentIds.has(id) || isReadjusting) return;
+
+    setDeletingDocumentIds((current) => new Set(current).add(id));
+    try {
+      await projectRepository.deleteProjectDocument(project.id, id);
+      await loadDocuments();
+      toast.success("프로젝트 문서를 삭제했습니다.");
+    } catch (error) {
+      const message =
+        error instanceof ApiError && error.status === 409
+          ? "도출된 요구사항에서 사용 중인 문서는 삭제할 수 없습니다."
+          : error instanceof ApiError
+            ? error.message
+            : "프로젝트 문서를 삭제하지 못했습니다.";
+      toast.error(message);
+    } finally {
+      setDeletingDocumentIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
-  const analysisInProgress =
-    analyzingDocumentId !== null || isReadjusting;
+  const analysisInProgress = isReadjusting;
   const projectDataLoading =
     isLoadingDocuments || isLoadingRequirements;
 
@@ -567,13 +513,50 @@ export function PmUpload({
       </Card>
 
       <Card>
-        <CardHeader className="space-y-1.5">
-          <CardTitle className="text-xl font-semibold tracking-tight">
-            업로드된 문서
-          </CardTitle>
-          <CardDescription className="text-sm leading-5">
-            문서별 분석 상태와 추출 결과를 확인하세요.
-          </CardDescription>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1.5">
+              <CardTitle className="text-xl font-semibold tracking-tight">
+                업로드된 문서
+              </CardTitle>
+              <CardDescription className="text-sm leading-5">
+                분석할 문서를 선택하고 요구사항을 생성하거나 재조정하세요.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-sm text-muted-foreground">
+                선택 {selectedDocumentIds.size}개
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={files.length === 0 || analysisInProgress}
+                onClick={toggleAllDocuments}
+              >
+                {selectedDocumentIds.size === files.length && files.length > 0
+                  ? "전체 해제"
+                  : "전체 선택"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={selectedDocumentIds.size === 0 || analysisInProgress}
+                onClick={() => void readjustRequirements()}
+              >
+                {isReadjusting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                {isReadjusting
+                  ? "요구사항 분석 중"
+                  : requirements.length > 0
+                    ? "선택 문서로 요구사항 재조정"
+                    : "선택 문서로 요구사항 분석"}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-hidden rounded-xl border border-border/80">
@@ -594,6 +577,14 @@ export function PmUpload({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedDocumentIds.has(file.id)}
+                        disabled={
+                          analysisInProgress || deletingDocumentIds.has(file.id)
+                        }
+                        onCheckedChange={() => toggleDocument(file.id)}
+                        aria-label={`${file.name} 분석 대상 선택`}
+                      />
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-rose-200/80 bg-rose-50 text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/35 dark:text-rose-300">
                         <FileText className="size-4" />
                       </span>
@@ -615,28 +606,18 @@ export function PmUpload({
                     <span className="text-xs font-medium text-muted-foreground md:hidden">상태</span>
                     <Badge
                       variant="outline"
-                      className={cn("font-medium", statusClass(file.status))}
+                      aria-live="polite"
+                      className={cn(
+                        "font-medium transition-colors duration-300",
+                        statusClass(file.status),
+                        file.status === "분석 중" && "animate-pulse",
+                      )}
                     >
                       {file.status}
                     </Badge>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      disabled={analyzingDocumentId !== null || isReadjusting}
-                      onClick={() => void reanalyze(file.id)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="다시 분석"
-                      title="다시 분석"
-                    >
-                      {analyzingDocumentId === file.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-3.5" />
-                      )}
-                      재분석
-                    </button>
                     {mode === "demo" ? (
                       <>
                         <button
@@ -650,12 +631,20 @@ export function PmUpload({
                         </button>
                         <button
                           type="button"
-                          onClick={() => remove(file.id)}
-                          className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                          disabled={
+                            analysisInProgress || deletingDocumentIds.has(file.id)
+                          }
+                          onClick={() => void remove(file.id)}
+                          className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
                           aria-label="삭제"
                           title="삭제"
+                          aria-busy={deletingDocumentIds.has(file.id)}
                         >
-                          <Trash2 className="size-3.5" />
+                          {deletingDocumentIds.has(file.id) ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
                         </button>
                       </>
                     ) : null}
@@ -697,7 +686,7 @@ export function PmUpload({
                 도출된 요구사항
               </CardTitle>
               <CardDescription className="mt-1 text-sm leading-5">
-                분석된 요구사항과 검토 상태를 확인하세요.
+                분석된 요구사항과 원문 근거를 확인하세요.
               </CardDescription>
             </div>
           </div>
@@ -728,21 +717,23 @@ export function PmUpload({
               프로젝트 문서와 요구사항을 불러오는 중입니다.
             </div>
           ) : requirements.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table className={mode === "real" ? "table-fixed" : undefined}>
+            <div className="overflow-hidden rounded-lg border border-border [&_[data-slot=table-container]]:overflow-x-hidden">
+              <Table className="w-full table-fixed">
                 <TableHeader>
                   <TableRow className="bg-teal-50/85 hover:bg-teal-50/85 dark:bg-teal-950/30 dark:hover:bg-teal-950/30">
                     <TableHead
-                      className={cn("font-semibold text-teal-950 dark:text-teal-100", mode === "real" ? "w-auto" : "min-w-52")}
+                      className={cn(
+                        "font-semibold text-teal-950 dark:text-teal-100",
+                        mode === "demo" ? "w-[30%]" : "w-auto",
+                      )}
                     >
                       제목
                     </TableHead>
                     {mode === "demo" ? (
-                      <TableHead className="min-w-72 font-semibold text-teal-950 dark:text-teal-100">설명</TableHead>
+                      <TableHead className="font-semibold text-teal-950 dark:text-teal-100">설명</TableHead>
                     ) : null}
-                    <TableHead className="w-32 font-semibold text-teal-950 dark:text-teal-100">유형</TableHead>
-                    <TableHead className="w-24 font-semibold text-teal-950 dark:text-teal-100">상태</TableHead>
-                    <TableHead className="w-20 text-right font-semibold text-teal-950 dark:text-teal-100">근거</TableHead>
+                    <TableHead className="w-24 text-center font-semibold text-teal-950 dark:text-teal-100 sm:w-32">유형</TableHead>
+                    <TableHead className="w-14 text-center font-semibold text-teal-950 dark:text-teal-100 sm:w-20">근거</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -776,36 +767,21 @@ export function PmUpload({
                         }}
                       >
                       <TableCell
-                        className={cn(
-                          "font-medium text-foreground",
-                          mode === "real" &&
-                            "whitespace-normal break-words leading-5",
-                        )}
+                        className="whitespace-normal break-words font-medium leading-5 text-foreground [overflow-wrap:anywhere]"
                       >
                         {requirement.title}
                       </TableCell>
                       {mode === "demo" ? (
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="whitespace-normal break-words text-sm leading-5 text-muted-foreground [overflow-wrap:anywhere]">
                           {requirement.description}
                         </TableCell>
                       ) : null}
-                      <TableCell>
-                        <Badge variant="outline" className="font-normal">
+                      <TableCell className="whitespace-normal break-words text-center [overflow-wrap:anywhere]">
+                        <Badge variant="outline" className="mx-auto max-w-full whitespace-normal break-all text-center font-normal leading-4">
                           {requirement.type}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "font-normal",
-                            requirementStatusClass(requirement.status),
-                          )}
-                        >
-                          {requirementStatusLabel(requirement.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <Button
                           type="button"
                           size="icon"
@@ -879,107 +855,6 @@ export function PmUpload({
         </CardContent>
       </Card>
 
-      <Card className="border-primary/20 bg-primary/[0.02]">
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <SlidersHorizontal className="size-5" />
-            </div>
-            <div>
-              <CardTitle className="text-xl font-semibold tracking-tight">
-                {requirements.length > 0 ? "요구사항 재조정" : "요구사항 분석"}
-              </CardTitle>
-              <CardDescription className="mt-1 text-sm leading-5">
-                {requirements.length > 0
-                  ? "추가 문서로 변경 후보를 만든 뒤 승인된 내용만 반영합니다."
-                  : "분석할 문서를 선택해 요구사항을 생성하세요."}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
-            <div>
-              <div className="text-sm font-medium text-foreground">
-                분석에 사용할 문서
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                기존 요구사항은 바로 바뀌지 않고 변경 후보로 생성됩니다.
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={files.length === 0 || analysisInProgress}
-              onClick={toggleAllDocuments}
-            >
-              {selectedDocumentIds.size === files.length && files.length > 0
-                ? "전체 해제"
-                : "전체 선택"}
-            </Button>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-2">
-            {files.map((file) => (
-              <label
-                key={file.id}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
-                  selectedDocumentIds.has(file.id)
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-background hover:bg-muted/40",
-                )}
-              >
-                <Checkbox
-                  checked={selectedDocumentIds.has(file.id)}
-                  disabled={analysisInProgress}
-                  onCheckedChange={() => toggleDocument(file.id)}
-                />
-                <FileText className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-foreground">
-                    {file.name}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {file.size} · {file.status}
-                  </div>
-                </div>
-              </label>
-            ))}
-
-            {!isLoadingDocuments && files.length === 0 && (
-              <div className="md:col-span-2 rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                분석에 사용할 문서를 먼저 업로드하세요.
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-            <span className="text-sm text-muted-foreground">
-              선택 문서 {selectedDocumentIds.size}개
-            </span>
-            <Button
-              type="button"
-              disabled={selectedDocumentIds.size === 0 || analysisInProgress}
-              onClick={() => void readjustRequirements()}
-            >
-              {isReadjusting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-              {isReadjusting
-                ? "요구사항 분석 중"
-                : requirements.length > 0
-                  ? "선택 문서로 요구사항 재조정"
-                  : "선택 문서로 요구사항 분석"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {changeCandidates.length > 0 ? (
         <Card>
           <CardHeader className="space-y-1.5">
@@ -996,7 +871,7 @@ export function PmUpload({
               candidates={changeCandidates}
               onCandidatesChange={setChangeCandidates}
               onApplied={(result) => {
-                setRequirements(finalRequirements(result));
+                setRequirements(analyzedRequirements(result));
                 setRequirementsLoadError("");
               }}
             />

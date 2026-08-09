@@ -228,7 +228,7 @@ export function RealApplication() {
   );
 
   if (isPm && activeMenu === "project-data") {
-    title = "문서 및 요구사항";
+    title = "대시보드";
     body = selectedProject ? (
       <div className="space-y-4">
         <ProjectScopeBar

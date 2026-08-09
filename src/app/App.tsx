@@ -535,7 +535,7 @@ function DemoApplication() {
         />
       );
     } else if (pmDetail) {
-      subtitle = `${pmDetail.name} · 운영`;
+      subtitle = "대시보드";
       body = (
         <ProjectDetail
           project={pmDetail}

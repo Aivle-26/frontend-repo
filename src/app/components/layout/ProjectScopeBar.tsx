@@ -53,7 +53,7 @@ export function ProjectScopeBar({
       className={cn(
         "flex flex-wrap items-center gap-2.5",
         compact
-          ? "text-sm"
+          ? "min-w-0 text-sm"
           : "rounded-xl border border-border bg-card px-4 py-2.5 gap-3",
       )}
     >
@@ -68,7 +68,7 @@ export function ProjectScopeBar({
         <SelectTrigger
           className={cn(
             compact
-              ? "h-9 w-64 justify-start rounded-full border-cyan-200 bg-white/80 pl-3 pr-3.5 font-medium text-teal-900 shadow-sm backdrop-blur-sm transition-all [&>svg:last-child]:ml-auto hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:border-cyan-400 focus-visible:ring-cyan-500/30 dark:border-violet-800/80 dark:bg-black/45 dark:text-violet-100 dark:hover:border-violet-600 dark:hover:bg-violet-950/70"
+              ? "h-9 w-full min-w-[8.5rem] max-w-64 justify-start rounded-full border-cyan-200 bg-white/80 pl-3 pr-3.5 font-medium text-teal-900 shadow-sm backdrop-blur-sm transition-all [&>svg:last-child]:ml-auto hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:border-cyan-400 focus-visible:ring-cyan-500/30 dark:border-violet-800/80 dark:bg-black/45 dark:text-violet-100 dark:hover:border-violet-600 dark:hover:bg-violet-950/70"
               : "h-9 w-72",
           )}
         >

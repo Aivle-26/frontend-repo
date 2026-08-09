@@ -57,17 +57,18 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "relative z-20 flex h-[80px] shrink-0 items-center justify-between bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-7 shadow-[0_10px_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:shadow-[0_10px_24px_-20px_rgba(139,92,246,0.36)]",
+        "relative z-20 flex h-[80px] shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-cyan-50 via-teal-50 to-sky-50/90 px-4 shadow-[0_10px_24px_-20px_rgba(8,145,178,0.42)] lg:px-7 dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:shadow-[0_10px_24px_-20px_rgba(139,92,246,0.36)]",
         compactOnMobile && "gap-2 px-3 sm:px-6",
       )}
     >
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3 lg:gap-4">
         {/* 제목 길이가 화면마다 달라도 옆의 프로젝트 선택란이 흔들리지 않도록
             제목 칸의 최소 너비를 고정한다. (가장 긴 제목인 "UI 프로토타입" 기준) */}
         <div
           className={cn(
             "min-w-0 shrink-0 leading-tight",
-            middleContent && "sm:min-w-[10.5rem]",
+            // 좁은 화면에서는 고정 폭을 풀어야 선택란과 겹치지 않는다.
+            middleContent && "md:min-w-[10.5rem]",
           )}
         >
           <div className="truncate text-xl font-bold text-teal-950 dark:text-violet-50">
@@ -85,18 +86,21 @@ export function TopBar({
               aria-hidden="true"
               className="hidden h-7 w-px shrink-0 bg-cyan-300/50 sm:block dark:bg-violet-800/60"
             />
-            <div className="min-w-0">{middleContent}</div>
+            <div className="min-w-0 flex-1">{middleContent}</div>
           </>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 lg:gap-3">
         {actions}
         <Badge
           variant="secondary"
           className={cn(
-            "border border-cyan-200 bg-white/76 text-[0.94rem] font-semibold text-teal-800 shadow-sm dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
-            compactOnMobile && "hidden sm:inline-flex",
+            // 축소 순서: (1) 권한 뱃지 <1280 → (2) 사용자 이름 <1150
+            // → (3) 로그아웃 글자 <1040 → (4) 사이드바 자동 접힘 <940.
+            // 잃는 게 적은 것부터 내준다. 권한·이름은 프로필 팝오버에서 그대로 볼 수 있고,
+            // 로그아웃은 아이콘만으로도 뜻이 통한다.
+            "hidden border border-cyan-200 bg-white/76 text-[0.94rem] font-semibold text-teal-800 shadow-sm xl:inline-flex dark:border-violet-700/70 dark:bg-violet-950/45 dark:text-violet-200",
           )}
         >
           {roleLabel}
@@ -110,10 +114,10 @@ export function TopBar({
               type="button"
               aria-label={`${displayName} 프로필 열기`}
               title={`${displayName} 프로필`}
-              className="group flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 py-1.5 pl-2 pr-3.5 shadow-sm outline-none backdrop-blur-sm transition-all hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cyan-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
+              className="group flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 py-1.5 pl-2 pr-2 shadow-sm min-[1150px]:pr-3.5 outline-none backdrop-blur-sm transition-all hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cyan-50 dark:border-violet-800/80 dark:bg-black/45 dark:hover:border-violet-600 dark:hover:bg-violet-950/70 dark:focus-visible:ring-violet-500 dark:focus-visible:ring-offset-black"
             >
               <UserRound className="size-[18px] shrink-0 text-teal-700 dark:text-violet-300" />
-              <span className="whitespace-nowrap text-[1.05rem] font-semibold text-teal-950 dark:text-violet-50">
+              <span className="hidden whitespace-nowrap text-[1.05rem] font-semibold text-teal-950 min-[1150px]:inline dark:text-violet-50">
                 {displayName}
               </span>
             </PopoverTrigger>
@@ -191,9 +195,7 @@ export function TopBar({
           className="border-cyan-200 bg-white/72 text-teal-800 hover:border-cyan-300 hover:bg-cyan-100 hover:text-teal-950 dark:border-violet-800/80 dark:bg-black/35 dark:text-violet-200 dark:hover:border-violet-600 dark:hover:bg-violet-950/65 dark:hover:text-violet-50"
         >
           <LogOut className="size-4" />
-          <span className={cn(compactOnMobile && "hidden sm:inline")}>
-            로그아웃
-          </span>
+          <span className="hidden min-[1040px]:inline">로그아웃</span>
         </Button>
       </div>
     </header>

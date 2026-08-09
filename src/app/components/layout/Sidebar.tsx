@@ -33,6 +33,10 @@ const MIN_SIDEBAR_WIDTH = 72;
 const ICON_ONLY_THRESHOLD = 170;
 // 기본값보다 넓히는 것은 허용하지 않는다. 기본값에서 줄이는 방향으로만 조절 가능.
 const MAX_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH;
+// 창이 좁아지면 자동으로 아이콘 모드로 접는다. 헤더 쪽 축소(권한 뱃지 → 사용자 이름
+// → 로그아웃 글자)를 모두 소진한 뒤 마지막 단계다. TopBar.tsx의 주석 참고.
+// 사용자가 저장해 둔 너비는 건드리지 않고, 창을 다시 넓히면 그대로 복원된다.
+const AUTO_COLLAPSE_QUERY = "(max-width: 939px)";
 
 // 활성 표시는 "배경 틴트 + 좌측 액센트 바" 하나로만 전달한다.
 // (예전처럼 원형 배지 / ring / shadow를 겹쳐 쓰면 신호가 과해져 촌스러워 보인다.)
@@ -81,7 +85,14 @@ export function Sidebar({
     );
   });
 
-  const isIconOnly = sidebarWidth < ICON_ONLY_THRESHOLD;
+  const [isAutoCollapsed, setIsAutoCollapsed] = useState(
+    () => window.matchMedia(AUTO_COLLAPSE_QUERY).matches,
+  );
+  const [isResizing, setIsResizing] = useState(false);
+
+  // 저장된 너비(사용자 설정)와 실제 적용 너비를 분리한다.
+  const effectiveWidth = isAutoCollapsed ? MIN_SIDEBAR_WIDTH : sidebarWidth;
+  const isIconOnly = effectiveWidth < ICON_ONLY_THRESHOLD;
   const standaloneItems = useMemo(
     () => items.filter((item) => !item.group),
     [items],
@@ -111,11 +122,22 @@ export function Sidebar({
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(AUTO_COLLAPSE_QUERY);
+    const handleChange = (event: MediaQueryListEvent) =>
+      setIsAutoCollapsed(event.matches);
+
+    setIsAutoCollapsed(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
 
     const startX = event.clientX;
     const startWidth = sidebarWidth;
+    setIsResizing(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
@@ -130,6 +152,7 @@ export function Sidebar({
       setSidebarWidth(limitedWidth);
     };
     const stopResize = () => {
+      setIsResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       window.removeEventListener("pointermove", handlePointerMove);
@@ -149,8 +172,10 @@ export function Sidebar({
       className={cn(
         "relative z-30 flex shrink-0 flex-col bg-gradient-to-b from-cyan-50 via-teal-50/95 to-sky-50/85 text-teal-950 shadow-[10px_0_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50 dark:shadow-[10px_0_24px_-20px_rgba(139,92,246,0.36)]",
         hideOnMobile && "hidden md:flex",
+        // 드래그 중에는 전환이 걸리면 커서를 따라오지 못해 끊겨 보인다.
+        !isResizing && "transition-[width] duration-200 ease-out",
       )}
-      style={{ width: `${sidebarWidth}px` }}
+      style={{ width: `${effectiveWidth}px` }}
     >
       <div
         className={cn(
@@ -171,9 +196,11 @@ export function Sidebar({
         ) : null}
       </div>
 
+      {/* 세로 공간이 부족하면 잘리지 않고 스크롤되도록 한다.
+          (overflow-hidden이면 항목이 그대로 잘려 사라진다) */}
       <nav
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden py-1.5",
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden py-1.5",
           isIconOnly ? "px-2" : "px-3",
         )}
       >
@@ -230,7 +257,6 @@ export function Sidebar({
 
         <div
           className={cn(
-            "min-h-0",
             distributeGroups ? "flex flex-1 flex-col gap-3" : "space-y-3",
           )}
         >
@@ -246,7 +272,9 @@ export function Sidebar({
               className={cn(
                 "border border-cyan-200/80 bg-white/68 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35",
                 isIconOnly ? "rounded-xl p-0.5" : "rounded-2xl p-0.5",
-                distributeGroups && "flex min-h-0 flex-1 flex-col",
+                // min-h-min: 여유가 있을 때만 늘어나고, 공간이 부족하면
+                // 내용 높이 아래로는 줄지 않는다 (min-h-0이면 찌그러져 잘린다).
+                distributeGroups && "flex min-h-min flex-1 flex-col",
               )}
             >
               {!isIconOnly ? (
@@ -266,7 +294,7 @@ export function Sidebar({
               <div
                 className={cn(
                   distributeGroups
-                    ? "flex min-h-0 flex-1 flex-col justify-evenly"
+                    ? "flex min-h-min flex-1 flex-col justify-evenly gap-0.5"
                     : "space-y-1.5 pb-1 pt-0.5",
                 )}
               >
@@ -401,15 +429,19 @@ export function Sidebar({
         </div>
       ) : null}
 
-      <div
-        role="separator"
-        aria-label="사이드바 너비 조절"
-        aria-orientation="vertical"
-        title="드래그하여 너비 조절 · 좁히면 아이콘 모드 · 더블클릭하여 초기화"
-        onPointerDown={startResize}
-        onDoubleClick={resetSidebarWidth}
-        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
-      />
+      {/* 창이 좁아 자동으로 접힌 상태에서는 너비 조절을 막는다
+          (조절해도 즉시 되접혀 고장난 것처럼 보인다) */}
+      {!isAutoCollapsed ? (
+        <div
+          role="separator"
+          aria-label="사이드바 너비 조절"
+          aria-orientation="vertical"
+          title="드래그하여 너비 조절 · 좁히면 아이콘 모드 · 더블클릭하여 초기화"
+          onPointerDown={startResize}
+          onDoubleClick={resetSidebarWidth}
+          className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
+        />
+      ) : null}
     </aside>
   );
 }

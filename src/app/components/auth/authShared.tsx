@@ -509,12 +509,31 @@ export function AuthShell({
         Number.parseFloat(styles.paddingBottom);
       const naturalHeight = grid.scrollHeight;
       const availableHeight = Math.max(0, main.clientHeight - verticalPadding);
-      const scale = Math.min(1, availableHeight / naturalHeight);
 
+      // 아직 레이아웃이 잡히기 전(높이 0)에 재면 scale이 0이 되어 화면 전체가
+      // transform: scale(0)으로 사라진다. 새로고침하면 보이던 이유가 이것.
+      // 측정값이 유효하지 않으면 축소하지 않고 원본 크기로 둔다.
+      if (naturalHeight <= 0 || availableHeight <= 0) {
+        setFit({ scale: 1, height: 0 });
+        return;
+      }
+
+      const rawScale = availableHeight / naturalHeight;
+      if (!Number.isFinite(rawScale) || rawScale <= 0) {
+        setFit({ scale: 1, height: 0 });
+        return;
+      }
+
+      const scale = Math.min(1, rawScale);
       setFit({ scale, height: naturalHeight * scale });
     };
 
     updateFit();
+
+    // 폰트·이미지가 늦게 들어오면 높이가 바뀌므로 페인트 후 한 번 더 잰다.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(updateFit));
+    document.fonts?.ready.then(updateFit).catch(() => {});
+
     const observer = new ResizeObserver(updateFit);
     if (mainRef.current) observer.observe(mainRef.current);
     if (gridRef.current) observer.observe(gridRef.current);
@@ -522,6 +541,7 @@ export function AuthShell({
     window.addEventListener("resize", updateFit);
 
     return () => {
+      cancelAnimationFrame(raf);
       observer.disconnect();
       window.removeEventListener("resize", updateFit);
     };
@@ -642,7 +662,8 @@ export function AuthShell({
               matchPanelHeight && "lg:items-stretch",
             )}
             style={
-              fitViewport && fit.scale < 1
+              // scale이 0이나 NaN으로 새면 화면이 통째로 사라지므로 유효 범위만 적용
+              fitViewport && fit.scale > 0 && fit.scale < 1
                 ? {
                     transform: `scale(${fit.scale})`,
                     transformOrigin: "center top",

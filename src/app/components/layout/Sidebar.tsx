@@ -34,10 +34,31 @@ const ICON_ONLY_THRESHOLD = 170;
 // 기본값보다 넓히는 것은 허용하지 않는다. 기본값에서 줄이는 방향으로만 조절 가능.
 const MAX_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH;
 
+// 활성 표시는 "배경 틴트 + 좌측 액센트 바" 하나로만 전달한다.
+// (예전처럼 원형 배지 / ring / shadow를 겹쳐 쓰면 신호가 과해져 촌스러워 보인다.)
+const ITEM_BASE_CLASS =
+  "group relative flex w-full items-center whitespace-nowrap rounded-lg py-1.5 text-sm transition-colors duration-150";
 const ACTIVE_ITEM_CLASS =
-  "bg-cyan-100/85 font-semibold text-teal-950 shadow-[0_6px_16px_-12px_rgba(13,148,136,0.7)] ring-1 ring-inset ring-cyan-300/85 dark:bg-violet-600/25 dark:text-violet-50 dark:shadow-[0_6px_16px_-12px_rgba(139,92,246,0.65)] dark:ring-violet-500/45";
+  "bg-[#D4FBFE] font-medium text-teal-950 dark:bg-violet-400/16 dark:text-violet-50";
 const INACTIVE_ITEM_CLASS =
-  "text-teal-900/70 hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50";
+  "text-teal-900/65 hover:bg-[#D4FBFE]/55 hover:text-teal-950 dark:text-zinc-300/75 dark:hover:bg-violet-400/10 dark:hover:text-violet-50";
+const ACTIVE_ICON_CLASS = "text-teal-700 dark:text-violet-300";
+const INACTIVE_ICON_CLASS =
+  "text-teal-800/40 group-hover:text-teal-800/70 dark:text-violet-300/40 dark:group-hover:text-violet-300/70";
+const ACTIVE_BAR_CLASS = "bg-teal-600 dark:bg-violet-400";
+
+/** 활성 항목 좌측의 3px 액센트 바. */
+function ActiveBar({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "absolute left-1 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full",
+        className,
+      )}
+    />
+  );
+}
 
 export function Sidebar({
   items,
@@ -171,51 +192,31 @@ export function Sidebar({
                   aria-label={item.label}
                   title={isIconOnly ? item.label : undefined}
                   className={cn(
-                    "w-full text-sm font-semibold transition-colors duration-150",
-                    isIconOnly
-                      ? "flex items-center justify-center py-1.5"
-                      : "flex justify-center",
+                    // 그룹 항목과 같은 "전체 폭 배경 채움 + 좌측 액센트 바" 구조.
+                    // 다만 공지사항은 중요도가 높아 라벨을 가운데 정렬로 유지한다.
+                    "relative flex w-full items-center justify-center rounded-lg py-1.5 text-sm font-semibold transition-colors duration-150",
+                    isIconOnly ? "px-2" : "px-3",
                     isActive
-                      ? "text-rose-700 dark:text-rose-200"
-                      : "text-rose-600/85 hover:text-rose-700 dark:text-rose-300/85 dark:hover:text-rose-200",
+                      ? "bg-[#FBEFF1] text-rose-700 dark:bg-rose-400/16 dark:text-rose-200"
+                      : "text-rose-600/85 hover:bg-[#FBEFF1]/60 hover:text-rose-700 dark:text-rose-300/85 dark:hover:bg-rose-400/10 dark:hover:text-rose-200",
                   )}
                 >
-                  {isIconOnly ? (
-                    <span
-                      className={cn(
-                        "flex size-6 items-center justify-center rounded-full transition-all duration-150",
-                        isActive
-                          ? "bg-rose-600 text-white shadow-[0_4px_10px_-6px_rgba(225,29,72,0.9)] dark:bg-rose-500"
-                          : "text-rose-600 dark:text-rose-300",
-                      )}
-                    >
-                      <Icon className="size-4" />
-                    </span>
-                  ) : (
-                    <span
-                      className={cn(
-                        "relative inline-flex -translate-x-4 items-center gap-2 px-5 py-1.5 transition-transform duration-150",
-                      )}
-                    >
-                      {isActive ? (
-                        <span
-                          className="absolute inset-0 translate-x-1 rounded-full bg-rose-50/90 shadow-[0_6px_16px_-12px_rgba(225,29,72,0.65)] ring-1 ring-inset ring-rose-200/90 dark:bg-rose-950/35 dark:ring-rose-800/70"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                      <span
-                        className={cn(
-                          "relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
-                          isActive
-                            ? "bg-rose-600 text-white shadow-[0_4px_10px_-6px_rgba(225,29,72,0.9)] dark:bg-rose-500"
-                            : "text-rose-600 dark:text-rose-300",
-                        )}
-                      >
-                        <Icon className="size-4" />
-                      </span>
-                      <span className="relative z-10">{item.label}</span>
-                    </span>
-                  )}
+                  {/* 좌측 바 위치: nav px-3 + 그룹 카드 p-0.5 만큼 보정해 세로선을 맞춘다. */}
+                  {isActive && !isIconOnly ? (
+                    <ActiveBar className="left-1.5 bg-rose-600 dark:bg-rose-400" />
+                  ) : null}
+                  {/* 아이콘을 좌측에 고정 배치해야 라벨이 버튼의 정확한 가운데에 온다.
+                      (아이콘을 흐름에 두면 아이콘+라벨 묶음이 중앙에 놓여 글자가 오른쪽으로 밀린다.) */}
+                  <Icon
+                    className={cn(
+                      "size-4 shrink-0 transition-colors duration-150",
+                      !isIconOnly && "absolute left-6",
+                      isActive
+                        ? "text-rose-600 dark:text-rose-300"
+                        : "text-rose-600/70 dark:text-rose-300/70",
+                    )}
+                  />
+                  {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                 </button>
               );
             })}
@@ -282,21 +283,22 @@ export function Sidebar({
                       aria-label={item.label}
                       title={isIconOnly ? item.label : undefined}
                       className={cn(
-                        "group flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150",
-                        isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
+                        ITEM_BASE_CLASS,
+                        isIconOnly
+                          ? "justify-center px-2"
+                          : "gap-2.5 pl-4 pr-3 text-left",
                         isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                       )}
                     >
-                      <span
+                      {isActive && !isIconOnly ? (
+                        <ActiveBar className={ACTIVE_BAR_CLASS} />
+                      ) : null}
+                      <Icon
                         className={cn(
-                          "flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
-                          isActive
-                            ? "bg-teal-600 text-white shadow-[0_4px_10px_-6px_rgba(13,148,136,0.9)] dark:bg-violet-500 dark:shadow-[0_4px_10px_-6px_rgba(139,92,246,0.9)]"
-                            : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
+                          "size-4 shrink-0 transition-colors duration-150",
+                          isActive ? ACTIVE_ICON_CLASS : INACTIVE_ICON_CLASS,
                         )}
-                      >
-                        <Icon className={isActive ? "size-4" : "size-3.5"} />
-                      </span>
+                      />
                       {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                     </button>
                   );
@@ -326,21 +328,22 @@ export function Sidebar({
                   aria-label={item.label}
                   title={isIconOnly ? item.label : undefined}
                   className={cn(
-                    "group flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150",
-                    isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
+                    ITEM_BASE_CLASS,
+                    isIconOnly
+                      ? "justify-center px-2"
+                      : "gap-2.5 pl-4 pr-3 text-left",
                     isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                   )}
                 >
-                  <span
+                  {isActive && !isIconOnly ? (
+                    <ActiveBar className={ACTIVE_BAR_CLASS} />
+                  ) : null}
+                  <Icon
                     className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
-                      isActive
-                        ? "bg-teal-600 text-white shadow-[0_4px_10px_-6px_rgba(13,148,136,0.9)] dark:bg-violet-500 dark:shadow-[0_4px_10px_-6px_rgba(139,92,246,0.9)]"
-                        : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
+                      "size-4 shrink-0 transition-colors duration-150",
+                      isActive ? ACTIVE_ICON_CLASS : INACTIVE_ICON_CLASS,
                     )}
-                  >
-                    <Icon className={isActive ? "size-4" : "size-3.5"} />
-                  </span>
+                  />
                   {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                 </button>
               );
@@ -381,8 +384,9 @@ export function Sidebar({
               aria-label="Slack 바로가기"
               title={isIconOnly ? "Slack 바로가기" : undefined}
               className={cn(
-                "group relative flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm text-teal-900/70 transition-all hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50",
-                isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
+                ITEM_BASE_CLASS,
+                INACTIVE_ITEM_CLASS,
+                isIconOnly ? "justify-center px-2" : "gap-2.5 pl-4 pr-3 text-left",
               )}
             >
               <SlackIcon className="shrink-0 text-base" />

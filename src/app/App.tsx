@@ -25,6 +25,7 @@ import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { getProjectPlanningProgress } from "@/app/projects/projectProgress";
 import { useForcedLightTheme } from "@/app/hooks/useTheme";
+import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
@@ -672,16 +673,27 @@ function DemoApplication() {
 
   const isScopedScreen =
     (isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum");
-  const topBarMiddleContent = isScopedScreen ? (
+
+  // 위클리 스크럼은 헤더 슬롯에 주차 이동 UI까지 들어가서 더 넓은 폭이 필요하다.
+  // 폭이 모자라면 헤더 안에서 두 줄로 접히며 80px 높이를 넘겨 깨지므로,
+  // 그 전에 본문 최상단으로 통째로 옮긴다.
+  const scopeBarQuery =
+    isPm && pmMenu === "weekly"
+      ? "(min-width: 1280px)"
+      : "(min-width: 900px)";
+  const scopeBarFitsInHeader = useMediaQuery(scopeBarQuery);
+
+  const scopeBar = isScopedScreen ? (
     <ProjectScopeBar
       projects={projects}
       value={selectedProjectId}
       onChange={setSelectedProjectId}
       rightSlotId={isPm && pmMenu === "weekly" ? "weekly-scrum-week-nav-slot" : undefined}
       planningComplete={planningCompleteMap[selectedProjectId]}
-      compact
+      compact={scopeBarFitsInHeader}
     />
   ) : undefined;
+  const topBarMiddleContent = scopeBarFitsInHeader ? scopeBar : undefined;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
@@ -704,7 +716,12 @@ function DemoApplication() {
           isPm={isPm}
           showNotifications={isPm}
         />
-        <main className="flex-1 overflow-y-auto p-6">{body}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          {!scopeBarFitsInHeader && scopeBar ? (
+            <div className="mb-4">{scopeBar}</div>
+          ) : null}
+          {body}
+        </main>
       </div>
       <Toaster />
     </div>

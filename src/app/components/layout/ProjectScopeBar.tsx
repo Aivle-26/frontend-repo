@@ -53,7 +53,8 @@ export function ProjectScopeBar({
       className={cn(
         "flex flex-wrap items-center gap-2.5",
         compact
-          ? "min-w-0 text-sm"
+          // 헤더(80px 고정 높이) 안에서는 절대 두 줄로 접히면 안 된다.
+          ? "min-w-0 flex-nowrap text-sm"
           : "rounded-xl border border-border bg-card px-4 py-2.5 gap-3",
       )}
     >

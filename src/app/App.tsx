@@ -71,40 +71,40 @@ import {
 import { mapApiProject } from "@/app/projects/projectMapping";
 import { RealApplication } from "@/app/real/RealApplication";
 
-// ?�무 중심(Task Flow) IA. 공�??�항?� ?�로?�트 ?�면?�서 분리???�이?�바 ?�단 ?�립 메뉴�??�다.
+// 업무 중심(Task Flow) IA. 공지사항은 프로젝트 화면에서 분리해 사이드바 하단 독립 메뉴로 둔다.
 const PM_MENU: SidebarItem[] = [
   // [개요]
-  { key: "dashboard", label: "?�로?�트", icon: LayoutDashboard, group: "개요" },
-  { key: "orgChart", label: "조직??, icon: Workflow, group: "개요" },
+  { key: "dashboard", label: "프로젝트", icon: LayoutDashboard, group: "개요" },
+  { key: "orgChart", label: "조직도", icon: Workflow, group: "개요" },
   // [계획]
-  { key: "requirements", label: "?�구?�항", icon: FileText, group: "계획" },
+  { key: "requirements", label: "요구사항", icon: FileText, group: "계획" },
   { key: "wbs", label: "WBS", icon: Network, group: "계획" },
-  { key: "schedule", label: "?�정", icon: CalendarClock, group: "계획" },
-  { key: "assign", label: "?�무 배정", icon: Users, group: "계획" },
-  { key: "budget", label: "?�산", icon: Wallet, group: "계획" },
-  { key: "uiPrototype", label: "UI ?�로?��???, icon: LayoutTemplate, group: "계획" },
-  // [?�행]
-  { key: "risk", label: "리스??, icon: AlertTriangle, group: "?�행" },
-  { key: "weekly", label: "?�클�??�크??, icon: ClipboardList, group: "?�행" },
-  // [?�구]
-  { key: "search", label: "?�합 질의?�답", icon: MessagesSquare, group: "?�구" },
-  // ?�이?�바?�는 ?�겼지�?기능/?�우?��? 그�?�??�아?�음 (pmMenu === "similar")
-  // { key: "similar", label: "?�사 ?�로?�트 검??, icon: FileSearch, group: "?�구" },
+  { key: "schedule", label: "일정", icon: CalendarClock, group: "계획" },
+  { key: "assign", label: "업무 배정", icon: Users, group: "계획" },
+  { key: "budget", label: "예산", icon: Wallet, group: "계획" },
+  { key: "uiPrototype", label: "UI 프로토타입", icon: LayoutTemplate, group: "계획" },
+  // [실행]
+  { key: "risk", label: "리스크", icon: AlertTriangle, group: "실행" },
+  { key: "weekly", label: "위클리 스크럼", icon: ClipboardList, group: "실행" },
+  // [도구]
+  { key: "search", label: "통합 질의응답", icon: MessagesSquare, group: "도구" },
+  // 사이드바에는 숨겼지만 기능/라우팅은 그대로 살아있음 (pmMenu === "similar")
+  // { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
 const PM_BOTTOM_MENU: SidebarItem[] = [
-  { key: "notice", label: "공�??�항", icon: Megaphone },
+  { key: "notice", label: "공지사항", icon: Megaphone },
 ];
 
 const STAFF_MENU: SidebarItem[] = [
-  { key: "tasks", label: "???�무", icon: ListTodo, group: "?�무" },
-  { key: "notice", label: "공�??�항", icon: Megaphone, group: "?�무" },
-  { key: "submit", label: "?�출�??�출", icon: Send, group: "?�무" },
-  { key: "weeklyScrum", label: "?�클�??�크??, icon: ClipboardList, group: "?�무" },
-  { key: "risk", label: "리스??, icon: AlertTriangle, group: "?�무" },
+  { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
+  { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
+  { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
+  { key: "weeklyScrum", label: "위클리 스크럼", icon: ClipboardList, group: "업무" },
+  { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
 ];
 
-// ?�로?�트 ?�위�??�뤄???�는 PM 메뉴 (?�단???�로?�트 ?�택 �??�시)
+// 프로젝트 단위로 다뤄야 하는 PM 메뉴 (상단에 프로젝트 선택 바 표시)
 
 const SCOPED_PM = new Set([
   "upload",
@@ -153,13 +153,13 @@ function DemoApplication() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     "",
   );
-  // ?�구?�항 ?�이지 ?�단 문서 ?�로??분석 ???�래 ?�구?�항 목록???�조?�하�??�한 ??
+  // 요구사항 페이지 상단 문서 업로드/분석 후 아래 요구사항 목록을 재조회하기 위한 키
   const [requirementsRefreshKey, setRequirementsRefreshKey] = useState(0);
 
-  // [?�로?�트] ??카드??"진행 �? ?�정�??�른 ?�면 ?�단 배�?가 ?�로 ?�르�?보이지 ?�도�?
-  // ?�택???�로?�트???�?�서??같�? 기�?(getProjectPlanningProgress)?�로 기획 ?�료 ?��?�?캐싱?�다.
-  // ([?�구?�항] ??SCOPED ?�면??selectedProjectId?? [?�로?�트] ??��??"?�?�보???�기"�??�어�?
-  //  pmDetail ????같�? 캐시�?같이 ?�다 ?????�면???�태 배�?가 ?�로 ?�르�?보이지 ?�도�?)
+  // [프로젝트] 탭 카드의 "진행 중" 판정과 다른 화면 상단 배지가 서로 다르게 보이지 않도록,
+  // 선택된 프로젝트에 대해서도 같은 기준(getProjectPlanningProgress)으로 기획 완료 여부를 캐싱한다.
+  // ([요구사항] 등 SCOPED 화면의 selectedProjectId랑, [프로젝트] 탭에서 "대시보드 열기"로 들어간
+  //  pmDetail 둘 다 같은 캐시를 같이 쓴다 — 두 화면의 상태 배지가 서로 다르게 보이지 않도록.)
   const [planningCompleteMap, setPlanningCompleteMap] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const idsToCheck = [selectedProjectId, pmDetail?.id].filter(
@@ -196,12 +196,12 @@ function DemoApplication() {
     setProjects((prev) =>
       prev.map((p) =>
         p.id === id
-          ? { ...p, status: "진행�?, progress: Math.max(p.progress, 5) }
+          ? { ...p, status: "진행중", progress: Math.max(p.progress, 5) }
           : p,
       ),
     );
 
-  // Slack OAuth 콜백(?session=)?�로 ?�아?�면 ?�션 ?�?????�동 ?�면?�로 ?�동
+  // Slack OAuth 콜백(?session=)으로 돌아오면 세션 저장 후 연동 화면으로 이동
   useEffect(() => {
     if (slackApi.captureSessionFromUrl()) {
       setPmMenu("slack");
@@ -294,8 +294,8 @@ function DemoApplication() {
     setLoginMessage(options?.message ?? "");
   };
 
-  // 로그???�원가???�면(role ?�음)?�서???�크모드�??�고 ?�이?�로 고정?�다.
-  // ?��? 조건부�??�출?????�으므�?early return ?�에 ?�다.
+  // 로그인/회원가입 화면(role 없음)에서는 다크모드를 끄고 라이트로 고정한다.
+  // 훅은 조건부로 호출할 수 없으므로 early return 위에 둔다.
   useForcedLightTheme(!role);
 
   if (!role) {
@@ -339,13 +339,13 @@ function DemoApplication() {
   let body: React.ReactNode = null;
   let actions: React.ReactNode = null;
 
-  // 직원 계정?� /projects 목록 조회가 막�??�거??비어?�을 ???�어??
-  // 그런 경우?�도 ?�면??비�? ?�도�??��? ?�로?�트�??�체한??
+  // 직원 계정은 /projects 목록 조회가 막혀있거나 비어있을 수 있어서,
+  // 그런 경우에도 화면이 비지 않도록 더미 프로젝트로 대체한다.
   const FALLBACK_PROJECT: FrontendProjectSummary = {
     id: "1",
-    name: "진행 �??�로?�트",
+    name: "진행 중 프로젝트",
     client: "-",
-    status: "진행�?,
+    status: "진행중",
     progress: 0,
     dueDate: "-",
     riskCount: 0,
@@ -363,7 +363,7 @@ function DemoApplication() {
 
   if (isPm) {
     if (SCOPED_PM.has(pmMenu) && !selectedProject) {
-      subtitle = "?�로?�트 ?�택";
+      subtitle = "프로젝트 선택";
       body = (
         <ProjectListNotice
           status={projectLoadStatus}
@@ -371,20 +371,20 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "slack") {
-      subtitle = "Slack ?�동";
+      subtitle = "Slack 연동";
       body = <SlackIntegration />;
     } else if (pmMenu === "orgChart") {
-      subtitle = "조직??;
+      subtitle = "조직도";
       body = selectedProject ? (
         <PmOrganizationChart key={selectedProject.id} project={selectedProject} />
       ) : (
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );
     } else if (pmMenu === "requirements") {
-      subtitle = "?�구?�항";
+      subtitle = "요구사항";
       body = (
         <div className="space-y-4">
-          {/* ?�단: 백엔???�동 문서 ?�로???�일 ?�택·?�로?�·요구사??분석) */}
+          {/* 상단: 백엔드 연동 문서 업로드(파일 선택·업로드·요구사항 분석) */}
           <PmUpload
             key={selectedProject?.id}
             project={selectedProject!}
@@ -408,12 +408,12 @@ function DemoApplication() {
               );
             }}
             onAnalysisComplete={() =>
-              // ?�로??문서 분석 ?�료 ???�래 ?�구?�항 목록 ?�조??
+              // 업로드 문서 분석 완료 → 아래 요구사항 목록 재조회
               setRequirementsRefreshKey((key) => key + 1)
             }
           />
 
-          {/* ?�단: ?�로??분석??결과 기반 ?�구?�항 목록 */}
+          {/* 하단: 업로드/분석된 결과 기반 요구사항 목록 */}
           <PmRequirements
             key={`${selectedProject?.id}:${requirementsRefreshKey}`}
             project={selectedProject!}
@@ -422,10 +422,10 @@ function DemoApplication() {
         </div>
       );
     } else if (pmMenu === "similar") {
-      subtitle = "?�사 ?�로?�트 검??;
+      subtitle = "유사 프로젝트 검색";
       body = <PmAnalysis key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "upload") {
-      subtitle = "문서 ?�로??;
+      subtitle = "문서 업로드";
       body = (
         <PmUpload
           key={selectedProject?.id}
@@ -464,7 +464,7 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "schedule") {
-      subtitle = "?�정";
+      subtitle = "일정";
       body = (
         <PmSchedule
           key={selectedProject?.id}
@@ -473,7 +473,7 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "assign") {
-      subtitle = "?�무 배정";
+      subtitle = "업무 배정";
       body = (
         <PmAssign
           key={selectedProject?.id}
@@ -482,16 +482,16 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "budget") {
-      subtitle = "?�산";
+      subtitle = "예산";
       body = <PmBudget key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "uiPrototype") {
-      subtitle = "UI ?�로?��???;
+      subtitle = "UI 프로토타입";
       body = <PmUiPrototype key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "weekly") {
-      subtitle = "?�클�??�크??;
+      subtitle = "위클리 스크럼";
       body = <WeeklyScrum key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "search") {
-      subtitle = "?�합 질의?�답";
+      subtitle = "통합 질의응답";
       body = (
         <AiDocSearch
           key={selectedProject?.id}
@@ -501,7 +501,7 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "risk") {
-      subtitle = "리스??;
+      subtitle = "리스크";
       body = (
         <RiskManagement
           key={selectedProject?.id}
@@ -512,18 +512,18 @@ function DemoApplication() {
         />
       );
     } else if (pmMenu === "notice") {
-      subtitle = "공�??�항";
+      subtitle = "공지사항";
       body = (
         <StaffNotice
           canCreate
           authorName={authSession.name || "PM"}
-          excludeCategories={["PM ?�드�?]}
+          excludeCategories={["PM 피드백"]}
           showKpis={false}
           projectId={selectedProject?.id ?? null}
         />
       );
     } else if (pmWizard) {
-      subtitle = `${pmWizard.name} · 준�?;
+      subtitle = `${pmWizard.name} · 준비`;
       body = (
         <ProjectWizard
           project={pmWizard}
@@ -535,7 +535,7 @@ function DemoApplication() {
         />
       );
     } else if (pmDetail) {
-      subtitle = "��ú���";
+      subtitle = "대시보드";
       body = (
         <ProjectDetail
           project={pmDetail}
@@ -563,7 +563,7 @@ function DemoApplication() {
         />
       );
     } else {
-      subtitle = "?�로?�트";
+      subtitle = "프로젝트";
       body = (
         <ProjectOverview
           projects={projects}
@@ -595,22 +595,22 @@ function DemoApplication() {
     }
   } else {
     if (staffMenu === "slack") {
-      subtitle = "Slack ?�동";
+      subtitle = "Slack 연동";
       body = <SlackIntegration />;
     } else if (staffMenu === "notice") {
-      subtitle = "공�??�항";
+      subtitle = "공지사항";
       body = (
         <StaffNoticeBoard
-          currentUserName={authSession?.name ?? "??}
+          currentUserName={authSession?.name ?? "나"}
           onSubmitRequested={() => setStaffMenu("weeklyScrum")}
           projectId={selectedProject?.id ?? null}
         />
       );
     } else if (staffMenu === "documents") {
-      subtitle = "문서 ?�합 관�?;
+      subtitle = "문서 통합 관리";
       body = <StaffDocuments />;
     } else if (staffMenu === "risk") {
-      subtitle = "리스??;
+      subtitle = "리스크";
       body = selectedProject ? (
         <RiskManagement key={selectedProject.id} project={selectedProject} hideImpactAnalysis />
       ) : (
@@ -620,7 +620,7 @@ function DemoApplication() {
       subtitle = "RFP 맥락";
       body = <StaffContext />;
     } else if (staffMenu === "submit") {
-      subtitle = "?�출�??�출";
+      subtitle = "산출물 제출";
       body = (
         <StaffSubmit
           project={selectedProject ?? null}
@@ -628,7 +628,7 @@ function DemoApplication() {
         />
       );
     } else if (staffMenu === "weeklyScrum") {
-      subtitle = "?�클�??�크??;
+      subtitle = "위클리 스크럼";
       body = selectedProject ? (
         <StaffWeeklyScrum
           projectId={selectedProject.id}
@@ -640,13 +640,13 @@ function DemoApplication() {
         <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />
       );
     } else if (staffMenu === "feedback") {
-      subtitle = "?�드�?;
+      subtitle = "피드백";
       body = <StaffFeedback />;
     } else if (staffMenu === "comments") {
-      subtitle = "?��?";
+      subtitle = "댓글";
       body = <StaffComments />;
     } else if (selectedTaskId) {
-      subtitle = "?�무 ?�세";
+      subtitle = "업무 상세";
       body = (
         <StaffTaskDetail
           taskId={selectedTaskId}
@@ -656,7 +656,7 @@ function DemoApplication() {
         />
       );
     } else {
-      subtitle = "직원 ?�?�보??;
+      subtitle = "직원 대시보드";
       body = (
         <StaffDashboard
           projectId={selectedProjectId || "1"}

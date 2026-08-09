@@ -37,7 +37,10 @@ export function DocPicker({
     }
 
     onError?.("");
-    onChange([...documents, ...createPendingProjectDocuments(selectedFiles)]);
+    onChange([
+      ...documents,
+      ...createPendingProjectDocuments(selectedFiles),
+    ]);
   };
 
   return (
@@ -67,7 +70,7 @@ export function DocPicker({
       >
         <UploadCloud className="size-6 text-muted-foreground" />
         <span className="text-foreground text-sm">
-          문서를 드래그하거나 클릭해서 선택
+          문서를 끌어다 놓거나 클릭해 선택
         </span>
         <span className="text-muted-foreground text-xs">
           PDF · DOCX · XLSX · PPTX · TXT · 파일당 최대 10MB
@@ -93,7 +96,9 @@ export function DocPicker({
                 type="button"
                 disabled={disabled}
                 onClick={() =>
-                  onChange(documents.filter((current) => current.id !== document.id))
+                  onChange(
+                    documents.filter((current) => current.id !== document.id),
+                  )
                 }
                 className="shrink-0 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-60"
                 aria-label={`${document.file.name} 제거`}

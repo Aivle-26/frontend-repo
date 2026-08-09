@@ -231,9 +231,7 @@ export function Sidebar({
         <div
           className={cn(
             "min-h-0",
-            distributeGroups
-              ? "flex flex-1 flex-col gap-3"
-              : "space-y-1.5",
+            distributeGroups ? "flex flex-1 flex-col gap-3" : "space-y-3",
           )}
         >
           {groupedItems.map((group) => (
@@ -263,11 +261,13 @@ export function Sidebar({
                 </div>
               ) : null}
 
+              {/* 항목이 많은 메뉴(PM)는 남는 높이를 나눠 갖고, 적은 메뉴(직원)는
+                  고정 간격을 쓴다. 고정 간격 값은 PM 쪽 체감 여백에 맞춰 잡았다. */}
               <div
                 className={cn(
                   distributeGroups
                     ? "flex min-h-0 flex-1 flex-col justify-evenly"
-                    : "space-y-0.5",
+                    : "space-y-1.5 pb-1 pt-0.5",
                 )}
               >
                 {group.items.map((item) => {
@@ -309,7 +309,7 @@ export function Sidebar({
         </div>
 
         {bottomItems && bottomItems.length > 0 ? (
-          <div className="space-y-0.5 pt-1">
+          <div className="space-y-1.5 pt-1">
             <div
               role="separator"
               className="mx-2 my-2 border-t border-cyan-200/80 dark:border-violet-900/60"

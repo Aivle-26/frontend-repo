@@ -93,9 +93,12 @@ const PM_MENU: SidebarItem[] = [
   // { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
+// PM과 동일하게 공지사항은 업무 목록에서 분리해 첫 메뉴로 둔다.
+// (공지사항은 "내가 처리할 일"이 아니라 "전달받는 알림"이라 성격이 다르다.)
 const STAFF_MENU: SidebarItem[] = [
+  { key: "notice", label: "공지사항", icon: Megaphone },
+
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
-  { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "weeklyScrum", label: "위클리 스크럼", icon: ClipboardList, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },

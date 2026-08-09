@@ -10,9 +10,8 @@ import {
   Users,
 } from "lucide-react";
 // 배경은 화면 전체를 bg-cover로 채우므로 고해상도/고DPI에서 크게 확대된다.
-// 원본 PNG(1672px)는 그만큼 뭉개져 보여서, 2배(3344px) WebP로 교체했다.
-// 픽셀은 4배인데 용량은 1.74MB → 0.38MB로 오히려 줄었다.
-import loginPageBackground from "@assets/landing/login-project-dashboard-background@2x.webp";
+// 4K(3840x2160) 원본을 WebP로 변환해 사용한다. PNG 5.32MB → WebP 0.46MB.
+import loginPageBackground from "@assets/landing/login-project-dashboard-background-v3.png";
 import featureRfpAnalysis from "@assets/landing/feature-rfp-analysis.png";
 import featureSchedule from "@assets/landing/feature-schedule.png";
 import featureRisk from "@assets/landing/feature-risk.png";

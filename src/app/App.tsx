@@ -299,6 +299,17 @@ function DemoApplication() {
   // 훅은 조건부로 호출할 수 없으므로 early return 위에 둔다.
   useForcedLightTheme(!role);
 
+  // 위클리 스크럼은 헤더 슬롯에 주차 이동 UI까지 들어가서 더 넓은 폭이 필요하다.
+  // 폭이 모자라면 헤더 안에서 두 줄로 접히며 80px 높이를 넘겨 깨지므로,
+  // 그 전에 본문 최상단으로 통째로 옮긴다.
+  // 이 훅도 아래 early return 위에 있어야 한다 — 로그인 전/후로 훅 개수가
+  // 달라지면 React가 렌더 도중 터진다.
+  const scopeBarQuery =
+    role === "pm" && pmMenu === "weekly"
+      ? "(min-width: 1280px)"
+      : "(min-width: 900px)";
+  const scopeBarFitsInHeader = useMediaQuery(scopeBarQuery);
+
   if (!role) {
     return (
       <>
@@ -673,15 +684,6 @@ function DemoApplication() {
 
   const isScopedScreen =
     (isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum");
-
-  // 위클리 스크럼은 헤더 슬롯에 주차 이동 UI까지 들어가서 더 넓은 폭이 필요하다.
-  // 폭이 모자라면 헤더 안에서 두 줄로 접히며 80px 높이를 넘겨 깨지므로,
-  // 그 전에 본문 최상단으로 통째로 옮긴다.
-  const scopeBarQuery =
-    isPm && pmMenu === "weekly"
-      ? "(min-width: 1280px)"
-      : "(min-width: 900px)";
-  const scopeBarFitsInHeader = useMediaQuery(scopeBarQuery);
 
   const scopeBar = isScopedScreen ? (
     <ProjectScopeBar

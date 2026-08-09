@@ -457,6 +457,7 @@ test("renders persisted documents and requirements without placeholders", async 
   await login(page);
   await openProjectData(page);
 
+  await expect(page.getByText("대시보드", { exact: true })).toBeVisible();
   await expect(
     page
       .getByRole("table")
@@ -605,6 +606,27 @@ test("creates a project only after a successful backend response", async ({
     plannedEndDate: "2026-09-10",
   });
   await expect(page.getByText("진행률", { exact: true })).toHaveCount(0);
+});
+
+test("hides the file type selector in the new project upload list", async ({
+  page,
+}) => {
+  await mockLogin(page);
+  await mockProjectList(page, []);
+  await login(page);
+
+  await page.getByRole("button", { name: "새 프로젝트" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "initial-project-document.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("initial project document"),
+  });
+
+  await expect(
+    dialog.getByText("initial-project-document.txt", { exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("combobox")).toHaveCount(0);
 });
 
 test("shows a 409 project conflict without adding a local-only project", async ({

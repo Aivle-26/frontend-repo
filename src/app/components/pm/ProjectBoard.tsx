@@ -787,6 +787,7 @@ export function ProjectBoard({
                 onChange={setPendingDocs}
                 onError={setNewProjectError}
                 disabled={isCreatingProject}
+                showTypeSelector={false}
               />
               <p className="text-sm text-muted-foreground">
                 문서가 없어도 프로젝트를 먼저 만든 뒤 나중에 추가할 수 있습니다.

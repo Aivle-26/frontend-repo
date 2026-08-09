@@ -102,7 +102,12 @@ test("PM document analysis persists three requirements across refresh", async ({
           `/api/projects/${projectId}/requirements/analyze`,
         ),
     );
-    await row.getByRole("button", { name: "다시 분석" }).click();
+    await expect(
+      row.getByRole("button", { name: "다시 분석" }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "전체 문서 분석", exact: true })
+      .click();
     await expect(row.getByText("분석 중", { exact: true })).toBeVisible();
     const analyzeResponse = await analyzeResponsePromise;
     expect(analyzeResponse.status()).toBe(200);
@@ -140,21 +145,10 @@ test("PM document analysis persists three requirements across refresh", async ({
     await page.getByRole("button", { name: "공고문 업로드", exact: true }).click();
     const restoredRow = page.getByRole("row").filter({ hasText: fileName });
     await expect(restoredRow).toBeVisible();
-    const duplicateResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().includes(
-          `/api/projects/${projectId}/requirements/analyze`,
-        ),
-    );
-    await restoredRow.getByRole("button", { name: "다시 분석" }).click();
-    expect((await duplicateResponsePromise).status()).toBe(409);
+    await expect(restoredRow.getByText("분석 완료", { exact: true })).toBeVisible();
     await expect(
-      page.getByText(
-        "동일한 문서 분석 결과가 이미 존재하거나 분석 중입니다.",
-        { exact: true },
-      ),
-    ).toBeVisible();
+      restoredRow.getByRole("button", { name: "다시 분석" }),
+    ).toHaveCount(0);
   } finally {
     if (projectId && !deferCleanup) {
       metadata.cleanedUp = await deleteProject(page, projectId);

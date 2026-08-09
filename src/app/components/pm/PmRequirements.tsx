@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -9,9 +16,7 @@ import {
   Loader2,
   Pencil,
   Plus,
-  RefreshCw,
   Save,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,6 +72,8 @@ type RequirementEditorState =
       originalClientId: string;
     }
   | null;
+
+const REQUIREMENTS_PER_PAGE = 8;
 
 const REQUIREMENT_TYPES: RequirementType[] = [
   "FUNCTIONAL",
@@ -242,12 +249,14 @@ export function PmRequirements({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [aiUpdating, setAiUpdating] = useState(false);
   const [editor, setEditor] = useState<RequirementEditorState>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const comparisonGridRef = useRef<HTMLDivElement>(null);
 
   const loadRequirements = useCallback(async () => {
     setLoading(true);
     setLoadError("");
+    setCurrentPage(1);
 
     try {
       const result = normalizeResult(
@@ -270,20 +279,74 @@ export function PmRequirements({
     void loadRequirements();
   }, [loadRequirements]);
 
-  // [AI 업데이트] 업로드된 문서에서 요구사항을 다시 추출(재분석)한 뒤 다시 불러온다.
-  const aiUpdateRequirements = async () => {
-    if (aiUpdating || loading || saving) return;
-    setAiUpdating(true);
-    try {
-      await projectRepository.reanalyzeProjectRequirements(project.id);
-      await loadRequirements();
-      toast.success("업로드된 문서에서 요구사항을 다시 추출했습니다.");
-    } catch (error) {
-      toast.error(errorMessage(error, "AI 업데이트에 실패했습니다."));
-    } finally {
-      setAiUpdating(false);
-    }
-  };
+  useLayoutEffect(() => {
+    const container = comparisonGridRef.current;
+    if (!container || loading) return;
+
+    let frameId = 0;
+    let disposed = false;
+    let previousWidth = container.clientWidth;
+
+    const syncPairedCardHeights = () => {
+      window.cancelAnimationFrame(frameId);
+
+      const leftCards = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          '[data-requirement-column="source"]',
+        ),
+      );
+      const rightCards = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          '[data-requirement-column="editable"]',
+        ),
+      );
+
+      [...leftCards, ...rightCards].forEach((card) => {
+        card.style.minHeight = "";
+      });
+
+      if (!window.matchMedia("(min-width: 96rem)").matches) return;
+
+      frameId = window.requestAnimationFrame(() => {
+        const pairCount = Math.max(leftCards.length, rightCards.length);
+
+        for (let index = 0; index < pairCount; index += 1) {
+          const leftCard = leftCards[index];
+          const rightCard = rightCards[index];
+          const pairedHeight = Math.ceil(
+            Math.max(
+              180,
+              leftCard?.getBoundingClientRect().height ?? 0,
+              rightCard?.getBoundingClientRect().height ?? 0,
+            ),
+          );
+
+          if (leftCard) leftCard.style.minHeight = `${pairedHeight}px`;
+          if (rightCard) rightCard.style.minHeight = `${pairedHeight}px`;
+        }
+      });
+    };
+
+    syncPairedCardHeights();
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      const nextWidth = entry.contentRect.width;
+      if (Math.abs(nextWidth - previousWidth) < 1) return;
+      previousWidth = nextWidth;
+      syncPairedCardHeights();
+    });
+    resizeObserver.observe(container);
+
+    void document.fonts?.ready.then(() => {
+      if (!disposed) syncPairedCardHeights();
+    });
+
+    return () => {
+      disposed = true;
+      resizeObserver.disconnect();
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [aiSuggestions, currentPage, finalItems, loading]);
 
   const moveRequirement = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -359,7 +422,17 @@ export function PmRequirements({
     }
 
     if (editor.mode === "new") {
-      setFinalItems((current) => [...current, item]);
+      const nextItems = [...finalItems, item];
+      setFinalItems(nextItems);
+      setCurrentPage(
+        Math.max(
+          1,
+          Math.ceil(
+            Math.max(aiSuggestions.length, nextItems.length) /
+              REQUIREMENTS_PER_PAGE,
+          ),
+        ),
+      );
     } else {
       setFinalItems((current) =>
         current.map((current) =>
@@ -456,6 +529,35 @@ export function PmRequirements({
     () => `AI 제안 ${aiSuggestions.length}건 · 최종 편집본 ${finalItems.length}건`,
     [aiSuggestions.length, finalItems.length],
   );
+  const totalRequirementCount = Math.max(
+    aiSuggestions.length,
+    finalItems.length,
+  );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalRequirementCount / REQUIREMENTS_PER_PAGE),
+  );
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * REQUIREMENTS_PER_PAGE;
+  const pageEndIndex = pageStartIndex + REQUIREMENTS_PER_PAGE;
+  const visibleAiSuggestions = aiSuggestions.slice(
+    pageStartIndex,
+    pageEndIndex,
+  );
+  const visibleFinalItems = finalItems.slice(pageStartIndex, pageEndIndex);
+
+  const changePage = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+    if (nextPage === activePage) return;
+
+    setCurrentPage(nextPage);
+    window.requestAnimationFrame(() => {
+      comparisonGridRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -486,30 +588,6 @@ export function PmRequirements({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={loading || saving || aiUpdating}
-                onClick={() => void aiUpdateRequirements()}
-                title="업로드된 문서에서 요구사항을 다시 추출해 반영합니다"
-              >
-                {aiUpdating ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="size-3.5" />
-                )}
-                AI 업데이트
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={loading || saving || aiUpdating}
-                onClick={() => void loadRequirements()}
-              >
-                <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-                다시 조회
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -563,14 +641,20 @@ export function PmRequirements({
               요구사항을 불러오는 중입니다.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+            <div
+              ref={comparisonGridRef}
+              className="grid scroll-mt-24 grid-cols-1 gap-5 2xl:grid-cols-2"
+            >
               <RequirementTable
                 title="AI 최초 제안"
                 description="AI가 처음 추출한 요구사항입니다."
-                items={aiSuggestions}
+                items={visibleAiSuggestions}
+                startIndex={pageStartIndex}
               />
               <EditableRequirementTable
-                items={finalItems}
+                items={visibleFinalItems}
+                startIndex={pageStartIndex}
+                totalItemCount={finalItems.length}
                 onMove={moveRequirement}
                 onEdit={(item) =>
                   setEditor({
@@ -582,6 +666,56 @@ export function PmRequirements({
                 onDelete={removeRequirement}
               />
             </div>
+          )}
+
+          {!loading && totalPages > 1 && (
+            <nav
+              aria-label="요구사항 페이지 이동"
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border/70 bg-muted/20 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={activePage === 1}
+                  onClick={() => changePage(activePage - 1)}
+                >
+                  <ArrowLeft className="size-3.5" />
+                  이전
+                </Button>
+                {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+                  (page) => (
+                    <Button
+                      key={page}
+                      type="button"
+                      variant={page === activePage ? "default" : "outline"}
+                      size="icon"
+                      className="size-8 text-xs"
+                      aria-label={`${page}페이지`}
+                      aria-current={page === activePage ? "page" : undefined}
+                      onClick={() => changePage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ),
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={activePage === totalPages}
+                  onClick={() => changePage(activePage + 1)}
+                >
+                  다음
+                  <ArrowRight className="size-3.5" />
+                </Button>
+              </div>
+              <span className="text-center text-sm text-muted-foreground">
+                {pageStartIndex + 1}-
+                {Math.min(pageEndIndex, totalRequirementCount)} / {totalRequirementCount}건
+              </span>
+            </nav>
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
@@ -637,10 +771,12 @@ function RequirementTable({
   title,
   description,
   items,
+  startIndex,
 }: {
   title: string;
   description: string;
   items: RequirementResponse[];
+  startIndex: number;
 }) {
   return (
     <section className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card">
@@ -657,10 +793,11 @@ function RequirementTable({
         {items.map((item, index) => (
           <article
             key={item.requirementId}
-            className="rounded-xl border border-border/75 bg-background/80 p-4 shadow-sm transition-colors hover:border-primary/25 hover:bg-primary/[0.02]"
+            data-requirement-column="source"
+            className="rounded-xl border border-border/75 bg-muted/35 p-4 shadow-sm transition-colors hover:border-primary/25 hover:bg-muted/50 2xl:flex 2xl:min-h-[180px] 2xl:flex-col"
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
-              <span className="font-semibold text-muted-foreground">#{index + 1}</span>
+              <span className="font-semibold text-muted-foreground">#{startIndex + index + 1}</span>
               <span aria-hidden="true" className="text-border">·</span>
               <span className="font-semibold text-cyan-700 dark:text-cyan-300">
                 {typeLabel(item.type)}
@@ -679,7 +816,7 @@ function RequirementTable({
             </p>
 
             {item.sourceDocumentName && (
-              <div className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+              <div className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground 2xl:mt-auto">
                 출처 · {item.sourceDocumentName}
               </div>
             )}
@@ -698,18 +835,22 @@ function RequirementTable({
 
 function EditableRequirementTable({
   items,
+  startIndex,
+  totalItemCount,
   onMove,
   onEdit,
   onDelete,
 }: {
   items: EditableRequirement[];
+  startIndex: number;
+  totalItemCount: number;
   onMove: (index: number, direction: -1 | 1) => void;
   onEdit: (item: EditableRequirement) => void;
   onDelete: (clientId: string) => void;
 }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-primary/20 bg-card">
-      <div className="border-b border-primary/15 bg-primary/[0.035] px-5 py-4">
+    <section className="min-w-0 overflow-hidden rounded-xl border border-primary/35 bg-primary/[0.045]">
+      <div className="border-b border-primary/30 bg-primary/[0.10] px-5 py-4">
         <div className="text-lg font-semibold tracking-tight text-foreground">
           최종 요구사항 편집본
         </div>
@@ -722,10 +863,11 @@ function EditableRequirementTable({
         {items.map((item, index) => (
           <article
             key={item.clientId}
-            className="rounded-xl border border-border/75 bg-background/85 p-4 shadow-sm transition-colors hover:border-primary/30"
+            data-requirement-column="editable"
+            className="rounded-xl border border-border/75 bg-background/80 p-4 shadow-sm transition-colors hover:border-primary/25 hover:bg-primary/[0.02] 2xl:flex 2xl:min-h-[180px] 2xl:flex-col"
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5">
-              <span className="font-semibold text-muted-foreground">#{index + 1}</span>
+              <span className="font-semibold text-muted-foreground">#{startIndex + index + 1}</span>
               <span aria-hidden="true" className="text-border">·</span>
               <span className="font-semibold text-cyan-700 dark:text-cyan-300">
                 {typeLabel(item.type)}
@@ -743,14 +885,14 @@ function EditableRequirementTable({
               {item.description || "설명 없음"}
             </p>
 
-            <div className="mt-4 flex flex-wrap items-center justify-end gap-1.5 border-t border-border/60 pt-3">
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-1.5 border-t border-border/60 pt-3 2xl:mt-auto">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md px-2.5 text-xs"
-                disabled={index === 0}
-                onClick={() => onMove(index, -1)}
+                disabled={startIndex + index === 0}
+                onClick={() => onMove(startIndex + index, -1)}
                 aria-label="위로 이동"
               >
                 <ArrowUp className="size-3.5" />
@@ -761,8 +903,8 @@ function EditableRequirementTable({
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md px-2.5 text-xs"
-                disabled={index === items.length - 1}
-                onClick={() => onMove(index, 1)}
+                disabled={startIndex + index === totalItemCount - 1}
+                onClick={() => onMove(startIndex + index, 1)}
                 aria-label="아래로 이동"
               >
                 <ArrowDown className="size-3.5" />

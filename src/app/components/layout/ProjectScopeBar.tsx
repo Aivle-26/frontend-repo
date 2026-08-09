@@ -63,7 +63,18 @@ export function ProjectScopeBar({
         </span>
       )}
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className={compact ? "h-8 w-56" : "h-9 w-72"}>
+        {/* compact(헤더 삽입) 모드에서는 우측 프로필 칩과 같은 결로 맞춰
+            헤더 위에 얹힌 컨트롤처럼 보이게 한다. */}
+        <SelectTrigger
+          className={cn(
+            compact
+              ? "h-9 w-64 justify-start rounded-full border-cyan-200 bg-white/80 pl-3 pr-3.5 font-medium text-teal-900 shadow-sm backdrop-blur-sm transition-all [&>svg:last-child]:ml-auto hover:border-cyan-300 hover:bg-cyan-100/85 hover:shadow-md focus-visible:border-cyan-400 focus-visible:ring-cyan-500/30 dark:border-violet-800/80 dark:bg-black/45 dark:text-violet-100 dark:hover:border-violet-600 dark:hover:bg-violet-950/70"
+              : "h-9 w-72",
+          )}
+        >
+          {compact && (
+            <FolderKanban className="size-4 shrink-0 text-teal-600 dark:text-violet-300" />
+          )}
           <SelectValue placeholder="프로젝트를 선택하세요" />
         </SelectTrigger>
         <SelectContent>

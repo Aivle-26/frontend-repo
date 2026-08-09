@@ -62,7 +62,14 @@ export function TopBar({
       )}
     >
       <div className="flex min-w-0 items-center gap-4">
-        <div className="min-w-0 shrink-0 leading-tight">
+        {/* 제목 길이가 화면마다 달라도 옆의 프로젝트 선택란이 흔들리지 않도록
+            제목 칸의 최소 너비를 고정한다. (가장 긴 제목인 "UI 프로토타입" 기준) */}
+        <div
+          className={cn(
+            "min-w-0 shrink-0 leading-tight",
+            middleContent && "sm:min-w-[10.5rem]",
+          )}
+        >
           <div className="truncate text-xl font-bold text-teal-950 dark:text-violet-50">
             {title}
           </div>
@@ -72,7 +79,15 @@ export function TopBar({
             </div>
           )}
         </div>
-        {middleContent && <div className="min-w-0">{middleContent}</div>}
+        {middleContent && (
+          <>
+            <span
+              aria-hidden="true"
+              className="hidden h-7 w-px shrink-0 bg-cyan-300/50 sm:block dark:bg-violet-800/60"
+            />
+            <div className="min-w-0">{middleContent}</div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

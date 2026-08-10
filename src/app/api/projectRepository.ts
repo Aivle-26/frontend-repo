@@ -607,7 +607,7 @@ export interface TeamMemberResponse {
 
 /** 특정 프로젝트에 실제로 등록된 팀원. */
 export interface ProjectMemberResponse {
-  projectMemberId: number;
+  projectMemberId: number | null;
   projectId: number;
   employeeNumber: string;
   name: string;

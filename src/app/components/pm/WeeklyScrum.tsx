@@ -237,9 +237,13 @@ export function WeeklyScrum({ project }: { project: ProjectSummary }) {
 
   // 상단 "대상 프로젝트" 바 안에 있는 슬롯(App.tsx가 렌더링)을 찾아서 주차 선택 UI를 그 안에 그려 넣는다.
   const [navSlotEl, setNavSlotEl] = useState<HTMLElement | null>(null);
+  // 슬롯은 창 폭에 따라 헤더 ↔ 본문 상단으로 옮겨 다니며 새 DOM 노드로 다시 만들어진다.
+  // 마운트 시 한 번만 찾아두면 떼어진(detached) 노드를 계속 붙들게 되므로,
+  // 렌더마다 다시 조회하고 바뀐 경우에만 상태를 갱신한다.
   useEffect(() => {
-    setNavSlotEl(document.getElementById("weekly-scrum-week-nav-slot"));
-  }, []);
+    const slot = document.getElementById("weekly-scrum-week-nav-slot");
+    setNavSlotEl((previous) => (previous === slot ? previous : slot));
+  });
   useEffect(() => {
     setCalendarMonth(selectedMonday);
   }, [selectedMonday]);

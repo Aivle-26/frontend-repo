@@ -25,6 +25,7 @@ import { TopBar } from "@/app/components/layout/TopBar";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { getProjectPlanningProgress } from "@/app/projects/projectProgress";
 import { useForcedLightTheme } from "@/app/hooks/useTheme";
+import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { PmAnalysis } from "@/app/components/pm/PmAnalysis";
@@ -93,9 +94,12 @@ const PM_MENU: SidebarItem[] = [
   // { key: "similar", label: "유사 프로젝트 검색", icon: FileSearch, group: "도구" },
 ];
 
+// PM과 동일하게 공지사항은 업무 목록에서 분리해 첫 메뉴로 둔다.
+// (공지사항은 "내가 처리할 일"이 아니라 "전달받는 알림"이라 성격이 다르다.)
 const STAFF_MENU: SidebarItem[] = [
+  { key: "notice", label: "공지사항", icon: Megaphone },
+
   { key: "tasks", label: "내 업무", icon: ListTodo, group: "업무" },
-  { key: "notice", label: "공지사항", icon: Megaphone, group: "업무" },
   { key: "submit", label: "산출물 제출", icon: Send, group: "업무" },
   { key: "weeklyScrum", label: "위클리 스크럼", icon: ClipboardList, group: "업무" },
   { key: "risk", label: "리스크", icon: AlertTriangle, group: "업무" },
@@ -294,6 +298,17 @@ function DemoApplication() {
   // 로그인/회원가입 화면(role 없음)에서는 다크모드를 끄고 라이트로 고정한다.
   // 훅은 조건부로 호출할 수 없으므로 early return 위에 둔다.
   useForcedLightTheme(!role);
+
+  // 위클리 스크럼은 헤더 슬롯에 주차 이동 UI까지 들어가서 더 넓은 폭이 필요하다.
+  // 폭이 모자라면 헤더 안에서 두 줄로 접히며 80px 높이를 넘겨 깨지므로,
+  // 그 전에 본문 최상단으로 통째로 옮긴다.
+  // 이 훅도 아래 early return 위에 있어야 한다 — 로그인 전/후로 훅 개수가
+  // 달라지면 React가 렌더 도중 터진다.
+  const scopeBarQuery =
+    role === "pm" && pmMenu === "weekly"
+      ? "(min-width: 1280px)"
+      : "(min-width: 900px)";
+  const scopeBarFitsInHeader = useMediaQuery(scopeBarQuery);
 
   if (!role) {
     return (
@@ -669,16 +684,18 @@ function DemoApplication() {
 
   const isScopedScreen =
     (isPm && SCOPED_PM.has(pmMenu)) || (!isPm && staffMenu === "weeklyScrum");
-  const topBarMiddleContent = isScopedScreen ? (
+
+  const scopeBar = isScopedScreen ? (
     <ProjectScopeBar
       projects={projects}
       value={selectedProjectId}
       onChange={setSelectedProjectId}
       rightSlotId={isPm && pmMenu === "weekly" ? "weekly-scrum-week-nav-slot" : undefined}
       planningComplete={planningCompleteMap[selectedProjectId]}
-      compact
+      compact={scopeBarFitsInHeader}
     />
   ) : undefined;
+  const topBarMiddleContent = scopeBarFitsInHeader ? scopeBar : undefined;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-muted/40">
@@ -701,7 +718,12 @@ function DemoApplication() {
           isPm={isPm}
           showNotifications={isPm}
         />
-        <main className="flex-1 overflow-y-auto p-6">{body}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          {!scopeBarFitsInHeader && scopeBar ? (
+            <div className="mb-4">{scopeBar}</div>
+          ) : null}
+          {body}
+        </main>
       </div>
       <Toaster />
     </div>

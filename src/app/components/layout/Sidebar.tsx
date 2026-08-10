@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ExternalLink, Sparkles } from "lucide-react";
 
 import { cn } from "@/app/components/ui/utils";
@@ -27,42 +27,10 @@ interface SidebarProps {
   hideOnMobile?: boolean;
 }
 
-const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
-const DEFAULT_SIDEBAR_WIDTH = 240;
-const MIN_SIDEBAR_WIDTH = 72;
-const ICON_ONLY_THRESHOLD = 170;
-// 기본값보다 넓히는 것은 허용하지 않는다. 기본값에서 줄이는 방향으로만 조절 가능.
-const MAX_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH;
-// 창이 좁아지면 자동으로 아이콘 모드로 접는다. 헤더 쪽 축소(권한 뱃지 → 사용자 이름
-// → 로그아웃 글자)를 모두 소진한 뒤 마지막 단계다. TopBar.tsx의 주석 참고.
-// 사용자가 저장해 둔 너비는 건드리지 않고, 창을 다시 넓히면 그대로 복원된다.
-const AUTO_COLLAPSE_QUERY = "(max-width: 939px)";
-
-// 활성 표시는 "배경 틴트 + 좌측 액센트 바" 하나로만 전달한다.
-// (예전처럼 원형 배지 / ring / shadow를 겹쳐 쓰면 신호가 과해져 촌스러워 보인다.)
-const ITEM_BASE_CLASS =
-  "group relative flex w-full items-center whitespace-nowrap rounded-lg py-1.5 text-sm transition-colors duration-150";
 const ACTIVE_ITEM_CLASS =
-  "bg-[#D4FBFE] font-medium text-teal-950 dark:bg-violet-400/16 dark:text-violet-50";
+  "bg-cyan-100/85 font-semibold text-teal-950 shadow-[0_6px_16px_-12px_rgba(13,148,136,0.7)] ring-1 ring-inset ring-cyan-300/85 dark:bg-violet-600/25 dark:text-violet-50 dark:shadow-[0_6px_16px_-12px_rgba(139,92,246,0.65)] dark:ring-violet-500/45";
 const INACTIVE_ITEM_CLASS =
-  "text-teal-900/65 hover:bg-[#D4FBFE]/55 hover:text-teal-950 dark:text-zinc-300/75 dark:hover:bg-violet-400/10 dark:hover:text-violet-50";
-const ACTIVE_ICON_CLASS = "text-teal-700 dark:text-violet-300";
-const INACTIVE_ICON_CLASS =
-  "text-teal-800/40 group-hover:text-teal-800/70 dark:text-violet-300/40 dark:group-hover:text-violet-300/70";
-const ACTIVE_BAR_CLASS = "bg-teal-600 dark:bg-violet-400";
-
-/** 활성 항목 좌측의 3px 액센트 바. */
-function ActiveBar({ className }: { className: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "absolute left-1 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full",
-        className,
-      )}
-    />
-  );
-}
+  "text-teal-900/70 hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50";
 
 export function Sidebar({
   items,
@@ -72,27 +40,7 @@ export function Sidebar({
   showIntegrations = true,
   hideOnMobile = false,
 }: SidebarProps) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const savedWidth = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-
-    if (!savedWidth) return DEFAULT_SIDEBAR_WIDTH;
-    const parsedWidth = Number(savedWidth);
-    if (Number.isNaN(parsedWidth)) return DEFAULT_SIDEBAR_WIDTH;
-
-    return Math.min(
-      MAX_SIDEBAR_WIDTH,
-      Math.max(MIN_SIDEBAR_WIDTH, parsedWidth),
-    );
-  });
-
-  const [isAutoCollapsed, setIsAutoCollapsed] = useState(
-    () => window.matchMedia(AUTO_COLLAPSE_QUERY).matches,
-  );
-  const [isResizing, setIsResizing] = useState(false);
-
-  // 저장된 너비(사용자 설정)와 실제 적용 너비를 분리한다.
-  const effectiveWidth = isAutoCollapsed ? MIN_SIDEBAR_WIDTH : sidebarWidth;
-  const isIconOnly = effectiveWidth < ICON_ONLY_THRESHOLD;
+  const isIconOnly = false;
   const standaloneItems = useMemo(
     () => items.filter((item) => !item.group),
     [items],
@@ -117,65 +65,12 @@ export function Sidebar({
     return groups;
   }, [items]);
   const distributeGroups = items.length >= 8;
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(AUTO_COLLAPSE_QUERY);
-    const handleChange = (event: MediaQueryListEvent) =>
-      setIsAutoCollapsed(event.matches);
-
-    setIsAutoCollapsed(mediaQuery.matches);
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-
-  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-
-    const startX = event.clientX;
-    const startWidth = sidebarWidth;
-    setIsResizing(true);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const movedDistance = moveEvent.clientX - startX;
-      const nextWidth = startWidth + movedDistance;
-      const limitedWidth = Math.min(
-        MAX_SIDEBAR_WIDTH,
-        Math.max(MIN_SIDEBAR_WIDTH, nextWidth),
-      );
-
-      setSidebarWidth(limitedWidth);
-    };
-    const stopResize = () => {
-      setIsResizing(false);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopResize);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopResize);
-  };
-
-  const resetSidebarWidth = () => {
-    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
-  };
-
   return (
     <aside
       className={cn(
-        "relative z-30 flex shrink-0 flex-col bg-gradient-to-b from-cyan-50 via-teal-50/95 to-sky-50/85 text-teal-950 shadow-[10px_0_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50 dark:shadow-[10px_0_24px_-20px_rgba(139,92,246,0.36)]",
+        "relative z-30 flex w-[240px] min-w-[240px] max-w-[240px] shrink-0 flex-col bg-gradient-to-b from-cyan-50 via-teal-50/95 to-sky-50/85 text-teal-950 shadow-[10px_0_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50 dark:shadow-[10px_0_24px_-20px_rgba(139,92,246,0.36)]",
         hideOnMobile && "hidden md:flex",
-        // 드래그 중에는 전환이 걸리면 커서를 따라오지 못해 끊겨 보인다.
-        !isResizing && "transition-[width] duration-200 ease-out",
       )}
-      style={{ width: `${effectiveWidth}px` }}
     >
       <div
         className={cn(
@@ -196,8 +91,6 @@ export function Sidebar({
         ) : null}
       </div>
 
-      {/* 세로 공간이 부족하면 잘리지 않고 스크롤되도록 한다.
-          (overflow-hidden이면 항목이 그대로 잘려 사라진다) */}
       <nav
         className={cn(
           "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden py-1.5",
@@ -219,31 +112,51 @@ export function Sidebar({
                   aria-label={item.label}
                   title={isIconOnly ? item.label : undefined}
                   className={cn(
-                    // 그룹 항목과 같은 "전체 폭 배경 채움 + 좌측 액센트 바" 구조.
-                    // 다만 공지사항은 중요도가 높아 라벨을 가운데 정렬로 유지한다.
-                    "relative flex w-full items-center justify-center rounded-lg py-1.5 text-sm font-semibold transition-colors duration-150",
-                    isIconOnly ? "px-2" : "px-3",
+                    "w-full text-sm font-semibold transition-colors duration-150",
+                    isIconOnly
+                      ? "flex items-center justify-center py-1.5"
+                      : "flex justify-center",
                     isActive
-                      ? "bg-[#FBEFF1] text-rose-700 dark:bg-rose-400/16 dark:text-rose-200"
-                      : "text-rose-600/85 hover:bg-[#FBEFF1]/60 hover:text-rose-700 dark:text-rose-300/85 dark:hover:bg-rose-400/10 dark:hover:text-rose-200",
+                      ? "text-rose-700 dark:text-rose-200"
+                      : "text-rose-600/85 hover:text-rose-700 dark:text-rose-300/85 dark:hover:text-rose-200",
                   )}
                 >
-                  {/* 좌측 바 위치: nav px-3 + 그룹 카드 p-0.5 만큼 보정해 세로선을 맞춘다. */}
-                  {isActive && !isIconOnly ? (
-                    <ActiveBar className="left-1.5 bg-rose-600 dark:bg-rose-400" />
-                  ) : null}
-                  {/* 아이콘을 좌측에 고정 배치해야 라벨이 버튼의 정확한 가운데에 온다.
-                      (아이콘을 흐름에 두면 아이콘+라벨 묶음이 중앙에 놓여 글자가 오른쪽으로 밀린다.) */}
-                  <Icon
-                    className={cn(
-                      "size-4 shrink-0 transition-colors duration-150",
-                      !isIconOnly && "absolute left-6",
-                      isActive
-                        ? "text-rose-600 dark:text-rose-300"
-                        : "text-rose-600/70 dark:text-rose-300/70",
-                    )}
-                  />
-                  {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
+                  {isIconOnly ? (
+                    <span
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-full transition-all duration-150",
+                        isActive
+                          ? "bg-rose-600 text-white shadow-[0_4px_10px_-6px_rgba(225,29,72,0.9)] dark:bg-rose-500"
+                          : "text-rose-600 dark:text-rose-300",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "relative inline-flex -translate-x-4 items-center gap-2 px-5 py-1.5 transition-transform duration-150",
+                      )}
+                    >
+                      {isActive ? (
+                        <span
+                          className="absolute inset-0 translate-x-1 rounded-full bg-rose-50/90 shadow-[0_6px_16px_-12px_rgba(225,29,72,0.65)] ring-1 ring-inset ring-rose-200/90 dark:bg-rose-950/35 dark:ring-rose-800/70"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
+                          isActive
+                            ? "bg-rose-600 text-white shadow-[0_4px_10px_-6px_rgba(225,29,72,0.9)] dark:bg-rose-500"
+                            : "text-rose-600 dark:text-rose-300",
+                        )}
+                      >
+                        <Icon className="size-4" />
+                      </span>
+                      <span className="relative z-10">{item.label}</span>
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -257,7 +170,10 @@ export function Sidebar({
 
         <div
           className={cn(
-            distributeGroups ? "flex flex-1 flex-col gap-3" : "space-y-3",
+            "min-h-0",
+            distributeGroups
+              ? "flex flex-1 flex-col gap-3"
+              : "space-y-3",
           )}
         >
           {groupedItems.map((group) => (
@@ -272,9 +188,7 @@ export function Sidebar({
               className={cn(
                 "border border-cyan-200/80 bg-white/68 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35",
                 isIconOnly ? "rounded-xl p-0.5" : "rounded-2xl p-0.5",
-                // min-h-min: 여유가 있을 때만 늘어나고, 공간이 부족하면
-                // 내용 높이 아래로는 줄지 않는다 (min-h-0이면 찌그러져 잘린다).
-                distributeGroups && "flex min-h-min flex-1 flex-col",
+                distributeGroups && "flex min-h-max flex-1 flex-col",
               )}
             >
               {!isIconOnly ? (
@@ -289,13 +203,11 @@ export function Sidebar({
                 </div>
               ) : null}
 
-              {/* 항목이 많은 메뉴(PM)는 남는 높이를 나눠 갖고, 적은 메뉴(직원)는
-                  고정 간격을 쓴다. 고정 간격 값은 PM 쪽 체감 여백에 맞춰 잡았다. */}
               <div
                 className={cn(
                   distributeGroups
-                    ? "flex min-h-min flex-1 flex-col justify-evenly gap-0.5"
-                    : "space-y-1.5 pb-1 pt-0.5",
+                    ? "flex min-h-max flex-1 flex-col justify-evenly"
+                    : "space-y-0.5",
                 )}
               >
                 {group.items.map((item) => {
@@ -311,22 +223,21 @@ export function Sidebar({
                       aria-label={item.label}
                       title={isIconOnly ? item.label : undefined}
                       className={cn(
-                        ITEM_BASE_CLASS,
-                        isIconOnly
-                          ? "justify-center px-2"
-                          : "gap-2.5 pl-4 pr-3 text-left",
+                        "group flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150",
+                        isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
                         isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                       )}
                     >
-                      {isActive && !isIconOnly ? (
-                        <ActiveBar className={ACTIVE_BAR_CLASS} />
-                      ) : null}
-                      <Icon
+                      <span
                         className={cn(
-                          "size-4 shrink-0 transition-colors duration-150",
-                          isActive ? ACTIVE_ICON_CLASS : INACTIVE_ICON_CLASS,
+                          "flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
+                          isActive
+                            ? "bg-teal-600 text-white shadow-[0_4px_10px_-6px_rgba(13,148,136,0.9)] dark:bg-violet-500 dark:shadow-[0_4px_10px_-6px_rgba(139,92,246,0.9)]"
+                            : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                         )}
-                      />
+                      >
+                        <Icon className={isActive ? "size-4" : "size-3.5"} />
+                      </span>
                       {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                     </button>
                   );
@@ -337,7 +248,7 @@ export function Sidebar({
         </div>
 
         {bottomItems && bottomItems.length > 0 ? (
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-0.5 pt-1">
             <div
               role="separator"
               className="mx-2 my-2 border-t border-cyan-200/80 dark:border-violet-900/60"
@@ -356,22 +267,21 @@ export function Sidebar({
                   aria-label={item.label}
                   title={isIconOnly ? item.label : undefined}
                   className={cn(
-                    ITEM_BASE_CLASS,
-                    isIconOnly
-                      ? "justify-center px-2"
-                      : "gap-2.5 pl-4 pr-3 text-left",
+                    "group flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150",
+                    isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
                     isActive ? ACTIVE_ITEM_CLASS : INACTIVE_ITEM_CLASS,
                   )}
                 >
-                  {isActive && !isIconOnly ? (
-                    <ActiveBar className={ACTIVE_BAR_CLASS} />
-                  ) : null}
-                  <Icon
+                  <span
                     className={cn(
-                      "size-4 shrink-0 transition-colors duration-150",
-                      isActive ? ACTIVE_ICON_CLASS : INACTIVE_ICON_CLASS,
+                      "flex size-6 shrink-0 items-center justify-center rounded-full transition-all duration-150",
+                      isActive
+                        ? "bg-teal-600 text-white shadow-[0_4px_10px_-6px_rgba(13,148,136,0.9)] dark:bg-violet-500 dark:shadow-[0_4px_10px_-6px_rgba(139,92,246,0.9)]"
+                        : "text-teal-700/55 group-hover:text-teal-800 dark:text-violet-300/55 dark:group-hover:text-violet-200",
                     )}
-                  />
+                  >
+                    <Icon className={isActive ? "size-4" : "size-3.5"} />
+                  </span>
                   {!isIconOnly ? <span className="truncate">{item.label}</span> : null}
                 </button>
               );
@@ -412,9 +322,8 @@ export function Sidebar({
               aria-label="Slack 바로가기"
               title={isIconOnly ? "Slack 바로가기" : undefined}
               className={cn(
-                ITEM_BASE_CLASS,
-                INACTIVE_ITEM_CLASS,
-                isIconOnly ? "justify-center px-2" : "gap-2.5 pl-4 pr-3 text-left",
+                "group relative flex w-full items-center whitespace-nowrap rounded-xl py-1.5 text-sm text-teal-900/70 transition-all hover:bg-cyan-100/90 hover:text-teal-950 dark:text-zinc-300/80 dark:hover:bg-violet-950/75 dark:hover:text-violet-50",
+                isIconOnly ? "justify-center px-2" : "gap-3 px-3 text-left",
               )}
             >
               <SlackIcon className="shrink-0 text-base" />
@@ -429,19 +338,6 @@ export function Sidebar({
         </div>
       ) : null}
 
-      {/* 창이 좁아 자동으로 접힌 상태에서는 너비 조절을 막는다
-          (조절해도 즉시 되접혀 고장난 것처럼 보인다) */}
-      {!isAutoCollapsed ? (
-        <div
-          role="separator"
-          aria-label="사이드바 너비 조절"
-          aria-orientation="vertical"
-          title="드래그하여 너비 조절 · 좁히면 아이콘 모드 · 더블클릭하여 초기화"
-          onPointerDown={startResize}
-          onDoubleClick={resetSidebarWidth}
-          className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
-        />
-      ) : null}
     </aside>
   );
 }

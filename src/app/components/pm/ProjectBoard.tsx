@@ -67,9 +67,6 @@ import {
 } from "@/app/projects/projectProgress";
 
 
-let highlightedProjectIdForCurrentVisit: string | null = null;
-let clearHighlightedProjectTimer: ReturnType<typeof setTimeout> | null = null;
-
 const STATUS_META: Record<
   ProjectStatus,
   { label: string; badge: string; icon: React.ComponentType<{ className?: string }> }
@@ -80,6 +77,9 @@ const STATUS_META: Record<
   진행중: { label: "진행중", badge: "bg-blue-50 text-blue-700 border-blue-200", icon: Activity },
   완료: { label: "완료", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
 };
+
+const PROJECT_DELETE_BUTTON_CLASS =
+  "font-semibold !text-teal-800 hover:!bg-rose-100 hover:!text-rose-800 dark:!text-teal-200 dark:hover:!bg-rose-950/55 dark:hover:!text-rose-100";
 
 interface ProjectBoardProps {
   mode?: "demo" | "real";
@@ -132,26 +132,6 @@ export function ProjectBoard({
   const [progressLoading, setProgressLoading] = useState<
     Record<string, boolean>
   >({});
-  const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(
-    highlightedProjectIdForCurrentVisit,
-  );
-
-  useEffect(() => {
-    if (clearHighlightedProjectTimer) {
-      clearTimeout(clearHighlightedProjectTimer);
-      clearHighlightedProjectTimer = null;
-    }
-
-    setHighlightedProjectId(highlightedProjectIdForCurrentVisit);
-
-    return () => {
-      clearHighlightedProjectTimer = setTimeout(() => {
-        highlightedProjectIdForCurrentVisit = null;
-        clearHighlightedProjectTimer = null;
-      }, 0);
-    };
-  }, []);
-
   const filtered = useMemo(() => {
     const q = normalizeSearchText(query);
     const visibleProjects = projects.filter((project) => {
@@ -315,8 +295,6 @@ export function ProjectBoard({
             (project) => project.id !== createdProject.id,
           ),
         ]);
-        highlightedProjectIdForCurrentVisit = createdProject.id;
-        setHighlightedProjectId(createdProject.id);
         onProjectCreated(createdProject);
       }
 
@@ -462,7 +440,6 @@ export function ProjectBoard({
             onStart={() => startProject(p.id)}
             planningProgress={planningProgress[p.id]}
             isProgressLoading={progressLoading[p.id] === true}
-            isHighlighted={highlightedProjectId === p.id}
             onOpenReal={(stage) => onExtract(p, stage)}
           />
         ))}
@@ -570,14 +547,16 @@ export function ProjectBoard({
                 {mode === "real" ? (
                   <>
                     <Button
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
+                      className={PROJECT_DELETE_BUTTON_CLASS}
                       disabled={deletingProjectId === detail.id}
                       onClick={() => requestProjectDeletion(detail)}
                     >
                       {deletingProjectId === detail.id ? (
-                        <Loader2 className="size-4 animate-spin" />
+                        <Loader2 className="size-3.5 animate-spin" />
                       ) : (
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3.5" />
                       )}
                       삭제
                     </Button>
@@ -627,14 +606,16 @@ export function ProjectBoard({
                 ) : (
                   <>
                     <Button
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
+                      className={PROJECT_DELETE_BUTTON_CLASS}
                       disabled={deletingProjectId === detail.id}
                       onClick={() => requestProjectDeletion(detail)}
                     >
                       {deletingProjectId === detail.id ? (
-                        <Loader2 className="size-4 animate-spin" />
+                        <Loader2 className="size-3.5 animate-spin" />
                       ) : (
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3.5" />
                       )}
                       삭제
                     </Button>
@@ -1087,7 +1068,6 @@ interface ProjectCardProps {
   onStart: () => void;
   planningProgress?: ProjectPlanningProgress;
   isProgressLoading?: boolean;
-  isHighlighted?: boolean;
   onOpenReal: (stage: PlanningStage) => void;
 }
 
@@ -1102,7 +1082,6 @@ function ProjectCard({
   onStart,
   planningProgress,
   isProgressLoading = false,
-  isHighlighted = false,
   onOpenReal,
 }: ProjectCardProps) {
   const isActive = p.status === "진행중" || p.status === "완료";
@@ -1115,7 +1094,7 @@ function ProjectCard({
     <Button
       variant="ghost"
       size="sm"
-      className="text-rose-600 hover:bg-rose-100/80 hover:text-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/45 dark:hover:text-rose-200"
+      className={PROJECT_DELETE_BUTTON_CLASS}
       disabled={isDeleting}
       onClick={onDelete}
     >
@@ -1130,28 +1109,26 @@ function ProjectCard({
 
   return (
     <Card
-      className={cn(
-        "group overflow-hidden border-cyan-200/75 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-300/90 hover:shadow-[0_18px_38px_-24px_rgba(8,145,178,0.65)]",
-        isHighlighted &&
-          "border-cyan-500 ring-2 ring-cyan-200 shadow-md shadow-cyan-100",
-      )}
+      className="group overflow-hidden !border-2 !border-slate-300/90 bg-card/95 !shadow-[0_10px_26px_-18px_rgba(15,118,110,0.32)] !outline-none !ring-0 transition-[transform,box-shadow] duration-200 hover:-translate-y-[3px] hover:!shadow-[0_18px_34px_-20px_rgba(15,118,110,0.42)] dark:!border-slate-600/80 dark:!shadow-[0_12px_28px_-18px_rgba(88,28,135,0.38)] dark:hover:!shadow-[0_20px_36px_-20px_rgba(88,28,135,0.5)]"
       data-testid={mode === "real" ? "real-project-card" : undefined}
       data-project-id={mode === "real" ? p.id : undefined}
     >
       <CardContent className="flex h-full flex-col p-0">
-        <div className="flex-1 p-5">
+        <button
+          type="button"
+          onClick={onOpenName}
+          aria-label={`${p.name} 프로젝트 상세 보기`}
+          className="block w-full flex-1 cursor-pointer p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400/50 dark:focus-visible:ring-violet-500/50"
+        >
           <div className="flex items-start justify-between gap-4">
-            <button
-              onClick={onOpenName}
-              className="min-w-0 flex-1 text-left outline-none"
-            >
-              <div className="truncate text-[1.18rem] font-bold leading-7 text-foreground transition-colors group-hover:text-teal-800 dark:group-hover:text-teal-300">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[1.18rem] font-bold leading-7 text-foreground">
                 {p.name}
               </div>
               <div className="mt-1 truncate text-sm text-muted-foreground">
                 {p.client}
               </div>
-            </button>
+            </div>
 
             {mode === "real" ? (
               <RealStatusBadge
@@ -1242,16 +1219,15 @@ function ProjectCard({
               </div>
             ) : null}
           </div>
-        </div>
+        </button>
 
         <div className="mt-auto flex min-h-14 items-center justify-between gap-2 border-t border-border/75 bg-muted/20 px-4 py-2.5">
           {mode === "real" ? (
             <>
               {deleteButton}
               <Button
-                variant="outline"
                 size="sm"
-                className="border-cyan-200 bg-card text-teal-800 hover:border-cyan-300 hover:bg-cyan-50 hover:text-teal-900 dark:border-cyan-900/70 dark:hover:bg-cyan-950/30 dark:hover:text-cyan-200"
+                className="h-10 min-w-[10.5rem] rounded-lg px-5 text-[0.94rem] font-semibold"
                 disabled={isProgressLoading}
                 onClick={() => {
                   if (planningComplete) {
@@ -1271,7 +1247,7 @@ function ProjectCard({
                     {planningComplete
                       ? "대시보드 열기"
                       : planningProgress?.buttonLabel ?? "요구사항 만들러 가기"}
-                    <ArrowRight className="size-3.5" />
+                    <ArrowRight className="size-4" />
                   </>
                 )}
               </Button>

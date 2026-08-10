@@ -98,6 +98,68 @@ test("shows the upload prompt when requirements and documents are empty", async 
   await expect(page.getByText(staleNotice, { exact: true })).toHaveCount(0);
 });
 
+test("scrolls back to the derived requirements card after collapsing", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const manyRequirements = Array.from({ length: 16 }, (_, index) => ({
+    ...requirement,
+    requirementId: requirement.requirementId + index,
+    externalReferenceId: index + 1,
+    title: `Requirement ${index + 1}`,
+  }));
+  await openUpload(page, {
+    documents: [document],
+    requirements: manyRequirements,
+    real: true,
+  });
+  await page.waitForLoadState("networkidle");
+
+  const requirementsCard = page.getByTestId("derived-requirements-card");
+  const showMoreButton = requirementsCard.locator(
+    "button:has(svg.lucide-chevron-down)",
+  );
+  await showMoreButton.click();
+  await expect(requirementsCard.getByRole("row")).toHaveCount(17);
+  await page.locator("main").evaluate((main) => {
+    main.scrollTo({ top: 0 });
+  });
+
+  const collapseButton = requirementsCard.locator(
+    "button:has(svg.lucide-chevron-up)",
+  );
+  await collapseButton.click({ force: true });
+
+  await expect(requirementsCard.getByRole("row")).toHaveCount(9);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const main = document.querySelector("main");
+        const card = document.querySelector(
+          '[data-testid="derived-requirements-card"]',
+        );
+        if (!(main instanceof HTMLElement) || !(card instanceof HTMLElement)) {
+          return Number.POSITIVE_INFINITY;
+        }
+
+        const cardContentTop =
+          main.scrollTop +
+          card.getBoundingClientRect().top -
+          main.getBoundingClientRect().top;
+        const maxScrollTop = main.scrollHeight - main.clientHeight;
+        const expectedScrollTop = Math.min(
+          Math.max(cardContentTop - 72, 0),
+          maxScrollTop,
+        );
+        return Math.abs(main.scrollTop - expectedScrollTop);
+      }),
+    )
+    .toBeLessThanOrEqual(2);
+  await expect
+    .poll(() => page.locator("main").evaluate((main) => main.scrollTop))
+    .toBeGreaterThan(0);
+});
+
 test("shows the analysis action when documents exist without requirements", async ({
   page,
 }) => {
@@ -110,6 +172,29 @@ test("shows the analysis action when documents exist without requirements", asyn
     page.getByRole("button", { name: "전체 문서 분석", exact: true }),
   ).toBeVisible();
   await expect(page.getByText(staleNotice, { exact: true })).toHaveCount(0);
+});
+
+test("toggles document selection from the row except for action buttons", async ({
+  page,
+}) => {
+  await openUpload(page, { documents: [document], requirements: [] });
+
+  const documentRow = page.locator(
+    `[data-document-id="${document.documentId}"]`,
+  );
+  const checkbox = documentRow.getByRole("checkbox", {
+    name: `${document.originalFileName} 분석 대상 선택`,
+  });
+  await expect(checkbox).not.toBeChecked();
+
+  await documentRow.getByText("대기", { exact: true }).click();
+  await expect(checkbox).toBeChecked();
+
+  await documentRow.getByRole("button", { name: "다운로드" }).click();
+  await expect(checkbox).toBeChecked();
+
+  await documentRow.getByText(document.originalFileName, { exact: true }).click();
+  await expect(checkbox).not.toBeChecked();
 });
 
 test("renders persisted requirements with a user-friendly review status", async ({
@@ -640,26 +725,30 @@ test("shows analysis progress and blocks duplicate submissions", async ({
     documents: [document],
     requirements: () => currentRequirements,
   });
+  await page.waitForLoadState("networkidle");
 
   const analyzeButton = page.getByRole("button", {
     name: "전체 문서 분석",
     exact: true,
   });
-  const documentRow = page
-    .getByRole("row")
-    .filter({ hasText: document.originalFileName });
-  await expect(documentRow.getByText("대기", { exact: true })).toBeVisible();
+  const uploadedDocumentsCard = page
+    .getByRole("heading", { name: "업로드된 문서", exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
   await expect(
-    documentRow.getByRole("button", { name: "다시 분석" }),
+    uploadedDocumentsCard.getByText("대기", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    uploadedDocumentsCard.getByRole("button", { name: "다시 분석" }),
   ).toHaveCount(0);
-  await analyzeButton.click();
+  await analyzeButton.evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => analyzeCalls).toBe(1);
 
   await expect(
-    documentRow.getByText("분석 중", { exact: true }),
+    uploadedDocumentsCard.getByText("분석 중", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText(
-      "요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.",
+      "요구사항을 분석하고 있습니다. 잠시만 기다려 주세요.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -675,9 +764,80 @@ test("shows analysis progress and blocks duplicate submissions", async ({
     page.getByText("요구사항 분석을 완료했습니다.", { exact: true }),
   ).toBeVisible();
   await expect(
-    documentRow.getByText("분석 완료", { exact: true }),
+    uploadedDocumentsCard.getByText("분석 완료", { exact: true }),
   ).toBeVisible();
   expect(analyzeCalls).toBe(1);
+});
+
+test("keeps analysis progress visible after navigating away and back", async ({
+  page,
+}) => {
+  let analyzeCalls = 0;
+  let releaseAnalysis: (() => void) | undefined;
+  const analysisGate = new Promise<void>((resolve) => {
+    releaseAnalysis = resolve;
+  });
+  let currentRequirements: Array<typeof requirement> = [];
+
+  await page.route(
+    `**/api/projects/${project.projectId}/requirements/analyze`,
+    async (route) => {
+      analyzeCalls += 1;
+      await analysisGate;
+      currentRequirements = [requirement];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(requirementsResponse(currentRequirements)),
+      });
+    },
+  );
+  await openUpload(page, {
+    documents: [document],
+    requirements: () => currentRequirements,
+  });
+  await page.waitForLoadState("networkidle");
+
+  await page
+    .getByRole("button", { name: "전체 문서 분석", exact: true })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => analyzeCalls).toBe(1);
+  const uploadedDocumentsCard = page
+    .getByRole("heading", { name: "업로드된 문서", exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await expect(
+    uploadedDocumentsCard.getByText("분석 중", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "WBS", exact: true }).click();
+  await expect(page.getByText(document.originalFileName)).toHaveCount(0);
+  await page.getByRole("button", { name: "요구사항", exact: true }).click();
+
+  const restoredUploadedDocumentsCard = page
+    .getByRole("heading", { name: "업로드된 문서", exact: true })
+    .locator('xpath=ancestor::*[@data-slot="card"][1]');
+  await expect(
+    restoredUploadedDocumentsCard.getByText("분석 중", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "요구사항을 분석하고 있습니다. 잠시만 기다려 주세요.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("button", { name: "요구사항 분석 중", exact: true })
+      .first(),
+  ).toBeDisabled();
+
+  releaseAnalysis?.();
+  await expect(
+    restoredUploadedDocumentsCard.getByText("분석 완료", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(requirement.title, { exact: true }).first(),
+  ).toBeVisible();
 });
 
 test("keeps existing requirements visible when analysis fails", async ({
@@ -760,7 +920,7 @@ test("recovers the analysis controls and preserves results after a timeout", asy
   ).toBeVisible();
   await expect(
     page.getByText(
-      "요구사항을 분석 중입니다. 완료될 때까지 다시 실행할 수 없습니다.",
+      "요구사항을 분석하고 있습니다. 잠시만 기다려 주세요.",
       { exact: true },
     ),
   ).toHaveCount(0);
@@ -1005,6 +1165,28 @@ async function openUpload(
       body: JSON.stringify({ message: "not found" }),
     });
   });
+  await page.route(
+    `**/api/projects/${project.projectId}/artifacts/organization-chart/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "not found" }),
+      });
+    },
+  );
+  for (const resource of ["progress", "schedules"]) {
+    await page.route(
+      `**/api/projects/${project.projectId}/${resource}`,
+      async (route) => {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "not found" }),
+        });
+      },
+    );
+  }
 
   await login(
     page,

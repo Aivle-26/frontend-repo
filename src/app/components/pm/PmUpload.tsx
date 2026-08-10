@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   Download,
   Eye,
@@ -47,6 +49,16 @@ import {
 } from "@/app/components/pm/projectDocumentUpload";
 import type { UploadedRfp } from "@/app/data/demoData";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
+
+const REQUIREMENTS_VISIBLE_STEP = 8;
+const REQUIREMENTS_SCROLL_OFFSET = 72;
+
+interface ActiveRequirementAnalysis {
+  documentIds: Set<string>;
+  promise: Promise<RequirementsResult>;
+}
+
+const activeRequirementAnalyses = new Map<string, ActiveRequirementAnalysis>();
 
 function statusClass(status: UploadedRfp["status"]) {
   if (status === "분석 완료") {
@@ -143,12 +155,16 @@ export function PmUpload({
   onDocumentsUploaded?: (documents: ProjectDocumentUploadItem[]) => void;
   onAnalysisComplete?: () => void;
 }) {
+  const projectKey = String(project.id);
   const [files, setFiles] = useState<UploadedRfp[]>([]);
   const [dragging, setDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [requirements, setRequirements] = useState<RequirementResponse[]>([]);
+  const [visibleRequirementCount, setVisibleRequirementCount] = useState(
+    REQUIREMENTS_VISIBLE_STEP,
+  );
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
   const [requirementsLoadError, setRequirementsLoadError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -158,6 +174,14 @@ export function PmUpload({
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [trackedAnalysisDocumentIds, setTrackedAnalysisDocumentIds] = useState<
+    Set<string>
+  >(
+    () =>
+      new Set(
+        activeRequirementAnalyses.get(projectKey)?.documentIds ?? [],
+      ),
+  );
   const [isReadjusting, setIsReadjusting] = useState(false);
   const [changeCandidates, setChangeCandidates] = useState<
     RequirementChangeCandidate[]
@@ -165,28 +189,83 @@ export function PmUpload({
   const [evidenceRequirement, setEvidenceRequirement] =
     useState<RequirementResponse | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requirementsCardRef = useRef<HTMLDivElement>(null);
+  const scrollAfterCollapseRef = useRef(false);
+  const serverAnalysisInProgress = files.some(
+    (file) => file.status === "분석 중",
+  );
+  const analysisInProgress =
+    isReadjusting ||
+    trackedAnalysisDocumentIds.size > 0 ||
+    serverAnalysisInProgress;
 
-  const loadDocuments = useCallback(async () => {
-    setIsLoadingDocuments(true);
+  const loadDocuments = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoadingDocuments(true);
     setLoadError("");
 
     try {
       const response = await projectRepository.listProjectDocuments(project.id);
-      setFiles(response.documents.map(toUploadRow));
+      const trackedDocumentIds =
+        activeRequirementAnalyses.get(String(project.id))?.documentIds ??
+        new Set<string>();
+      const nextFiles = response.documents.map((document) => {
+        const file = toUploadRow(document);
+        if (trackedDocumentIds.size === 0) return file;
+        return {
+          ...file,
+          status: trackedDocumentIds.has(file.id) ? "분석 중" : "대기",
+          requirementCount: 0,
+        } satisfies UploadedRfp;
+      });
+      setFiles(nextFiles);
+      setTrackedAnalysisDocumentIds(new Set(trackedDocumentIds));
       setSelectedDocumentIds((current) => {
         const availableIds = new Set(
           response.documents.map((document) => String(document.documentId)),
         );
-        return new Set([...current].filter((id) => availableIds.has(id)));
+        const nextSelectedIds = new Set(
+          [...current].filter((id) => availableIds.has(id)),
+        );
+        response.documents.forEach((document) => {
+          if (
+            document.status === "ANALYZING" ||
+            trackedDocumentIds.has(String(document.documentId))
+          ) {
+            nextSelectedIds.add(String(document.documentId));
+          }
+        });
+        return nextSelectedIds;
       });
+      return nextFiles;
     } catch (error) {
       setLoadError(
         error instanceof ApiError
           ? error.message
           : "프로젝트 문서 목록을 불러오지 못했습니다.",
       );
+      return null;
     } finally {
-      setIsLoadingDocuments(false);
+      if (showLoading) setIsLoadingDocuments(false);
+    }
+  }, [project.id]);
+
+  const loadRequirements = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoadingRequirements(true);
+    setRequirementsLoadError("");
+
+    try {
+      const result = await projectRepository.getRequirements(project.id);
+      setRequirements(analyzedRequirements(result));
+      return true;
+    } catch (error) {
+      setRequirementsLoadError(
+        error instanceof ApiError
+          ? error.message
+          : "요구사항을 불러오지 못했습니다.",
+      );
+      return false;
+    } finally {
+      if (showLoading) setIsLoadingRequirements(false);
     }
   }, [project.id]);
 
@@ -195,36 +274,141 @@ export function PmUpload({
   }, [loadDocuments]);
 
   useEffect(() => {
-    let ignore = false;
-    setIsLoadingRequirements(true);
-    setRequirementsLoadError("");
+    void loadRequirements();
+  }, [loadRequirements]);
 
-    projectRepository
-      .getRequirements(project.id)
+  useEffect(() => {
+    const activeAnalysis = activeRequirementAnalyses.get(projectKey);
+    if (!activeAnalysis) return;
+
+    let cancelled = false;
+    const activeDocumentIds = new Set(activeAnalysis.documentIds);
+    setTrackedAnalysisDocumentIds(activeDocumentIds);
+    setSelectedDocumentIds(activeDocumentIds);
+
+    void activeAnalysis.promise
       .then((result) => {
-        if (!ignore) {
-          setRequirements(analyzedRequirements(result));
-        }
+        if (cancelled) return;
+
+        const latestRequirements = analyzedRequirements(result).filter(
+          (requirement) =>
+            requirement.sourceDocumentId != null &&
+            activeDocumentIds.has(String(requirement.sourceDocumentId)),
+        );
+        setRequirements(latestRequirements);
+        setRequirementsLoadError("");
+        setChangeCandidates([]);
+        setFiles((current) =>
+          current.map((file) => {
+            if (!activeDocumentIds.has(file.id)) {
+              return { ...file, status: "대기", requirementCount: 0 };
+            }
+            const documentId = Number(file.id);
+            const requirementCount = latestRequirements.filter(
+              (requirement) => requirement.sourceDocumentId === documentId,
+            ).length;
+            return { ...file, status: "분석 완료", requirementCount };
+          }),
+        );
+        setSelectedDocumentIds(new Set());
       })
       .catch((error) => {
-        if (!ignore) {
-          setRequirementsLoadError(
-            error instanceof ApiError
-              ? error.message
-              : "요구사항을 불러오지 못했습니다.",
-          );
-        }
+        if (cancelled) return;
+        setAnalysisError(analysisErrorMessage(error));
+        void loadDocuments(false);
       })
       .finally(() => {
-        if (!ignore) {
-          setIsLoadingRequirements(false);
-        }
+        if (!cancelled) setTrackedAnalysisDocumentIds(new Set());
       });
 
     return () => {
-      ignore = true;
+      cancelled = true;
     };
-  }, [project.id]);
+  }, [loadDocuments, projectKey]);
+
+  useEffect(() => {
+    setVisibleRequirementCount(REQUIREMENTS_VISIBLE_STEP);
+  }, [project.id, requirements]);
+
+  useEffect(() => {
+    if (
+      !scrollAfterCollapseRef.current ||
+      visibleRequirementCount !== REQUIREMENTS_VISIBLE_STEP
+    ) {
+      return;
+    }
+
+    scrollAfterCollapseRef.current = false;
+    const frameId = window.requestAnimationFrame(() => {
+      const card = requirementsCardRef.current;
+      if (!card) return;
+
+      const scrollContainer = card.closest("main");
+      if (scrollContainer instanceof HTMLElement) {
+        const containerTop = scrollContainer.getBoundingClientRect().top;
+        const cardTop = card.getBoundingClientRect().top;
+        scrollContainer.scrollTo({
+          top:
+            scrollContainer.scrollTop +
+            cardTop -
+            containerTop -
+            REQUIREMENTS_SCROLL_OFFSET,
+          behavior: "smooth",
+        });
+        return;
+      }
+
+      window.scrollTo({
+        top:
+          window.scrollY +
+          card.getBoundingClientRect().top -
+          REQUIREMENTS_SCROLL_OFFSET,
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [visibleRequirementCount]);
+
+  useEffect(() => {
+    if (!serverAnalysisInProgress || isReadjusting) return;
+
+    let cancelled = false;
+    let polling = false;
+
+    const refreshAnalysisState = async () => {
+      if (polling) return;
+      polling = true;
+
+      try {
+        const latestFiles = await loadDocuments(false);
+        if (
+          !cancelled &&
+          latestFiles &&
+          !latestFiles.some((file) => file.status === "분석 중")
+        ) {
+          await loadRequirements(false);
+          if (!cancelled) setSelectedDocumentIds(new Set());
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    const pollTimer = window.setInterval(() => {
+      void refreshAnalysisState();
+    }, 2_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+    };
+  }, [
+    isReadjusting,
+    loadDocuments,
+    loadRequirements,
+    serverAnalysisInProgress,
+  ]);
 
   useEffect(() => {
     if (isLoadingDocuments || isLoadingRequirements) return;
@@ -331,7 +515,7 @@ export function PmUpload({
   };
 
   const readjustRequirements = async (documentIdsOverride?: string[]) => {
-    if (isReadjusting) return;
+    if (analysisInProgress) return;
 
     const activeDocumentIds = new Set(
       documentIdsOverride ?? [...selectedDocumentIds],
@@ -359,6 +543,7 @@ export function PmUpload({
     );
     setAnalysisError("");
     setIsReadjusting(true);
+    setTrackedAnalysisDocumentIds(activeDocumentIds);
     setFiles((current) =>
       current.map((file) =>
         activeDocumentIds.has(file.id)
@@ -367,11 +552,17 @@ export function PmUpload({
       ),
     );
 
+    const analysisPromise = projectRepository.analyzeProjectRequirements(
+      project.id,
+      { documentIds, force: true },
+    );
+    activeRequirementAnalyses.set(projectKey, {
+      documentIds: activeDocumentIds,
+      promise: analysisPromise,
+    });
+
     try {
-      const result = await projectRepository.analyzeProjectRequirements(
-        project.id,
-        { documentIds, force: true },
-      );
+      const result = await analysisPromise;
       const latestRequirements = analyzedRequirements(result).filter(
         (requirement) =>
           requirement.sourceDocumentId != null &&
@@ -410,12 +601,17 @@ export function PmUpload({
       setAnalysisError(message);
       toast.error(message);
     } finally {
+      const activeAnalysis = activeRequirementAnalyses.get(projectKey);
+      if (activeAnalysis?.promise === analysisPromise) {
+        activeRequirementAnalyses.delete(projectKey);
+      }
+      setTrackedAnalysisDocumentIds(new Set());
       setIsReadjusting(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (deletingDocumentIds.has(id) || isReadjusting) return;
+    if (deletingDocumentIds.has(id) || analysisInProgress) return;
 
     setDeletingDocumentIds((current) => new Set(current).add(id));
     try {
@@ -439,9 +635,17 @@ export function PmUpload({
     }
   };
 
-  const analysisInProgress = isReadjusting;
   const projectDataLoading =
     isLoadingDocuments || isLoadingRequirements;
+  const visibleRequirements = requirements.slice(0, visibleRequirementCount);
+  const hiddenRequirementCount = Math.max(
+    0,
+    requirements.length - visibleRequirementCount,
+  );
+  const collapseRequirements = () => {
+    scrollAfterCollapseRef.current = true;
+    setVisibleRequirementCount(REQUIREMENTS_VISIBLE_STEP);
+  };
 
   return (
     <div className="space-y-6">
@@ -544,12 +748,12 @@ export function PmUpload({
                 disabled={selectedDocumentIds.size === 0 || analysisInProgress}
                 onClick={() => void readjustRequirements()}
               >
-                {isReadjusting ? (
+                {analysisInProgress ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                {isReadjusting
+                {analysisInProgress
                   ? "요구사항 분석 중"
                   : requirements.length > 0
                     ? "선택 문서로 요구사항 재조정"
@@ -573,7 +777,22 @@ export function PmUpload({
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className="grid gap-3 px-4 py-4 transition-colors hover:bg-muted/20 md:grid-cols-[minmax(0,2.2fr)_0.7fr_1fr_0.9fr_0.8fr_1.25fr] md:items-center md:gap-4"
+                  data-document-id={file.id}
+                  onClick={() => {
+                    if (
+                      !analysisInProgress &&
+                      !deletingDocumentIds.has(file.id)
+                    ) {
+                      toggleDocument(file.id);
+                    }
+                  }}
+                  className={cn(
+                    "grid gap-3 px-4 py-4 transition-colors md:grid-cols-[minmax(0,2.2fr)_0.7fr_1fr_0.9fr_0.8fr_1.25fr] md:items-center md:gap-4",
+                    analysisInProgress || deletingDocumentIds.has(file.id)
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer hover:bg-muted/20",
+                    selectedDocumentIds.has(file.id) && "bg-cyan-50/60",
+                  )}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
@@ -582,6 +801,7 @@ export function PmUpload({
                         disabled={
                           analysisInProgress || deletingDocumentIds.has(file.id)
                         }
+                        onClick={(event) => event.stopPropagation()}
                         onCheckedChange={() => toggleDocument(file.id)}
                         aria-label={`${file.name} 분석 대상 선택`}
                       />
@@ -617,7 +837,10 @@ export function PmUpload({
                     </Badge>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <div
+                    className="flex flex-wrap items-center justify-end gap-1.5"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     {mode === "demo" ? (
                       <>
                         <button
@@ -675,23 +898,24 @@ export function PmUpload({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ClipboardList className="size-5" />
+      <div ref={requirementsCardRef} data-testid="derived-requirements-card">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="size-5" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-semibold tracking-tight">
+                  도출된 요구사항
+                </CardTitle>
+                <CardDescription className="mt-1 text-sm leading-5">
+                  분석된 요구사항과 원문 근거를 확인하세요.
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-xl font-semibold tracking-tight">
-                도출된 요구사항
-              </CardTitle>
-              <CardDescription className="mt-1 text-sm leading-5">
-                분석된 요구사항과 원문 근거를 확인하세요.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </CardHeader>
+          <CardContent className="space-y-4">
           {analysisError && (
             <Alert variant="destructive">
               <AlertDescription>{analysisError}</AlertDescription>
@@ -737,7 +961,7 @@ export function PmUpload({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requirements.map((requirement) => {
+                  {visibleRequirements.map((requirement) => {
                     const canOpenEvidence =
                       (Array.isArray(requirement.evidences) &&
                         requirement.evidences.length > 0) ||
@@ -801,6 +1025,39 @@ export function PmUpload({
                   })}
                 </TableBody>
               </Table>
+              {requirements.length > REQUIREMENTS_VISIBLE_STEP ? (
+                <div className="flex justify-center gap-2 border-t border-border/70 bg-muted/15 px-4 py-3">
+                  {hiddenRequirementCount > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setVisibleRequirementCount((current) =>
+                          Math.min(
+                            current + REQUIREMENTS_VISIBLE_STEP,
+                            requirements.length,
+                          ),
+                        )
+                      }
+                    >
+                      더보기 ({hiddenRequirementCount}개)
+                      <ChevronDown className="size-4" />
+                    </Button>
+                  ) : null}
+                  {visibleRequirementCount > REQUIREMENTS_VISIBLE_STEP ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={collapseRequirements}
+                    >
+                      접기
+                      <ChevronUp className="size-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : !requirementsLoadError && loadError ? (
             <Alert variant="destructive">
@@ -823,12 +1080,12 @@ export function PmUpload({
                   void readjustRequirements(files.map((file) => file.id))
                 }
               >
-                {isReadjusting ? (
+                {analysisInProgress ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                {isReadjusting ? "요구사항 분석 중" : "전체 문서 분석"}
+                {analysisInProgress ? "요구사항 분석 중" : "전체 문서 분석"}
               </Button>
             </div>
           ) : !requirementsLoadError ? (
@@ -852,8 +1109,9 @@ export function PmUpload({
               </Button>
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {changeCandidates.length > 0 ? (
         <Card>

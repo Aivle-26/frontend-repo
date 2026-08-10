@@ -8,6 +8,7 @@ import {
   Loader2,
   ReceiptText,
   Save,
+  TriangleAlert,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -255,6 +256,10 @@ export function PmBudget({ project }: PmBudgetProps) {
     }));
   }, [evidence]);
   const totalEvidenceMm = evidence.reduce((sum, item) => sum + item.estimatedMm, 0);
+  const utilizationWarnings = result?.utilizationWarnings ?? [];
+  const utilizationWarningEmployeeNumbers = new Set(
+    utilizationWarnings.map((warning) => warning.employeeNumber),
+  );
   const projectStart = result?.projectStartDate ?? project.server?.plannedStartDate ?? "미정";
   const projectEnd = result?.projectEndDate ?? project.server?.plannedEndDate ?? project.dueDate ?? "미정";
   const totalAmount = result?.totalAmount ?? 0;
@@ -309,6 +314,29 @@ export function PmBudget({ project }: PmBudgetProps) {
 
       {error && <div className="flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-200"><AlertCircle className="size-4 shrink-0" />{error}</div>}
 
+      {result?.hasUtilizationWarning && utilizationWarnings.length > 0 && (
+        <section className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4 text-amber-950 shadow-sm dark:border-amber-700/70 dark:bg-amber-950/25 dark:text-amber-100">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold">담당자 투입률을 확인해 주세요</h3>
+              <div className="mt-2 space-y-2">
+                {utilizationWarnings.map((warning) => (
+                  <div key={warning.employeeNumber} className="text-xs leading-5">
+                    <p>{warning.message}</p>
+                    <p className="text-amber-800/75 dark:text-amber-200/70">
+                      합산 {warning.totalUtilizationRate}% · 초과 {warning.excessUtilizationRate}%
+                      {warning.detailedJobs.length > 0 ? ` · ${warning.detailedJobs.join(", ")}` : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-amber-800/80 dark:text-amber-200/75">저장은 가능하지만 투입률이나 담당 업무를 확인하는 것을 권장합니다.</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border bg-muted/45 px-5 py-3.5"><div><h3 className="text-sm font-semibold">프로젝트 투입인력</h3><p className="mt-0.5 text-xs text-muted-foreground">배정된 인력의 직무와 투입 조건을 조정하면 자동으로 다시 계산됩니다.</p></div>{calculating && <span className="flex items-center gap-1.5 text-xs text-primary"><Loader2 className="size-3.5 animate-spin" /> 계산 중</span>}</div>
         <div className="overflow-x-auto">
@@ -317,7 +345,14 @@ export function PmBudget({ project }: PmBudgetProps) {
               {['No','이름','세부직무','KOSA 직무','인원','기간(개월)','투입률(%)','M/M','표준단가(M/M)','제안단가(M/M)','금액'].map((label) => <th key={label} className="whitespace-nowrap border-r border-border/70 px-2.5 py-2.5 text-center text-xs font-semibold last:border-r-0">{label}</th>)}
             </tr></thead>
             <tbody>{personnel.map((row, index) => (
-              <tr key={`${row.employeeNumber}-${index}`} className="border-b border-border/80 bg-card align-middle hover:bg-muted/20">
+              <tr
+                key={`${row.employeeNumber}-${index}`}
+                className={cn(
+                  "border-b border-border/80 bg-card align-middle hover:bg-muted/20",
+                  utilizationWarningEmployeeNumbers.has(row.employeeNumber) &&
+                    "bg-amber-50/80 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
+                )}
+              >
                 <td className="px-2 py-2 text-center text-xs text-muted-foreground">{index + 1}</td>
                 <td className="min-w-28 px-2 py-2 font-medium">{row.employeeName}</td>
                 <td className="min-w-44 px-1.5 py-1.5"><Input className="h-8 rounded-md text-xs" value={row.detailedJob} maxLength={100} onChange={(e) => updatePerson(index, { detailedJob: e.target.value })} /></td>

@@ -492,6 +492,15 @@ export interface KosaCostRequestBody {
   note: string;
 }
 
+export interface KosaUtilizationWarning {
+  employeeNumber: string;
+  employeeName: string;
+  totalUtilizationRate: number;
+  excessUtilizationRate: number;
+  detailedJobs: string[];
+  message: string;
+}
+
 export interface KosaCostResponse {
   costEstimateId?: number | null;
   projectId: number;
@@ -525,6 +534,8 @@ export interface KosaCostResponse {
   totalAmount?: number;
   note?: string;
   updatedAt?: string | null;
+  hasUtilizationWarning?: boolean;
+  utilizationWarnings?: KosaUtilizationWarning[];
 }
 
 export interface AssignmentRecommendationCandidate {
@@ -1460,8 +1471,8 @@ export const projectRepository = {
     );
   },
 
-  saveFinalCostEstimate(projectId: string | number, input: CostEstimateRequestBody) {
-    return apiFetch<FinalCostEstimateResponse>(
+  saveFinalCostEstimate(projectId: string | number, input: KosaCostRequestBody) {
+    return apiFetch<KosaCostResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       {
         method: "PUT",
@@ -1473,7 +1484,7 @@ export const projectRepository = {
 
   /** 저장된 최종 확정 예산 조회 (읽기 전용). */
   getFinalCostEstimate(projectId: string | number) {
-    return apiFetch<FinalCostEstimateResponse>(
+    return apiFetch<KosaCostResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       { auth: true },
     );
@@ -1495,14 +1506,14 @@ export const projectRepository = {
 
   saveEditedKosaCost(projectId: string | number, input: KosaCostRequestBody) {
     return apiFetch<KosaCostResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       { method: "PUT", body: JSON.stringify(input), auth: true },
     );
   },
 
   getEditedKosaCost(projectId: string | number) {
     return apiFetch<KosaCostResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
       { auth: true },
     );
   },

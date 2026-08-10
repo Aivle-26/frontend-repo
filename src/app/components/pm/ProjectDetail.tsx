@@ -47,7 +47,7 @@ import {
   type WbsTask,
   type ProjectScheduleDetail,
   type TaskAssignmentResponse,
-  type FinalCostEstimateResponse,
+  type KosaCostResponse,
   type MemberProgress,
 } from "@/app/api/projectRepository";
 import type { PendingProjectDocument } from "@/app/components/pm/projectDocumentUpload";
@@ -138,7 +138,7 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
   const [wbsTasks, setWbsTasks] = useState<WbsTask[]>([]);
   const [scheduleRows, setScheduleRows] = useState<ProjectScheduleDetail[]>([]);
   const [assignments, setAssignments] = useState<TaskAssignmentResponse[]>([]);
-  const [finalBudget, setFinalBudget] = useState<FinalCostEstimateResponse | null>(null);
+  const [finalBudget, setFinalBudget] = useState<KosaCostResponse | null>(null);
   const [progressRate, setProgressRate] = useState<number | null>(null);
   const [progressCounts, setProgressCounts] = useState<{ completed: number; total: number } | null>(null);
   const [teamWorkload, setTeamWorkload] = useState<MemberProgress[]>([]);
@@ -611,7 +611,7 @@ function PlanningStagePreview({
   wbsTasks: WbsTask[];
   scheduleRows: ProjectScheduleDetail[];
   assignments: TaskAssignmentResponse[];
-  finalBudget: FinalCostEstimateResponse | null;
+  finalBudget: KosaCostResponse | null;
   uiPrototypeCompleted: boolean;
 }) {
   if (stageKey === "requirements") {
@@ -692,19 +692,19 @@ function PlanningStagePreview({
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground">최종 예상 금액</span>
         <span className="text-foreground">
-          {Math.round(finalBudget.estimate.totalAmount).toLocaleString("ko-KR")}원
+          {Math.round(finalBudget.totalAmount ?? 0).toLocaleString("ko-KR")}원
         </span>
       </div>
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground">공급가액</span>
         <span className="text-foreground">
-          {Math.round(finalBudget.estimate.supplyAmount).toLocaleString("ko-KR")}원
+          {Math.round(finalBudget.supplyAmount ?? 0).toLocaleString("ko-KR")}원
         </span>
       </div>
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground">인건비</span>
         <span className="text-foreground">
-          {Math.round(finalBudget.costSummary.laborCost).toLocaleString("ko-KR")}원
+          {Math.round(finalBudget.directLaborCost ?? 0).toLocaleString("ko-KR")}원
         </span>
       </div>
     </div>

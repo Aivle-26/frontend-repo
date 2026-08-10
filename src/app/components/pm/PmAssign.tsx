@@ -60,6 +60,7 @@ import {
   type TeamMemberResponse,
   type ProjectMemberResponse,
   type MemberProgress,
+  type WbsTask,
 } from "@/app/api/projectRepository";
 import { CountUp } from "@/app/components/common/CountUp";
 import { TeamProgressDelayCard } from "@/app/components/common/TeamProgressDelayCard";
@@ -83,11 +84,7 @@ const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 // 선택 시 내부 상태에는 ""(미선택)로 저장한다.
 const UNSELECTED_VALUE = "__unselected__";
 
-/**
- * "담당자 추천" 결과를 프로젝트별로 메모리에 기억해둔다.
- * 다른 화면(WBS/일정/예산 등)에 갔다가 돌아와도 다시 추천 버튼을 누를 필요 없게
- * 하기 위한 것으로, 로그아웃하거나 페이지를 새로고침하면 사라진다(의도된 동작).
- */
+/** 담당자 추천 결과와 사용자가 선택한 담당자를 프로젝트별로 보존한다. */
 interface AssignRecommendationCache {
   assignRecs: AssignmentRecommendation[];
   candidates: { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[];
@@ -97,14 +94,14 @@ interface AssignRecommendationCache {
 }
 const assignRecommendationCache = new Map<string, AssignRecommendationCache>();
 
-// 이 프로젝트는 로그아웃/로그인(및 새로고침) 후에도 추천 결과가 남도록 localStorage에도 저장한다.
-const PERSIST_PROJECT_NAME = "IT 개발 관리";
-const ASSIGN_REC_STORAGE_PREFIX = "aipm.assignRec.";
+// 같은 브라우저 탭에서는 다른 화면으로 이동하거나 새로고침해도 추천 결과가 유지된다.
+// 탭을 닫으면 제거해 오래된 WBS/팀원 정보가 다음 작업 세션에 남지 않게 한다.
+const ASSIGN_REC_STORAGE_PREFIX = "aipm.assignRec.v2.";
 
 function readPersistedRecommendation(projectId: string): AssignRecommendationCache | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(ASSIGN_REC_STORAGE_PREFIX + projectId);
+    const raw = window.sessionStorage.getItem(ASSIGN_REC_STORAGE_PREFIX + projectId);
     return raw ? (JSON.parse(raw) as AssignRecommendationCache) : null;
   } catch {
     return null;
@@ -114,7 +111,7 @@ function readPersistedRecommendation(projectId: string): AssignRecommendationCac
 function writePersistedRecommendation(projectId: string, value: AssignRecommendationCache) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(ASSIGN_REC_STORAGE_PREFIX + projectId, JSON.stringify(value));
+    window.sessionStorage.setItem(ASSIGN_REC_STORAGE_PREFIX + projectId, JSON.stringify(value));
   } catch {
     // 저장 실패(용량/직렬화)는 무시한다.
   }
@@ -129,9 +126,8 @@ export function PmAssign({
 }) {
   const requirements = projectRequirements(project);
 
-  // AI가 추천을 만들지 못한 WBS(unassignedWbsIds)는 응답에 ID만 있고 작업명이 없다.
-  // 표에 사람이 읽을 수 있는 행으로 띄우려면 WBS를 따로 받아 이름을 매핑해야 한다.
-  const [wbsNameById, setWbsNameById] = useState<Record<number, string>>({});
+  // 화면 행의 원천은 AI 응답이 아니라 확정된 전체 말단 WBS다.
+  const [finalWbsTasks, setFinalWbsTasks] = useState<WbsTask[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -139,15 +135,10 @@ export function PmAssign({
       .getWbs(project.id)
       .then((res) => {
         if (ignore) return;
-        const names: Record<number, string> = {};
-        for (const task of res.finalTasks ?? []) {
-          if (task.taskId != null) names[task.taskId] = task.taskName;
-        }
-        setWbsNameById(names);
+        setFinalWbsTasks(res.finalTasks ?? []);
       })
       .catch(() => {
-        // 이름을 못 받아도 "WBS #123"으로 표시되므로 배정 자체는 막지 않는다.
-        if (!ignore) setWbsNameById({});
+        if (!ignore) setFinalWbsTasks([]);
       });
     return () => {
       ignore = true;
@@ -232,12 +223,11 @@ export function PmAssign({
       .finally(() => setSavingMembers(false));
   };
 
-  // 메모리 캐시 우선, 대상 프로젝트면 localStorage 백업에서도 복원한다.
-  const isPersistProject = project.name === PERSIST_PROJECT_NAME;
+  // 메모리 캐시 우선, 없으면 현재 탭의 세션 저장소에서 복원한다.
   const cachedRec = useMemo<AssignRecommendationCache | null>(
     () =>
       assignRecommendationCache.get(project.id) ??
-      (isPersistProject ? readPersistedRecommendation(project.id) : null),
+      readPersistedRecommendation(project.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [project.id],
   );
@@ -249,6 +239,26 @@ export function PmAssign({
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >(() => cachedRec?.candidates ?? []);
+
+  // AI 추천 후보와 프로젝트 담당자 후보를 사번 기준으로 합친다.
+  // 백엔드가 project_members 행이 없는 프로젝트 PM도 projectMembers에 포함하므로,
+  // 추천 결과에 PM이 없더라도 모든 WBS 드롭다운에서 직접 선택할 수 있다.
+  const assignmentCandidates = useMemo(() => {
+    const merged = new Map<
+      string,
+      { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }
+    >();
+    for (const member of candidates) merged.set(member.employeeNumber, member);
+    for (const member of projectMembers) {
+      merged.set(member.employeeNumber, {
+        employeeNumber: member.employeeNumber,
+        name: member.name,
+        email: member.email,
+        availableHoursPerWeek: member.availableHoursPerWeek,
+      });
+    }
+    return Array.from(merged.values());
+  }, [candidates, projectMembers]);
   // AI가 아예 추천 항목을 만들지 못한 확정 리프 WBS (그래도 최종 저장 땐 반드시 포함해야 함)
   const [unassignedIds, setUnassignedIds] = useState<number[]>(
     () => cachedRec?.unassignedIds ?? [],
@@ -259,11 +269,12 @@ export function PmAssign({
   const [hasRecommended, setHasRecommended] = useState(
     () => cachedRec?.hasRecommended ?? false,
   );
-  // 선택값은 캐시에서 복원하지 않는다. 복원 시엔 각 행이 렌더에서 AI 1순위로 다시 기본선택되도록.
-  const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
+  const [selectedMember, setSelectedMember] = useState<Record<number, string>>(
+    () => cachedRec?.selectedMember ?? {},
+  );
   const [savingAssignments, setSavingAssignments] = useState(false);
 
-  // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 저장한다. 대상 프로젝트는 localStorage에도 백업.
+  // 추천 결과와 선택값이 바뀔 때마다 메모리와 현재 탭의 세션 저장소에 저장한다.
   useEffect(() => {
     if (!hasRecommended) return;
     const value: AssignRecommendationCache = {
@@ -274,7 +285,7 @@ export function PmAssign({
       hasRecommended,
     };
     assignRecommendationCache.set(project.id, value);
-    if (isPersistProject) writePersistedRecommendation(project.id, value);
+    writePersistedRecommendation(project.id, value);
   }, [
     project.id,
     assignRecs,
@@ -282,8 +293,40 @@ export function PmAssign({
     unassignedIds,
     selectedMember,
     hasRecommended,
-    isPersistProject,
   ]);
+
+  const assignmentRows = useMemo(() => {
+    const parentExternalIds = new Set(
+      finalWbsTasks
+        .map((task) => task.parentExternalTaskId)
+        .filter((id): id is string => id != null),
+    );
+    const recommendationByWbsId = new Map(
+      assignRecs.map((recommendation) => [Number(recommendation.wbsId), recommendation]),
+    );
+    const backendUnassignedIds = new Set(unassignedIds.map(Number));
+
+    return finalWbsTasks
+      .filter(
+        (task): task is WbsTask & { taskId: number } =>
+          task.taskId != null &&
+          task.confirmed === true &&
+          !parentExternalIds.has(task.externalTaskId),
+      )
+      .sort((left, right) => left.orderIndex - right.orderIndex)
+      .map((wbs) => {
+        const wbsId = Number(wbs.taskId);
+        const recommendation = recommendationByWbsId.get(wbsId) ?? null;
+        const hasRecommendedMember = (recommendation?.recommendedMembers.length ?? 0) > 0;
+        return {
+          wbsId,
+          wbs,
+          recommendation,
+          recommendedMembers: recommendation?.recommendedMembers ?? [],
+          unassigned: backendUnassignedIds.has(wbsId) || !hasRecommendedMember,
+        };
+      });
+  }, [assignRecs, finalWbsTasks, unassignedIds]);
 
   const loadRecommendations = () => {
     setAssignLoading(true);
@@ -320,50 +363,27 @@ export function PmAssign({
 
   const handleSaveAssignments = () => {
     const unresolvable: string[] = [];
-
-    // 선택된 담당자(또는 AI 1순위)가 있는 작업만 저장한다.
-    // 아무것도 없으면 임의의 팀원으로 채우지 않고 unresolvable로 보고한다.
-    const fromRecs = assignRecs
-      .map((rec) => {
+    const assignments = assignmentRows
+      .map((row) => {
         const employeeNumber =
-          selectedMember[rec.wbsId] ?? rec.recommendedMembers[0]?.employeeNumber;
+          selectedMember[row.wbsId] ?? row.recommendedMembers[0]?.employeeNumber;
         if (!employeeNumber) {
-          unresolvable.push(rec.wbsName);
+          unresolvable.push(row.wbs.taskName);
           return null;
         }
-        const recMember = rec.recommendedMembers.find(
-          (m) => m.employeeNumber === employeeNumber,
+        const recommendedMember = row.recommendedMembers.find(
+          (member) => member.employeeNumber === employeeNumber,
         );
         return {
-          wbsId: rec.wbsId,
+          wbsId: row.wbsId,
           employeeNumber,
-          assignedHours: recMember?.assignedHours || rec.estimatedHours,
+          assignedHours:
+            recommendedMember?.assignedHours ||
+            row.recommendation?.estimatedHours ||
+            row.wbs.estimatedHours,
         };
       })
-      .filter((a): a is NonNullable<typeof a> => a !== null);
-
-    // AI가 추천 항목 자체를 못 만든 WBS(unassignedWbsIds) — 시간 정보가 없어 1시간으로 채운다.
-    const fromUnassigned = unassignedIds
-      .map((wbsId) => {
-        const employeeNumber = selectedMember[wbsId];
-        if (!employeeNumber) {
-          unresolvable.push(wbsNameById[wbsId] ?? `WBS #${wbsId}`);
-          return null;
-        }
-        return { wbsId, employeeNumber, assignedHours: 1 };
-      })
-      .filter((a): a is NonNullable<typeof a> => a !== null);
-
-    const assignments = [...fromRecs, ...fromUnassigned];
-
-    // 방어적 중복 제거: 같은 wbsId가 두 번 이상 들어가면 백엔드가 저장 자체를 거부한다.
-    // (추천 결과에 같은 WBS가 여러 필요 역할로 중복 등장하는 경우가 있어 여기서 한 번 더 걸러낸다.)
-    const seenWbsIds = new Set<number>();
-    const dedupedAssignments = assignments.filter((a) => {
-      if (seenWbsIds.has(a.wbsId)) return false;
-      seenWbsIds.add(a.wbsId);
-      return true;
-    });
+      .filter((assignment): assignment is NonNullable<typeof assignment> => assignment !== null);
 
     if (unresolvable.length > 0) {
       toast.error(
@@ -372,14 +392,14 @@ export function PmAssign({
       return;
     }
 
-    if (dedupedAssignments.length === 0) {
+    if (assignments.length === 0) {
       toast.error("배정할 담당자를 먼저 선택하세요.");
       return;
     }
 
     setSavingAssignments(true);
     projectRepository
-      .saveFinalAssignments(project.id, { assignments: dedupedAssignments })
+      .saveFinalAssignments(project.id, { assignments })
       .then(() => {
         toast.success("담당자 배정을 저장했어요.");
         // 저장 후 loadRecommendations()를 부르면 AI 추천이 다시 실행되면서
@@ -754,7 +774,7 @@ export function PmAssign({
             </div>
           )}
 
-          {!assignLoading && !assignError && hasRecommended && (
+          {!assignLoading && !assignError && assignmentRows.length > 0 && (
             <>
               <Table>
                 <TableHeader>
@@ -766,34 +786,37 @@ export function PmAssign({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignRecs.map((rec) => {
+                  {assignmentRows.map((row) => {
+                    const rec = row.recommendation;
                     const recRank = new Map(
-                      rec.recommendedMembers.map((m, i) => [m.employeeNumber, i] as const),
+                      row.recommendedMembers.map((m, i) => [m.employeeNumber, i] as const),
                     );
                     // AI 추천이 있으면 그 사람으로, 없으면 "선택 안 됨"으로 둔다(첫 팀원 자동선택 금지).
                     const selected =
-                      selectedMember[rec.wbsId] ??
-                      rec.recommendedMembers[0]?.employeeNumber ??
+                      selectedMember[row.wbsId] ??
+                      row.recommendedMembers[0]?.employeeNumber ??
                       "";
-                    const recMember = rec.recommendedMembers.find(
+                    const recMember = row.recommendedMembers.find(
                       (m) => m.employeeNumber === selected,
                     );
                     // PM이 프로젝트 팀원 중에서 직접 고를 수 있어야 하므로 전원을 보여준다.
                     // AI가 추천한 사람에겐 "(AI n순위)"가 붙고 1순위가 기본 선택되며,
                     // 추천이 없는 작업은 선택되지 않은 상태로 두고 PM이 고른다.
-                    const options =
-                      candidates.length > 0 ? candidates : rec.recommendedMembers;
+                    const options = assignmentCandidates.length > 0
+                      ? assignmentCandidates
+                      : row.recommendedMembers;
                     return (
-                      <TableRow key={rec.wbsId}>
+                      <TableRow key={row.wbsId}>
                         <TableCell>
-                          <div className="text-foreground">{rec.wbsName}</div>
+                          <div className="text-foreground">{row.wbs.taskName}</div>
                           <div className="text-muted-foreground text-xs">
-                            {rec.estimatedHours}시간 · {rec.estimatedMm.toFixed(2)} MM
+                            {rec?.estimatedHours ?? row.wbs.estimatedHours}시간 · {(rec?.estimatedMm ?? row.wbs.estimatedHours / 160).toFixed(2)} MM
+                            {row.unassigned && " · AI 추천 없음 · 직접 배정 필요"}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="font-normal">
-                            {rec.requiredRoleCode}
+                            {(rec?.requiredRoleCode ?? row.wbs.requiredSkills.join(", ")) || "-"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -802,7 +825,7 @@ export function PmAssign({
                             onValueChange={(v) =>
                               setSelectedMember((prev) => ({
                                 ...prev,
-                                [rec.wbsId]: v === UNSELECTED_VALUE ? "" : v,
+                                [row.wbsId]: v === UNSELECTED_VALUE ? "" : v,
                               }))
                             }
                           >
@@ -849,80 +872,26 @@ export function PmAssign({
                       </TableRow>
                     );
                   })}
-                  {/*
-                    AI가 추천을 만들지 못한 WBS. 백엔드는 확정된 리프 WBS 전부가
-                    배정돼야 다음 단계로 넘어가므로, 여기서 PM이 직접 고를 수 있게 한다.
-                  */}
-                  {unassignedIds.map((wbsId) => {
-                    const selected = selectedMember[wbsId] ?? "";
-                    return (
-                      <TableRow key={`unassigned-${wbsId}`}>
-                        <TableCell>
-                          <div className="text-foreground">
-                            {wbsNameById[wbsId] ?? `WBS #${wbsId}`}
-                          </div>
-                          <div className="text-muted-foreground text-xs">
-                            AI 추천 없음 · 직접 배정 필요
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-muted-foreground">-</span>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={selected || UNSELECTED_VALUE}
-                            onValueChange={(v) =>
-                              setSelectedMember((prev) => ({
-                                ...prev,
-                                [wbsId]: v === UNSELECTED_VALUE ? "" : v,
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="w-56">
-                              <SelectValue placeholder="선택되지 않음" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={UNSELECTED_VALUE}>
-                                <span className="text-muted-foreground">선택되지 않음</span>
-                              </SelectItem>
-                              {candidates.map((m) => (
-                                <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
-                                  {m.name}
-                                </SelectItem>
-                              ))}
-                              {candidates.length === 0 && (
-                                <div className="px-2 py-1.5 text-muted-foreground text-xs">
-                                  후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
-                                </div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-muted-foreground">-</span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {assignRecs.length === 0 && unassignedIds.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        추천할 업무가 없습니다. WBS를 먼저 확정해 주세요.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
 
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground text-xs">
-                  AI 추천값이 기본 선택되어 있습니다.
+                  {hasRecommended
+                    ? "AI 추천값이 기본 선택되어 있습니다."
+                    : "AI 추천 전에도 모든 확정 말단 WBS를 직접 배정할 수 있습니다."}
                 </p>
                 <Button onClick={handleSaveAssignments} disabled={savingAssignments}>
                   {savingAssignments ? "저장 중…" : "배정 저장"}
                 </Button>
               </div>
             </>
+          )}
+
+          {!assignLoading && !assignError && assignmentRows.length === 0 && hasRecommended && (
+            <div className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+              배정할 확정 말단 WBS가 없습니다. WBS를 먼저 확정해 주세요.
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1003,7 +972,7 @@ export function PmAssign({
       {onNavigateNext && (
         <div className="flex justify-end">
           <Button variant="outline" onClick={onNavigateNext}>
-            예산 화면으로 이동 <ChevronRight className="size-4" />
+            견적 화면으로 이동 <ChevronRight className="size-4" />
           </Button>
         </div>
       )}

@@ -83,11 +83,7 @@ const ASSIGNED_STATES = ["배정됨", "검토중", "완료"];
 // 선택 시 내부 상태에는 ""(미선택)로 저장한다.
 const UNSELECTED_VALUE = "__unselected__";
 
-/**
- * "담당자 추천" 결과를 프로젝트별로 메모리에 기억해둔다.
- * 다른 화면(WBS/일정/예산 등)에 갔다가 돌아와도 다시 추천 버튼을 누를 필요 없게
- * 하기 위한 것으로, 로그아웃하거나 페이지를 새로고침하면 사라진다(의도된 동작).
- */
+/** 담당자 추천 결과와 사용자가 선택한 담당자를 프로젝트별로 보존한다. */
 interface AssignRecommendationCache {
   assignRecs: AssignmentRecommendation[];
   candidates: { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[];
@@ -97,14 +93,14 @@ interface AssignRecommendationCache {
 }
 const assignRecommendationCache = new Map<string, AssignRecommendationCache>();
 
-// 이 프로젝트는 로그아웃/로그인(및 새로고침) 후에도 추천 결과가 남도록 localStorage에도 저장한다.
-const PERSIST_PROJECT_NAME = "IT 개발 관리";
-const ASSIGN_REC_STORAGE_PREFIX = "aipm.assignRec.";
+// 같은 브라우저 탭에서는 다른 화면으로 이동하거나 새로고침해도 추천 결과가 유지된다.
+// 탭을 닫으면 제거해 오래된 WBS/팀원 정보가 다음 작업 세션에 남지 않게 한다.
+const ASSIGN_REC_STORAGE_PREFIX = "aipm.assignRec.v2.";
 
 function readPersistedRecommendation(projectId: string): AssignRecommendationCache | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(ASSIGN_REC_STORAGE_PREFIX + projectId);
+    const raw = window.sessionStorage.getItem(ASSIGN_REC_STORAGE_PREFIX + projectId);
     return raw ? (JSON.parse(raw) as AssignRecommendationCache) : null;
   } catch {
     return null;
@@ -114,7 +110,7 @@ function readPersistedRecommendation(projectId: string): AssignRecommendationCac
 function writePersistedRecommendation(projectId: string, value: AssignRecommendationCache) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(ASSIGN_REC_STORAGE_PREFIX + projectId, JSON.stringify(value));
+    window.sessionStorage.setItem(ASSIGN_REC_STORAGE_PREFIX + projectId, JSON.stringify(value));
   } catch {
     // 저장 실패(용량/직렬화)는 무시한다.
   }
@@ -232,12 +228,11 @@ export function PmAssign({
       .finally(() => setSavingMembers(false));
   };
 
-  // 메모리 캐시 우선, 대상 프로젝트면 localStorage 백업에서도 복원한다.
-  const isPersistProject = project.name === PERSIST_PROJECT_NAME;
+  // 메모리 캐시 우선, 없으면 현재 탭의 세션 저장소에서 복원한다.
   const cachedRec = useMemo<AssignRecommendationCache | null>(
     () =>
       assignRecommendationCache.get(project.id) ??
-      (isPersistProject ? readPersistedRecommendation(project.id) : null),
+      readPersistedRecommendation(project.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [project.id],
   );
@@ -249,6 +244,26 @@ export function PmAssign({
   const [candidates, setCandidates] = useState<
     { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }[]
   >(() => cachedRec?.candidates ?? []);
+
+  // AI 추천 후보와 프로젝트 담당자 후보를 사번 기준으로 합친다.
+  // 백엔드가 project_members 행이 없는 프로젝트 PM도 projectMembers에 포함하므로,
+  // 추천 결과에 PM이 없더라도 모든 WBS 드롭다운에서 직접 선택할 수 있다.
+  const assignmentCandidates = useMemo(() => {
+    const merged = new Map<
+      string,
+      { employeeNumber: string; name: string; email: string; availableHoursPerWeek: number }
+    >();
+    for (const member of candidates) merged.set(member.employeeNumber, member);
+    for (const member of projectMembers) {
+      merged.set(member.employeeNumber, {
+        employeeNumber: member.employeeNumber,
+        name: member.name,
+        email: member.email,
+        availableHoursPerWeek: member.availableHoursPerWeek,
+      });
+    }
+    return Array.from(merged.values());
+  }, [candidates, projectMembers]);
   // AI가 아예 추천 항목을 만들지 못한 확정 리프 WBS (그래도 최종 저장 땐 반드시 포함해야 함)
   const [unassignedIds, setUnassignedIds] = useState<number[]>(
     () => cachedRec?.unassignedIds ?? [],
@@ -259,11 +274,12 @@ export function PmAssign({
   const [hasRecommended, setHasRecommended] = useState(
     () => cachedRec?.hasRecommended ?? false,
   );
-  // 선택값은 캐시에서 복원하지 않는다. 복원 시엔 각 행이 렌더에서 AI 1순위로 다시 기본선택되도록.
-  const [selectedMember, setSelectedMember] = useState<Record<number, string>>({});
+  const [selectedMember, setSelectedMember] = useState<Record<number, string>>(
+    () => cachedRec?.selectedMember ?? {},
+  );
   const [savingAssignments, setSavingAssignments] = useState(false);
 
-  // 추천 결과가 바뀔 때마다 이 프로젝트의 캐시에 저장한다. 대상 프로젝트는 localStorage에도 백업.
+  // 추천 결과와 선택값이 바뀔 때마다 메모리와 현재 탭의 세션 저장소에 저장한다.
   useEffect(() => {
     if (!hasRecommended) return;
     const value: AssignRecommendationCache = {
@@ -274,7 +290,7 @@ export function PmAssign({
       hasRecommended,
     };
     assignRecommendationCache.set(project.id, value);
-    if (isPersistProject) writePersistedRecommendation(project.id, value);
+    writePersistedRecommendation(project.id, value);
   }, [
     project.id,
     assignRecs,
@@ -282,7 +298,6 @@ export function PmAssign({
     unassignedIds,
     selectedMember,
     hasRecommended,
-    isPersistProject,
   ]);
 
   const loadRecommendations = () => {
@@ -781,8 +796,9 @@ export function PmAssign({
                     // PM이 프로젝트 팀원 중에서 직접 고를 수 있어야 하므로 전원을 보여준다.
                     // AI가 추천한 사람에겐 "(AI n순위)"가 붙고 1순위가 기본 선택되며,
                     // 추천이 없는 작업은 선택되지 않은 상태로 두고 PM이 고른다.
-                    const options =
-                      candidates.length > 0 ? candidates : rec.recommendedMembers;
+                    const options = assignmentCandidates.length > 0
+                      ? assignmentCandidates
+                      : rec.recommendedMembers;
                     return (
                       <TableRow key={rec.wbsId}>
                         <TableCell>
@@ -885,12 +901,12 @@ export function PmAssign({
                               <SelectItem value={UNSELECTED_VALUE}>
                                 <span className="text-muted-foreground">선택되지 않음</span>
                               </SelectItem>
-                              {candidates.map((m) => (
+                              {assignmentCandidates.map((m) => (
                                 <SelectItem key={m.employeeNumber} value={m.employeeNumber}>
                                   {m.name}
                                 </SelectItem>
                               ))}
-                              {candidates.length === 0 && (
+                              {assignmentCandidates.length === 0 && (
                                 <div className="px-2 py-1.5 text-muted-foreground text-xs">
                                   후보 팀원이 없습니다. 위에서 팀원을 저장하세요.
                                 </div>
@@ -1003,7 +1019,7 @@ export function PmAssign({
       {onNavigateNext && (
         <div className="flex justify-end">
           <Button variant="outline" onClick={onNavigateNext}>
-            예산 화면으로 이동 <ChevronRight className="size-4" />
+            견적 화면으로 이동 <ChevronRight className="size-4" />
           </Button>
         </div>
       )}

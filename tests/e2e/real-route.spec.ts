@@ -54,6 +54,20 @@ const organizationChartArtifact = {
   downloadUrl: `/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
 };
 
+const uiMockupArtifact = {
+  artifactId: 902,
+  projectId: realProject.projectId,
+  artifactType: "UI_MOCKUP",
+  artifactName: "UI 목업",
+  version: "1.0",
+  approvalStatus: "PENDING",
+  contentType: "image/jpeg",
+  fileSize: 4,
+  generatedAt: "2026-08-10T10:00:00",
+  previewUrl: `/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest/download`,
+  downloadUrl: `/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest/download`,
+};
+
 const demoProjectNames = [
   "신제품 출시 프로젝트",
   "브랜드 리뉴얼 프로젝트",
@@ -132,6 +146,88 @@ test("generates and previews the required organization chart for PM", async ({
   await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
   await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
   expect(generateCalls).toBe(1);
+});
+
+test("generates previews and downloads a UI mockup for PM", async ({ page }) => {
+  let generated = false;
+  let generateCalls = 0;
+  let downloadCalls = 0;
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: generated ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(
+          generated
+            ? uiMockupArtifact
+            : { code: "UI_MOCKUP_NOT_GENERATED", message: "not generated" },
+        ),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/generate`,
+    async (route) => {
+      generateCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      generated = true;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(uiMockupArtifact),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest/download`,
+    async (route) => {
+      downloadCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      });
+    },
+  );
+
+  await login(page);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  const generateButton = page.getByRole("button", { name: "UI 목업 생성", exact: true });
+  await generateButton.click();
+  await expect(page.getByRole("button", { name: "UI 목업을 생성하고 있습니다" })).toBeDisabled();
+  await expect(page.getByAltText("프로젝트 UI 목업 미리보기")).toBeVisible();
+  await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "다운로드", exact: true }).last().click();
+  await expect.poll(() => downloadCalls).toBeGreaterThanOrEqual(2);
+  expect(generateCalls).toBe(1);
+});
+
+test("shows the confirmed requirement error for UI mockup generation", async ({ page }) => {
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/generate`,
+    async (route) => {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "CONFIRMED_REQUIREMENT_NOT_FOUND",
+          message: "confirmed requirement required",
+        }),
+      });
+    },
+  );
+
+  await login(page);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  await page.getByRole("button", { name: "UI 목업 생성", exact: true }).click();
+  await expect(
+    page.getByRole("alert").getByText(
+      "확정된 요구사항이 필요합니다. 요구사항을 확정한 뒤 다시 생성해 주세요.",
+    ),
+  ).toBeVisible();
 });
 
 test("allows STAFF to preview and download without a generate action", async ({
@@ -832,6 +928,19 @@ async function mockProjectList(
         contentType: "application/json",
         body: JSON.stringify({
           code: "ORGANIZATION_CHART_NOT_GENERATED",
+          message: "not generated",
+        }),
+      });
+    },
+  );
+  await page.route(
+    "**/api/projects/*/artifacts/ui-mockup/latest",
+    async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "UI_MOCKUP_NOT_GENERATED",
           message: "not generated",
         }),
       });

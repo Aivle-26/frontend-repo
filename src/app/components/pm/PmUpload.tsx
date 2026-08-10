@@ -42,6 +42,7 @@ import {
 import { RequirementEvidenceViewer } from "./RequirementEvidenceViewer";
 import { RequirementChangeReview } from "./RequirementChangeReview";
 import { OrganizationChartArtifactCard } from "@/app/components/common/OrganizationChartArtifactCard";
+import { UiMockupArtifactCard } from "@/app/components/common/UiMockupArtifactCard";
 import {
   PROJECT_DOCUMENT_ACCEPT,
   validateProjectDocumentFiles,
@@ -474,10 +475,10 @@ export function PmUpload({
   return (
     <div className="space-y-6">
       {mode === "real" ? (
-        <OrganizationChartArtifactCard
-          projectId={project.id}
-          canGenerate
-        />
+        <>
+          <OrganizationChartArtifactCard projectId={project.id} canGenerate />
+          <UiMockupArtifactCard projectId={project.id} canGenerate />
+        </>
       ) : null}
 
       <Card>

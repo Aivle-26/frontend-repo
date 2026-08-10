@@ -767,7 +767,6 @@ export const PM_AI_FILES: AiGeneratedFile[] = [
   { id: "af3", name: "MC일정계획_WBS.xlsx", kind: "excel", createdAt: "오늘 10:31", status: "생성 완료" },
   { id: "af4", name: "기능명세서_초안.docx", kind: "word", createdAt: "오늘 10:30", status: "생성 완료" },
   { id: "af5", name: "ERD_초안.png", kind: "image", createdAt: "오늘 10:30", status: "오늘 업데이트" },
-  { id: "af6", name: "UI프로토타입_초안.fig", kind: "figma", createdAt: "오늘 10:30", status: "오늘 업데이트" },
 ];
 
 export const PM_LIBRARY_FILES: LibraryFile[] = [
@@ -787,7 +786,6 @@ export const PM_PLANNING_AGENTS = [
   "WBS 생성",
   "기능 명세서 초안",
   "ERD 초안",
-  "UI 프로토타입 추천",
 ];
 
 export const PM_REPORT_AGENTS = [
@@ -805,7 +803,6 @@ export const PM_GENERATED_ARTIFACTS: GeneratedArtifact[] = [
   { id: "ga4", title: "WBS 초안", meta: "작업 분해 구조", kind: "excel" },
   { id: "ga5", title: "기능 명세서 초안", meta: "내용 요약", kind: "word" },
   { id: "ga6", title: "ERD 초안", meta: "이미지", kind: "image" },
-  { id: "ga7", title: "UI 프로토타입 초안", meta: "스크린 흐름", kind: "figma" },
   { id: "ga8", title: "결정사항 로그", meta: "5건", kind: "excel" },
 ];
 

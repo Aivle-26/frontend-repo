@@ -9,6 +9,7 @@ import {
 import { LoginScreen } from "@/app/components/auth/LoginScreen";
 import { SignupScreen } from "@/app/components/auth/SignupScreen";
 import { OrganizationChartArtifactCard } from "@/app/components/common/OrganizationChartArtifactCard";
+import { UiMockupArtifactCard } from "@/app/components/common/UiMockupArtifactCard";
 import { ProjectScopeBar } from "@/app/components/layout/ProjectScopeBar";
 import { Sidebar, type SidebarItem } from "@/app/components/layout/Sidebar";
 import { TopBar } from "@/app/components/layout/TopBar";
@@ -222,6 +223,7 @@ export function RealApplication() {
         projectId={selectedProject.id}
         canGenerate={false}
       />
+      <UiMockupArtifactCard projectId={selectedProject.id} canGenerate={false} />
     </div>
   ) : (
     <ProjectListNotice status={projectLoadStatus} error={projectLoadError} />

@@ -157,6 +157,25 @@ export interface OrganizationChartDownload {
   fileName: string;
 }
 
+export interface UiMockupArtifact {
+  artifactId: number;
+  projectId: number;
+  artifactType: "UI_MOCKUP";
+  artifactName: string;
+  version: string;
+  approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  contentType: "image/jpeg";
+  fileSize: number;
+  generatedAt: string;
+  previewUrl: string;
+  downloadUrl: string;
+}
+
+export interface UiMockupDownload {
+  blob: Blob;
+  fileName: string;
+}
+
 export interface AnalyzeProjectRequirementsRequest {
   documentIds: number[];
   force?: boolean;
@@ -1788,6 +1807,43 @@ export const projectRepository = {
     return {
       blob,
       fileName: `organization-chart-v${safeVersion}.jpg`,
+    };
+  },
+
+  generateUiMockup(projectId: string | number) {
+    return apiFetch<UiMockupArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/ui-mockup/generate`,
+      {
+        method: "POST",
+        auth: true,
+        expectedStatuses: [201],
+      },
+    );
+  },
+
+  getLatestUiMockup(projectId: string | number) {
+    return apiFetch<UiMockupArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/ui-mockup/latest`,
+      { auth: true },
+    );
+  },
+
+  getUiMockupBlob(projectId: string | number) {
+    return apiFetchBlob(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/ui-mockup/latest/download`,
+      { auth: true },
+    );
+  },
+
+  async downloadUiMockup(
+    projectId: string | number,
+    version: string,
+  ): Promise<UiMockupDownload> {
+    const blob = await this.getUiMockupBlob(projectId);
+    const safeVersion = version.replace(/[^0-9.]/g, "") || "latest";
+    return {
+      blob,
+      fileName: `ui-mockup-v${safeVersion}.jpg`,
     };
   },
 

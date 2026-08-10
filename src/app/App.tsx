@@ -704,7 +704,8 @@ function DemoApplication() {
         active={activeMenu}
         onSelect={handleSelect}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-w-[960px] flex-col">
         <TopBar
           title={subtitle}
           userName={authSession?.name || (isPm ? "PM" : "Staff")}
@@ -718,12 +719,13 @@ function DemoApplication() {
           isPm={isPm}
           showNotifications={isPm}
         />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="min-w-0 flex-1 overflow-y-auto p-6">
           {!scopeBarFitsInHeader && scopeBar ? (
             <div className="mb-4">{scopeBar}</div>
           ) : null}
           {body}
         </main>
+        </div>
       </div>
       <Toaster />
     </div>

@@ -300,7 +300,8 @@ export function RealApplication() {
           }
         }}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-w-[960px] flex-col">
         <TopBar
           title={title}
           userName={authSession.name || (isPm ? "PM" : "Staff")}
@@ -322,9 +323,10 @@ export function RealApplication() {
             if (selectedProject) openProjectData(selectedProject.id);
           }}
         />
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+        <main className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           {body}
         </main>
+        </div>
       </div>
       <Toaster />
     </div>

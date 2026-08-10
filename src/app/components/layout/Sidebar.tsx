@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ExternalLink, Sparkles } from "lucide-react";
 
 import { cn } from "@/app/components/ui/utils";
@@ -27,13 +27,6 @@ interface SidebarProps {
   hideOnMobile?: boolean;
 }
 
-const SIDEBAR_STORAGE_KEY = "aipm.sidebar-width";
-const DEFAULT_SIDEBAR_WIDTH = 240;
-const MIN_SIDEBAR_WIDTH = 72;
-const ICON_ONLY_THRESHOLD = 170;
-// 기본값보다 넓히는 것은 허용하지 않는다. 기본값에서 줄이는 방향으로만 조절 가능.
-const MAX_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH;
-
 const ACTIVE_ITEM_CLASS =
   "bg-cyan-100/85 font-semibold text-teal-950 shadow-[0_6px_16px_-12px_rgba(13,148,136,0.7)] ring-1 ring-inset ring-cyan-300/85 dark:bg-violet-600/25 dark:text-violet-50 dark:shadow-[0_6px_16px_-12px_rgba(139,92,246,0.65)] dark:ring-violet-500/45";
 const INACTIVE_ITEM_CLASS =
@@ -47,20 +40,7 @@ export function Sidebar({
   showIntegrations = true,
   hideOnMobile = false,
 }: SidebarProps) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const savedWidth = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-
-    if (!savedWidth) return DEFAULT_SIDEBAR_WIDTH;
-    const parsedWidth = Number(savedWidth);
-    if (Number.isNaN(parsedWidth)) return DEFAULT_SIDEBAR_WIDTH;
-
-    return Math.min(
-      MAX_SIDEBAR_WIDTH,
-      Math.max(MIN_SIDEBAR_WIDTH, parsedWidth),
-    );
-  });
-
-  const isIconOnly = sidebarWidth < ICON_ONLY_THRESHOLD;
+  const isIconOnly = false;
   const standaloneItems = useMemo(
     () => items.filter((item) => !item.group),
     [items],
@@ -85,51 +65,12 @@ export function Sidebar({
     return groups;
   }, [items]);
   const distributeGroups = items.length >= 8;
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-
-    const startX = event.clientX;
-    const startWidth = sidebarWidth;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const movedDistance = moveEvent.clientX - startX;
-      const nextWidth = startWidth + movedDistance;
-      const limitedWidth = Math.min(
-        MAX_SIDEBAR_WIDTH,
-        Math.max(MIN_SIDEBAR_WIDTH, nextWidth),
-      );
-
-      setSidebarWidth(limitedWidth);
-    };
-    const stopResize = () => {
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopResize);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopResize);
-  };
-
-  const resetSidebarWidth = () => {
-    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
-  };
-
   return (
     <aside
       className={cn(
-        "relative z-30 flex shrink-0 flex-col bg-gradient-to-b from-cyan-50 via-teal-50/95 to-sky-50/85 text-teal-950 shadow-[10px_0_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50 dark:shadow-[10px_0_24px_-20px_rgba(139,92,246,0.36)]",
+        "relative z-30 flex w-[240px] min-w-[240px] max-w-[240px] shrink-0 flex-col bg-gradient-to-b from-cyan-50 via-teal-50/95 to-sky-50/85 text-teal-950 shadow-[10px_0_24px_-20px_rgba(8,145,178,0.42)] dark:from-black dark:via-zinc-950 dark:to-purple-950 dark:text-violet-50 dark:shadow-[10px_0_24px_-20px_rgba(139,92,246,0.36)]",
         hideOnMobile && "hidden md:flex",
       )}
-      style={{ width: `${sidebarWidth}px` }}
     >
       <div
         className={cn(
@@ -152,7 +93,7 @@ export function Sidebar({
 
       <nav
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden py-1.5",
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden py-1.5",
           isIconOnly ? "px-2" : "px-3",
         )}
       >
@@ -232,7 +173,7 @@ export function Sidebar({
             "min-h-0",
             distributeGroups
               ? "flex flex-1 flex-col gap-3"
-              : "space-y-1.5",
+              : "space-y-3",
           )}
         >
           {groupedItems.map((group) => (
@@ -247,7 +188,7 @@ export function Sidebar({
               className={cn(
                 "border border-cyan-200/80 bg-white/68 shadow-sm backdrop-blur-sm dark:border-violet-900/60 dark:bg-black/35",
                 isIconOnly ? "rounded-xl p-0.5" : "rounded-2xl p-0.5",
-                distributeGroups && "flex min-h-0 flex-1 flex-col",
+                distributeGroups && "flex min-h-max flex-1 flex-col",
               )}
             >
               {!isIconOnly ? (
@@ -265,7 +206,7 @@ export function Sidebar({
               <div
                 className={cn(
                   distributeGroups
-                    ? "flex min-h-0 flex-1 flex-col justify-evenly"
+                    ? "flex min-h-max flex-1 flex-col justify-evenly"
                     : "space-y-0.5",
                 )}
               >
@@ -397,15 +338,6 @@ export function Sidebar({
         </div>
       ) : null}
 
-      <div
-        role="separator"
-        aria-label="사이드바 너비 조절"
-        aria-orientation="vertical"
-        title="드래그하여 너비 조절 · 좁히면 아이콘 모드 · 더블클릭하여 초기화"
-        onPointerDown={startResize}
-        onDoubleClick={resetSidebarWidth}
-        className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
-      />
     </aside>
   );
 }

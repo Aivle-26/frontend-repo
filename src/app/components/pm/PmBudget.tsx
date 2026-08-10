@@ -78,6 +78,7 @@ export function PmBudget({ project }: PmBudgetProps) {
   const [openEvidenceGroups, setOpenEvidenceGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -180,6 +181,31 @@ export function PmBudget({ project }: PmBudgetProps) {
     } finally { setSaving(false); }
   };
 
+  const regenerateEstimate = async () => {
+    const confirmed = window.confirm(
+      "AI 견적을 다시 생성하면 현재 화면에서 수정한 인력·비용 정보가 새 산정 결과로 바뀝니다. 계속할까요?",
+    );
+    if (!confirmed) return;
+
+    setRegenerating(true);
+    setError("");
+    setDirty(false);
+    initialized.current = false;
+    try {
+      const generated = await projectRepository.generateKosaEffortEstimate(project.id);
+      hydrate(generated);
+      setOpenEvidenceGroups(new Set());
+      toast.success("AI 견적을 새로 생성했습니다.");
+    } catch (caught) {
+      const message = errorMessage(caught);
+      setError(message);
+      toast.error(message);
+    } finally {
+      initialized.current = true;
+      setRegenerating(false);
+    }
+  };
+
   const evidenceGroups = useMemo(() => {
     const groups = new Map<string, KosaWbsEvidence[]>();
     for (const item of evidence) {
@@ -221,7 +247,17 @@ export function PmBudget({ project }: PmBudgetProps) {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">KOSA {result?.kosaRateYear ?? 2026}</span>
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">{dirty ? "편집 중" : result?.confirmed ? "저장됨" : "AI 초안"}</span>
-            <Button size="sm" className="bg-white text-[#12324c] hover:bg-cyan-50" onClick={() => void save()} disabled={saving || calculating || personnel.length === 0}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => void regenerateEstimate()}
+              disabled={regenerating || saving || calculating}
+            >
+              {regenerating ? <Loader2 className="size-4 animate-spin" /> : <BrainCircuit className="size-4" />}
+              {regenerating ? "AI 재생성 중" : "AI 견적 재생성"}
+            </Button>
+            <Button size="sm" className="bg-white text-[#12324c] hover:bg-cyan-50" onClick={() => void save()} disabled={saving || regenerating || calculating || personnel.length === 0}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} {saving ? "저장 중" : "최종 견적 저장"}
             </Button>
           </div>

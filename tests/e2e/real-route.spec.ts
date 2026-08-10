@@ -204,6 +204,116 @@ test("generates previews and downloads a UI mockup for PM", async ({ page }) => 
   expect(generateCalls).toBe(1);
 });
 
+test("UI mockup necessity assessment runs only after an explicit action", async ({
+  page,
+}) => {
+  let assessCalls = 0;
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/assess`,
+    async (route) => {
+      assessCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          decision: "REQUIRED",
+          reason: "로그인과 대시보드 흐름을 화면으로 검증해야 합니다.",
+          evidenceRequirementIds: [realRequirement.requirementId],
+          candidateScreens: ["로그인", "대시보드"],
+        }),
+      });
+    },
+  );
+
+  await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  expect(assessCalls).toBe(0);
+
+  await page.getByRole("button", { name: "AI 필요성 분석", exact: true }).click();
+  await expect(page.getByRole("button", { name: "분석 중", exact: true })).toBeDisabled();
+  await expect(page.getByText("적극 권장", { exact: true })).toBeVisible();
+  await expect(page.getByText("로그인과 대시보드 흐름을 화면으로 검증해야 합니다.")).toBeVisible();
+  await expect(page.getByText("로그인", { exact: true })).toBeVisible();
+  await expect(page.getByText("대시보드", { exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "UI 목업 생성", exact: true })).toHaveClass(/ring-2/);
+  expect(assessCalls).toBe(1);
+});
+
+for (const scenario of [
+  {
+    decision: "RECOMMENDED",
+    label: "생성 권장",
+    reason: "운영 화면의 정보 구조를 미리 확인하는 편이 좋습니다.",
+    button: "UI 목업 생성",
+  },
+  {
+    decision: "NOT_NEEDED",
+    label: "필요성 낮음",
+    reason: "사용자 화면이 없는 배치 처리 프로젝트입니다.",
+    button: "그래도 생성하기",
+  },
+] as const) {
+  test(`UI mockup necessity ${scenario.decision} keeps generation available`, async ({
+    page,
+  }) => {
+    await setupProjectData(page, [realDocument], [realRequirement]);
+    await page.route(
+      `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/assess`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            decision: scenario.decision,
+            reason: scenario.reason,
+            evidenceRequirementIds: [realRequirement.requirementId],
+            candidateScreens:
+              scenario.decision === "RECOMMENDED" ? ["운영 대시보드"] : [],
+          }),
+        });
+      },
+    );
+
+    await login(page);
+    await expect(page.locator("#email")).toHaveCount(0);
+    await page.goto(`/real/projects/${realProject.projectId}/data`);
+    await page.getByRole("button", { name: "AI 필요성 분석", exact: true }).click();
+
+    await expect(page.getByText(scenario.label, { exact: true })).toBeVisible();
+    await expect(page.getByText(scenario.reason, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: scenario.button, exact: true })).toBeVisible();
+  });
+}
+
+test("UI mockup necessity assessment exposes a retryable failure state", async ({
+  page,
+}) => {
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/assess`,
+    async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "AI unavailable" }),
+      });
+    },
+  );
+
+  await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  await page.getByRole("button", { name: "AI 필요성 분석", exact: true }).click();
+
+  await expect(
+    page.getByText("AI 필요성 분석 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI 필요성 분석", exact: true })).toBeEnabled();
+});
+
 test("shows the confirmed requirement error for UI mockup generation", async ({ page }) => {
   await setupProjectData(page, [realDocument], [realRequirement]);
   await page.route(
@@ -261,6 +371,8 @@ test("allows STAFF to preview and download without a generate action", async ({
   await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
   await expect(page.getByRole("button", { name: "조직도 생성" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "재생성" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "AI 필요성 분석" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "UI 목업 생성" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "다운로드" })).toBeVisible();
 });
 

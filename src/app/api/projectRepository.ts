@@ -171,6 +171,18 @@ export interface UiMockupArtifact {
   downloadUrl: string;
 }
 
+export type UiMockupNecessityDecision =
+  | "REQUIRED"
+  | "RECOMMENDED"
+  | "NOT_NEEDED";
+
+export interface UiMockupAssessment {
+  decision: UiMockupNecessityDecision;
+  reason: string;
+  evidenceRequirementIds: number[];
+  candidateScreens: string[];
+}
+
 export interface UiMockupDownload {
   blob: Blob;
   fileName: string;
@@ -1817,6 +1829,16 @@ export const projectRepository = {
         method: "POST",
         auth: true,
         expectedStatuses: [201],
+      },
+    );
+  },
+
+  assessUiMockup(projectId: string | number) {
+    return apiFetch<UiMockupAssessment>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/ui-mockup/assess`,
+      {
+        method: "POST",
+        auth: true,
       },
     );
   },

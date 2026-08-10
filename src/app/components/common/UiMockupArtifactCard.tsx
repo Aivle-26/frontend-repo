@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   ApiError,
   projectRepository,
+  type UiMockupAssessment,
   type UiMockupArtifact,
 } from "@/app/api/projectRepository";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
@@ -60,6 +61,28 @@ function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+function assessmentLabel(decision: UiMockupAssessment["decision"]) {
+  if (decision === "REQUIRED") return "적극 권장";
+  if (decision === "RECOMMENDED") return "생성 권장";
+  return "필요성 낮음";
+}
+
+function assessmentErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (apiErrorCode(error) === "CONFIRMED_REQUIREMENT_NOT_FOUND") {
+      return "확정된 요구사항이 필요합니다. 요구사항을 확정한 뒤 다시 분석해 주세요.";
+    }
+    if (error.status === 403) {
+      return "이 프로젝트의 UI 목업 필요성을 분석할 권한이 없습니다.";
+    }
+    if (error.status === 502 || error.status === 503 || error.status === 504) {
+      return "AI 필요성 분석 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+    }
+    return error.message;
+  }
+  return "UI 목업 필요성을 분석하는 중 오류가 발생했습니다.";
+}
+
 export function UiMockupArtifactCard({
   projectId,
   canGenerate,
@@ -69,8 +92,19 @@ export function UiMockupArtifactCard({
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [assessment, setAssessment] = useState<UiMockupAssessment | null>(null);
+  const [assessmentStatus, setAssessmentStatus] = useState<
+    "idle" | "loading" | "complete" | "error"
+  >("idle");
+  const [assessmentMessage, setAssessmentMessage] = useState("");
   const [message, setMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    setAssessment(null);
+    setAssessmentStatus("idle");
+    setAssessmentMessage("");
+  }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +145,21 @@ export function UiMockupArtifactCard({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [projectId, reloadKey]);
+
+  const assess = async () => {
+    if (!canGenerate || assessmentStatus === "loading") return;
+    setAssessmentStatus("loading");
+    setAssessmentMessage("");
+    try {
+      const result = await projectRepository.assessUiMockup(projectId);
+      setAssessment(result);
+      setAssessmentStatus("complete");
+    } catch (error) {
+      setAssessment(null);
+      setAssessmentStatus("error");
+      setAssessmentMessage(assessmentErrorMessage(error));
+    }
+  };
 
   const generate = async () => {
     if (!canGenerate || isGenerating) return;
@@ -174,6 +223,56 @@ export function UiMockupArtifactCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {canGenerate ? (
+          <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-medium">AI 필요성 분석</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  확정 요구사항을 바탕으로 UI 목업이 필요한지 판단합니다.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={assessmentStatus === "loading"}
+                onClick={() => void assess()}
+              >
+                {assessmentStatus === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                {assessmentStatus === "loading" ? "분석 중" : "AI 필요성 분석"}
+              </Button>
+            </div>
+
+            {assessmentStatus === "complete" && assessment ? (
+              <div className="space-y-2" aria-live="polite">
+                <Badge
+                  variant={assessment.decision === "REQUIRED" ? "default" : "secondary"}
+                >
+                  {assessmentLabel(assessment.decision)}
+                </Badge>
+                <p className="text-sm leading-6 text-foreground">{assessment.reason}</p>
+                {assessment.candidateScreens.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {assessment.candidateScreens.map((screen) => (
+                      <Badge key={screen} variant="outline">{screen}</Badge>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {assessmentStatus === "error" ? (
+              <Alert variant="destructive">
+                <AlertDescription>{assessmentMessage}</AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+        ) : null}
+
         {message ? (
           <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>
         ) : null}
@@ -204,9 +303,18 @@ export function UiMockupArtifactCard({
                   다운로드
                 </Button>
                 {canGenerate ? (
-                  <Button type="button" disabled={isGenerating} onClick={() => void generate()}>
+                  <Button
+                    type="button"
+                    disabled={isGenerating}
+                    className={assessment?.decision === "REQUIRED" ? "ring-2 ring-primary/25" : undefined}
+                    onClick={() => void generate()}
+                  >
                     {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                    {isGenerating ? "UI 목업을 생성하고 있습니다" : "재생성"}
+                    {isGenerating
+                      ? "UI 목업을 생성하고 있습니다"
+                      : assessment?.decision === "NOT_NEEDED"
+                        ? "그래도 생성하기"
+                        : "재생성"}
                   </Button>
                 ) : null}
               </div>
@@ -219,9 +327,18 @@ export function UiMockupArtifactCard({
               <p className="mt-1 text-sm text-muted-foreground">확정 요구사항에서 대표 화면 최대 3개를 설계해 JPG로 저장합니다.</p>
             </div>
             {canGenerate ? (
-              <Button type="button" disabled={isGenerating} onClick={() => void generate()}>
+              <Button
+                type="button"
+                disabled={isGenerating}
+                className={assessment?.decision === "REQUIRED" ? "ring-2 ring-primary/25" : undefined}
+                onClick={() => void generate()}
+              >
                 {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {isGenerating ? "UI 목업을 생성하고 있습니다" : "UI 목업 생성"}
+                {isGenerating
+                  ? "UI 목업을 생성하고 있습니다"
+                  : assessment?.decision === "NOT_NEEDED"
+                    ? "그래도 생성하기"
+                    : "UI 목업 생성"}
               </Button>
             ) : null}
           </div>

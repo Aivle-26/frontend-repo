@@ -295,7 +295,12 @@ export function RiskManagement({
       )}
 
       {/* 팀원 진행 상황 (백엔드 /progress/members) — PM 전용 */}
-      {showTeamProgress && <TeamProgressDelayCard projectId={project.id} />}
+      {showTeamProgress && (
+        <TeamProgressDelayCard
+          projectId={project.id}
+          excludeEmployeeNumber={project.server?.pmEmployeeNumber}
+        />
+      )}
 
       {/* Slack 커뮤니케이션 리스크 (AI 서버 연동) — 페이지별로 showCommunicationRisk prop으로 노출 제어 */}
       {showCommunicationRisk && <CommunicationRiskCard projectId={project.id} />}

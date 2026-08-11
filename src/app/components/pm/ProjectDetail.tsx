@@ -199,13 +199,19 @@ export function ProjectDetail({ project: p, planningComplete, onBack, onNavigate
           }
         : null,
     );
-    setTeamWorkload(workloadResult.status === "fulfilled" ? (workloadResult.value.members ?? []) : []);
+    setTeamWorkload(
+      workloadResult.status === "fulfilled"
+        ? (workloadResult.value.members ?? []).filter(
+            (member) => member.employeeNumber !== p.server?.pmEmployeeNumber,
+          )
+        : [],
+    );
 
     if (documentResult.status === "rejected" || requirementResult.status === "rejected") {
       setProjectDataError("일부 프로젝트 정보를 불러오지 못했습니다.");
     }
     setIsLoadingProjectData(false);
-  }, [p.id]);
+  }, [p.id, p.server?.pmEmployeeNumber]);
 
   useEffect(() => {
     void loadProjectData();

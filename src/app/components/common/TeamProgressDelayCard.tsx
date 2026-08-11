@@ -10,9 +10,13 @@ import {
 
 interface TeamProgressDelayCardProps {
   projectId: string;
+  excludeEmployeeNumber?: string;
 }
 
-export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps) {
+export function TeamProgressDelayCard({
+  projectId,
+  excludeEmployeeNumber,
+}: TeamProgressDelayCardProps) {
   const [members, setMembers] = useState<MemberProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +28,13 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
     projectRepository
       .getTeamProgress(projectId)
       .then((res) => {
-        if (!cancelled) setMembers(res.members ?? []);
+        if (!cancelled) {
+          setMembers(
+            (res.members ?? []).filter(
+              (member) => member.employeeNumber !== excludeEmployeeNumber,
+            ),
+          );
+        }
       })
       .catch((caught) => {
         if (cancelled) return;
@@ -42,7 +52,7 @@ export function TeamProgressDelayCard({ projectId }: TeamProgressDelayCardProps)
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [excludeEmployeeNumber, projectId]);
 
   const delayedCount = members.filter((m) => m.delayedTaskCount > 0).length;
 

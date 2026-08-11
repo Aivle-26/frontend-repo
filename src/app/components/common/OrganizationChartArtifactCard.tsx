@@ -36,8 +36,6 @@ const prerequisiteMessages: Record<string, string> = {
     "모든 최하위 WBS의 추천 일정이 필요합니다. 일정을 생성한 뒤 다시 시도해 주세요.",
   ACTIVE_PROJECT_MEMBER_NOT_FOUND:
     "활성 프로젝트 팀원이 없습니다. 팀원을 등록한 뒤 다시 생성해 주세요.",
-  MEMBER_CAPABILITY_NOT_FOUND:
-    "역량 정보가 없는 팀원이 있습니다. 역할과 역량을 등록한 뒤 다시 생성해 주세요.",
 };
 
 function apiErrorCode(error: ApiError) {

@@ -1506,14 +1506,14 @@ export const projectRepository = {
 
   saveEditedKosaCost(projectId: string | number, input: KosaCostRequestBody) {
     return apiFetch<KosaCostResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
       { method: "PUT", body: JSON.stringify(input), auth: true },
     );
   },
 
   getEditedKosaCost(projectId: string | number) {
     return apiFetch<KosaCostResponse>(
-      `/projects/${encodeURIComponent(String(projectId))}/costs/final`,
+      `/projects/${encodeURIComponent(String(projectId))}/costs/final/edited`,
       { auth: true },
     );
   },

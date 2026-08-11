@@ -4,9 +4,9 @@ import { Badge } from "@/app/components/ui/badge";
 import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 const prerequisites = [
-  "확정된 WBS",
-  "최하위 WBS 일정",
-  "활성 프로젝트 팀원 및 역량",
+  "확정된 leaf WBS",
+  "모든 확정 leaf WBS 일정",
+  "프로젝트 팀 구성",
 ];
 
 export function PmOrganizationChart({ project }: { project: ProjectSummary }) {
@@ -18,7 +18,7 @@ export function PmOrganizationChart({ project }: { project: ProjectSummary }) {
             <FileImage className="size-5" /> 조직도
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            확정 WBS·일정·팀원 역량을 AI 서버로 전달해 조직도 JPG를 생성하고 화면에 표시합니다.
+            확정 WBS·일정·프로젝트 팀 정보를 바탕으로 조직도를 자동 생성합니다.
           </p>
         </div>
         <Badge variant="outline" className="gap-1 font-normal">

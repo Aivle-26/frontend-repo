@@ -8,7 +8,6 @@ import {
   Pencil,
   RefreshCw,
   Save,
-  Sparkles,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -37,6 +36,8 @@ interface OrganizationChartArtifactCardProps {
   projectId: string | number;
   canGenerate: boolean;
 }
+
+type AutoGenerationReadiness = "unknown" | "not-ready" | "ready";
 
 const prerequisiteMessages: Record<string, string> = {
   CONFIRMED_WBS_NOT_FOUND:
@@ -92,6 +93,44 @@ function formatBytes(value: number) {
 function formatDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ko-KR");
+}
+
+async function optionalNotFound<T>(request: Promise<T>) {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+async function loadAutoGenerationReadiness(
+  projectId: string | number,
+): Promise<AutoGenerationReadiness> {
+  const [wbs, schedule, members] = await Promise.all([
+    optionalNotFound(projectRepository.getWbs(projectId)),
+    optionalNotFound(projectRepository.getSchedules(projectId)),
+    projectRepository.getProjectMembers(projectId),
+  ]);
+  if (!wbs || !schedule) return "not-ready";
+
+  const confirmedTasks = wbs.finalTasks.filter((task) => task.confirmed);
+  const parentIds = new Set(
+    confirmedTasks
+      .map((task) => task.parentExternalTaskId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const leafTasks = confirmedTasks.filter(
+    (task) => !parentIds.has(task.externalTaskId),
+  );
+  const scheduledWbsIds = new Set(schedule.schedules.map((item) => item.wbsId));
+  const everyLeafHasSchedule = leafTasks.every(
+    (task) => task.taskId !== null && scheduledWbsIds.has(task.taskId),
+  );
+
+  return leafTasks.length > 0 && everyLeafHasSchedule && members.length > 0
+    ? "ready"
+    : "not-ready";
 }
 
 function orderedMembers(members: OrganizationChartHierarchyMember[]) {
@@ -340,7 +379,6 @@ export function OrganizationChartArtifactCard({
   const [draftMembers, setDraftMembers] = useState<OrganizationChartHierarchyMember[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -348,6 +386,8 @@ export function OrganizationChartArtifactCard({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [hierarchyMessage, setHierarchyMessage] = useState("");
+  const [autoGenerationReadiness, setAutoGenerationReadiness] =
+    useState<AutoGenerationReadiness>("unknown");
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -362,6 +402,7 @@ export function OrganizationChartArtifactCard({
     setIsEditing(false);
     setErrorMessage("");
     setHierarchyMessage("");
+    setAutoGenerationReadiness("unknown");
 
     const load = async () => {
       try {
@@ -401,6 +442,9 @@ export function OrganizationChartArtifactCard({
           apiErrorCode(error) === "ORGANIZATION_CHART_NOT_GENERATED"
         ) {
           setArtifact(null);
+          setAutoGenerationReadiness(
+            await loadAutoGenerationReadiness(projectId),
+          );
           return;
         }
         setErrorMessage(organizationChartErrorMessage(error));
@@ -415,23 +459,6 @@ export function OrganizationChartArtifactCard({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [projectId, reloadKey]);
-
-  const generate = async () => {
-    if (!canGenerate || isGenerating) return;
-    setIsGenerating(true);
-    setErrorMessage("");
-    try {
-      const generated = await projectRepository.generateOrganizationChart(projectId);
-      toast.success(`조직도 ${generated.version} 버전을 생성했습니다.`);
-      setReloadKey((value) => value + 1);
-    } catch (error) {
-      const message = organizationChartErrorMessage(error);
-      setErrorMessage(message);
-      toast.error(message);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const download = async () => {
     if (!artifact || isDownloading) return;
@@ -661,7 +688,23 @@ export function OrganizationChartArtifactCard({
             ) : null}
 
             <section className="space-y-3" aria-label="조직도 산출물 미리보기">
-              <div className="text-sm font-medium text-foreground">산출물 미리보기</div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm font-medium text-foreground">산출물 미리보기</div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDownloading}
+                  onClick={() => void download()}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  다운로드
+                </Button>
+              </div>
               <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-lg border bg-muted/30 p-3">
                 {previewUrl ? (
                   <img
@@ -677,7 +720,7 @@ export function OrganizationChartArtifactCard({
               </div>
             </section>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="outline">v{artifact.version}</Badge>
                 <Badge variant="outline">{approvalLabel(artifact.approvalStatus)}</Badge>
@@ -685,34 +728,22 @@ export function OrganizationChartArtifactCard({
                   {formatDate(artifact.generatedAt)} · {formatBytes(artifact.fileSize)}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" disabled={isDownloading} onClick={() => void download()}>
-                  {isDownloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                  다운로드
-                </Button>
-                {canGenerate ? (
-                  <Button type="button" disabled={isGenerating || isEditing} onClick={() => void generate()}>
-                    {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                    {isGenerating ? "조직도를 생성하고 있습니다" : "재생성"}
-                  </Button>
-                ) : null}
-              </div>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed p-5">
+          <div className="rounded-lg border border-dashed p-5">
             <div>
-              <div className="font-medium text-foreground">아직 생성하지 않음</div>
+              <div className="font-medium text-foreground">
+                {autoGenerationReadiness === "ready"
+                  ? "조직도 자동 생성 중"
+                  : "조직도 준비 중"}
+              </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                조직도는 생성 후 검토 대기 상태로 등록됩니다.
+                {autoGenerationReadiness === "ready"
+                  ? "생성 조건을 모두 충족했습니다. 조직도를 자동으로 생성하고 있습니다."
+                  : "생성 조건을 모두 충족하면 조직도가 자동으로 생성됩니다."}
               </p>
             </div>
-            {canGenerate ? (
-              <Button type="button" disabled={isGenerating} onClick={() => void generate()}>
-                {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {isGenerating ? "조직도를 생성하고 있습니다" : "조직도 생성"}
-              </Button>
-            ) : null}
           </div>
         )}
 

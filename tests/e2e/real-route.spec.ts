@@ -186,26 +186,22 @@ test("keeps the existing root route and activates real mode for direct paths", a
   await expect(page.locator("#email")).toBeVisible();
 });
 
-test("generates and previews the required organization chart for PM", async ({
+test("shows automatic generation status without a manual organization action", async ({
   page,
 }) => {
-  let generated = false;
   let generateCalls = 0;
   await setupProjectData(page, [realDocument], [realRequirement]);
+  await mockOrganizationChartReadiness(page, true);
   await page.route(
     `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
     async (route) => {
       await route.fulfill({
-        status: generated ? 200 : 404,
+        status: 404,
         contentType: "application/json",
-        body: JSON.stringify(
-          generated
-            ? organizationChartArtifact
-            : {
-                code: "ORGANIZATION_CHART_NOT_GENERATED",
-                message: "not generated",
-              },
-        ),
+        body: JSON.stringify({
+          code: "ORGANIZATION_CHART_NOT_GENERATED",
+          message: "not generated",
+        }),
       });
     },
   );
@@ -213,7 +209,6 @@ test("generates and previews the required organization chart for PM", async ({
     `**/api/projects/${realProject.projectId}/artifacts/organization-chart/generate`,
     async (route) => {
       generateCalls += 1;
-      generated = true;
       await route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -221,28 +216,36 @@ test("generates and previews the required organization chart for PM", async ({
       });
     },
   );
-  await page.route(
-    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "image/jpeg",
-        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
-      });
-    },
-  );
-
   await login(page);
   await expect(page.locator("#email")).toHaveCount(0);
   await page.goto(`/real/projects/${realProject.projectId}/data`);
   await expect(page.getByText("필수 산출물", { exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "조직도 필수 산출물" }))
     .toBeDisabled();
-  await page.getByRole("button", { name: "조직도 생성", exact: true }).click();
+  await expect(page.getByText("조직도 자동 생성 중", { exact: true })).toBeVisible();
+  await expect(page.getByText(
+    "생성 조건을 모두 충족했습니다. 조직도를 자동으로 생성하고 있습니다.",
+  )).toBeVisible();
+  await expect(page.getByRole("button", { name: "조직도 생성" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "재생성" })).toHaveCount(0);
+  expect(generateCalls).toBe(0);
+});
 
-  await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
-  await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
-  expect(generateCalls).toBe(1);
+test("shows neutral organization guidance before prerequisites are ready", async ({
+  page,
+}) => {
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await mockOrganizationChartReadiness(page, false);
+
+  await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+
+  await expect(page.getByText("조직도 준비 중", { exact: true })).toBeVisible();
+  await expect(page.getByText(
+    "생성 조건을 모두 충족하면 조직도가 자동으로 생성됩니다.",
+  )).toBeVisible();
+  await expect(page.getByRole("button", { name: "조직도 생성" })).toHaveCount(0);
 });
 
 test("renders organization hierarchy as spaced connector branches", async ({ page }) => {
@@ -255,6 +258,9 @@ test("renders organization hierarchy as spaced connector branches", async ({ pag
 
   const tree = page.getByRole("tree", { name: "프로젝트 보고 라인 계층" });
   await expect(tree).toBeVisible();
+  await expect(page.getByRole("button", { name: "재생성" })).toHaveCount(0);
+  const preview = page.getByRole("region", { name: "조직도 산출물 미리보기" });
+  await expect(preview.getByRole("button", { name: "다운로드" })).toBeVisible();
   await expect(tree.locator("[data-tree-branch]")).toHaveCount(
     organizationChartTreeHierarchy.members.length - 1,
   );
@@ -1546,6 +1552,7 @@ async function mockProjectList(
   page: Page,
   projects: Array<typeof realProject>,
 ) {
+  await mockOrganizationChartReadiness(page, false);
   await page.route(
     "**/api/projects/*/artifacts/organization-chart/latest",
     async (route) => {
@@ -1589,6 +1596,84 @@ async function mockProjectList(
       body: JSON.stringify(projects),
     });
   });
+}
+
+async function mockOrganizationChartReadiness(page: Page, ready: boolean) {
+  const leafTaskId = 501;
+  await page.route(`**/api/projects/${realProject.projectId}/wbs`, async (route) => {
+    await route.fulfill({
+      status: ready ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        ready
+          ? {
+              wbsResultId: 1,
+              projectId: realProject.projectId,
+              agentExecutionId: null,
+              agentVersion: null,
+              finalConfirmed: true,
+              createdAt: "2026-08-12T00:00:00",
+              aiSuggestionTasks: [],
+              finalTasks: [
+                {
+                  taskId: leafTaskId,
+                  externalTaskId: "WBS-LEAF-1",
+                  parentExternalTaskId: null,
+                  taskCode: "1.1",
+                  taskName: "Leaf task",
+                  description: "Ready leaf task",
+                  phase: "IMPLEMENTATION",
+                  requiredSkills: [],
+                  difficulty: "MEDIUM",
+                  estimatedHours: 8,
+                  orderIndex: 0,
+                  requirementIds: [],
+                  confirmed: true,
+                },
+              ],
+            }
+          : { code: "WBS_NOT_FOUND", message: "not found" },
+      ),
+    });
+  });
+  await page.route(
+    `**/api/projects/${realProject.projectId}/schedules`,
+    async (route) => {
+      await route.fulfill({
+        status: ready ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(
+          ready
+            ? {
+                scheduleResultId: 1,
+                projectId: realProject.projectId,
+                agentExecutionId: "schedule-ready",
+                agentVersion: "test",
+                llmStatus: "COMPLETED",
+                projectStartDate: "2026-08-12",
+                targetEndDate: "2026-08-13",
+                schedules: [{ wbsId: leafTaskId }],
+                warnings: [],
+              }
+            : { code: "PLANNING_SCHEDULE_NOT_FOUND", message: "not found" },
+        ),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/team-members`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          ready
+            ? [{ projectId: realProject.projectId, employeeNumber: "PM-REAL" }]
+            : [],
+        ),
+      });
+    },
+  );
 }
 
 async function mockLogin(page: Page, role: "PM" | "STAFF" = "PM") {

@@ -197,6 +197,44 @@ export function PmBudget({ project }: PmBudgetProps) {
     setPersonnel((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
     setDirty(true);
   };
+  const removePerson = (index: number) => {
+    if (personnel.length <= 1) {
+      toast.error("투입 인력은 최소 1명 이상이어야 합니다.");
+      return;
+    }
+
+    const remaining = personnel.filter((_, i) => i !== index);
+    const utilizationByEmployee = new Map<
+      string,
+      { employeeName: string; total: number; detailedJobs: Set<string> }
+    >();
+    for (const row of remaining) {
+      const current = utilizationByEmployee.get(row.employeeNumber) ?? {
+        employeeName: row.employeeName,
+        total: 0,
+        detailedJobs: new Set<string>(),
+      };
+      current.total += row.utilizationRate;
+      if (row.detailedJob) current.detailedJobs.add(row.detailedJob);
+      utilizationByEmployee.set(row.employeeNumber, current);
+    }
+    const nextWarnings = Array.from(utilizationByEmployee, ([employeeNumber, value]) => ({
+      employeeNumber,
+      employeeName: value.employeeName,
+      totalUtilizationRate: value.total,
+      excessUtilizationRate: Math.max(0, value.total - 100),
+      detailedJobs: Array.from(value.detailedJobs),
+      message: `${value.employeeName}님의 합산 투입률이 ${value.total}%로 100%를 초과합니다.`,
+    })).filter((warning) => warning.totalUtilizationRate > 100);
+
+    setPersonnel(remaining);
+    setResult((current) => current ? {
+      ...current,
+      hasUtilizationWarning: nextWarnings.length > 0,
+      utilizationWarnings: nextWarnings,
+    } : current);
+    setDirty(true);
+  };
   const updateExpense = (index: number, patch: Partial<KosaExpenseItem>) => {
     setExpenses((rows) => rows.map((row, i) => i === index ? { ...row, ...patch } : row));
     setDirty(true);
@@ -340,9 +378,9 @@ export function PmBudget({ project }: PmBudgetProps) {
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border bg-muted/45 px-5 py-3.5"><div><h3 className="text-sm font-semibold">프로젝트 투입인력</h3><p className="mt-0.5 text-xs text-muted-foreground">배정된 인력의 직무와 투입 조건을 조정하면 자동으로 다시 계산됩니다.</p></div>{calculating && <span className="flex items-center gap-1.5 text-xs text-primary"><Loader2 className="size-3.5 animate-spin" /> 계산 중</span>}</div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] border-collapse text-sm">
+          <table className="w-full min-w-[1160px] border-collapse text-sm">
             <thead className="bg-[#eaf1f5] text-[#26445a] dark:bg-muted dark:text-foreground"><tr className="border-b border-border">
-              {['No','이름','세부직무','KOSA 직무','인원','기간(개월)','투입률(%)','M/M','표준단가(M/M)','제안단가(M/M)','금액'].map((label) => <th key={label} className="whitespace-nowrap border-r border-border/70 px-2.5 py-2.5 text-center text-xs font-semibold last:border-r-0">{label}</th>)}
+              {['No','이름','세부직무','KOSA 직무','인원','기간(개월)','투입률(%)','M/M','표준단가(M/M)','제안단가(M/M)','금액',''].map((label, index) => <th key={`${label}-${index}`} className="whitespace-nowrap border-r border-border/70 px-2.5 py-2.5 text-center text-xs font-semibold last:border-r-0">{label}</th>)}
             </tr></thead>
             <tbody>{personnel.map((row, index) => (
               <tr
@@ -364,6 +402,18 @@ export function PmBudget({ project }: PmBudgetProps) {
                 <td className="whitespace-nowrap px-3 text-right text-xs text-muted-foreground">{won(row.standardMonthlyRate)}</td>
                 <td className="w-36 px-1.5"><Input className="h-8 text-right text-xs" type="number" min="0" step="10000" value={row.proposedMonthlyRate} onChange={(e) => updatePerson(index, { proposedMonthlyRate: numberValue(e.target.value) })} /></td>
                 <td className="whitespace-nowrap px-3 text-right font-bold text-[#153f5e] dark:text-violet-200">{won(row.amount)}</td>
+                <td className="w-12 px-1 text-center">
+                  <button
+                    type="button"
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={() => removePerson(index)}
+                    disabled={personnel.length <= 1 || calculating || regenerating || saving}
+                    aria-label={`${row.employeeName} ${row.detailedJob} 투입 인력 삭제`}
+                    title={personnel.length <= 1 ? "투입 인력은 최소 1명 이상이어야 합니다." : "투입 인력 삭제"}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </td>
               </tr>
             ))}</tbody>
           </table>

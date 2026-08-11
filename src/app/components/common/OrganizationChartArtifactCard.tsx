@@ -133,6 +133,8 @@ function createsCycle(
   return false;
 }
 
+const PM_DIRECT_DROP_TARGET = "<pm-direct-drop-zone>";
+
 interface HierarchyTreeProps {
   hierarchy: OrganizationChartHierarchy;
   members: OrganizationChartHierarchyMember[];
@@ -180,6 +182,7 @@ function HierarchyTree({
 
   const renderMember = (member: OrganizationChartHierarchyMember, depth: number) => {
     const parent = member.parentMemberId ? byId.get(member.parentMemberId) : null;
+    const childMembers = children.get(member.memberId) ?? [];
     const isPm = member.memberId === hierarchy.projectManagerMemberId;
     const hierarchyLabel = isPm
       ? "최상위"
@@ -194,11 +197,29 @@ function HierarchyTree({
         draggedMemberId !== member.memberId &&
         !createsCycle(members, draggedMemberId, member.memberId),
     );
+    const dropState =
+      draggedMemberId === member.memberId
+        ? "dragging"
+        : dropTargetId === member.memberId && canDrop
+          ? "valid"
+          : editable && draggedMemberId && !canDrop
+            ? "invalid"
+            : "idle";
 
     return (
-      <div key={member.memberId} className={cn(depth > 0 && "border-l border-border pl-5")}>
+      <div
+        key={member.memberId}
+        data-tree-node={member.memberId}
+        data-tree-depth={depth}
+        className="relative"
+      >
         <div
           data-member-id={member.memberId}
+          data-drop-state={dropState}
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={childMembers.length > 0 ? true : undefined}
+          aria-label={`${member.memberName}, ${member.projectJobFamily ?? "직무 미배정"}, ${hierarchyLabel}`}
           draggable={editable && !isPm}
           onDragStart={(event) => {
             event.dataTransfer.effectAllowed = "move";
@@ -208,13 +229,17 @@ function HierarchyTree({
           onDragEnd={onDragEnd}
           onDragOver={(event) => {
             if (!editable) return;
-            event.preventDefault();
             const sourceId = draggedMemberId || event.dataTransfer.getData("text/plain");
             if (
               !sourceId ||
               sourceId === member.memberId ||
               createsCycle(members, sourceId, member.memberId)
-            ) return;
+            ) {
+              event.dataTransfer.dropEffect = "none";
+              if (dropTargetId === member.memberId) onDropTargetChange(null);
+              return;
+            }
+            event.preventDefault();
             event.dataTransfer.dropEffect = "move";
             onDropTargetChange(member.memberId);
           }}
@@ -233,11 +258,12 @@ function HierarchyTree({
             onDrop(member.memberId, sourceId);
           }}
           className={cn(
-            "flex max-w-xl items-start gap-3 rounded-md border bg-background px-4 py-3 transition-colors",
-            isPm && "border-primary bg-primary/5",
+            "flex min-w-72 w-[min(36rem,calc(100vw-5rem))] items-start gap-3 rounded-md border bg-background px-4 py-3 shadow-sm transition-[border-color,background-color,box-shadow,opacity]",
+            isPm && "border-primary/50 bg-primary/5 shadow-primary/5",
             editable && !isPm && "cursor-grab active:cursor-grabbing",
             draggedMemberId === member.memberId && "opacity-45",
-            dropTargetId === member.memberId && canDrop && "border-primary bg-primary/10 ring-2 ring-primary/20",
+            dropTargetId === member.memberId && canDrop &&
+              "border-primary bg-primary/10 shadow-md ring-2 ring-primary/25",
           )}
         >
           {editable && !isPm ? (
@@ -255,21 +281,54 @@ function HierarchyTree({
               ) : null}
             </div>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>{member.projectJobFamily ?? "직무 미배정"}</span>
+              <span className="font-medium text-foreground/80">
+                {member.projectJobFamily ?? "직무 미배정"}
+              </span>
               <span>{hierarchyLabel}</span>
             </div>
           </div>
+          {dropTargetId === member.memberId && canDrop ? (
+            <span className="shrink-0 rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground">
+              산하로 이동
+            </span>
+          ) : null}
         </div>
-        <div className="space-y-3 pt-3">
-          {(children.get(member.memberId) ?? []).map((child) =>
-            renderMember(child, depth + 1),
-          )}
-        </div>
+        {childMembers.length > 0 ? (
+          <div
+            data-tree-children={member.memberId}
+            className="ml-4 mt-4 space-y-4 pl-10"
+          >
+            {childMembers.map((child, index) => (
+              <div
+                key={child.memberId}
+                data-tree-branch={child.memberId}
+                className={cn(
+                  "relative before:pointer-events-none before:absolute before:-left-10 before:-top-4 before:border-l before:border-border after:pointer-events-none after:absolute after:-left-10 after:top-7 after:w-10 after:border-t after:border-border",
+                  index === childMembers.length - 1
+                    ? "before:bottom-[calc(100%-1.75rem)]"
+                    : "before:-bottom-4",
+                )}
+              >
+                {renderMember(child, depth + 1)}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   };
 
-  return <div className="space-y-3">{renderMember(root, 0)}</div>;
+  return (
+    <div data-hierarchy-tree-scroll className="overflow-x-auto pb-1">
+      <div
+        role="tree"
+        aria-label="프로젝트 보고 라인 계층"
+        className="min-w-max pr-6"
+      >
+        {renderMember(root, 0)}
+      </div>
+    </div>
+  );
 }
 
 export function OrganizationChartArtifactCard({
@@ -532,26 +591,47 @@ export function OrganizationChartArtifactCard({
                 ) : null}
 
                 {isEditing ? (
-                  <div
-                    className={cn(
-                      "rounded-md border border-dashed px-4 py-3 text-center text-xs text-muted-foreground",
-                      dropTargetId === hierarchy.projectManagerMemberId && "border-primary bg-primary/5 text-primary",
-                    )}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      const sourceId = draggedMemberId || event.dataTransfer.getData("text/plain");
-                      if (!sourceId || sourceId === hierarchy.projectManagerMemberId) return;
-                      setDropTargetId(hierarchy.projectManagerMemberId);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      moveMember(
-                        hierarchy.projectManagerMemberId,
-                        draggedMemberId || event.dataTransfer.getData("text/plain"),
-                      );
-                    }}
-                  >
-                    PM 직속으로 이동
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      사람 카드를 다른 사람 위에 놓으면 해당 사람의 산하로 이동합니다.
+                    </p>
+                    <div
+                      data-pm-direct-drop-zone
+                      data-drop-state={
+                        dropTargetId === PM_DIRECT_DROP_TARGET ? "valid" : "idle"
+                      }
+                      aria-label="PM 직속 이동 영역"
+                      className={cn(
+                        "flex min-h-12 items-center justify-center rounded-md border border-dashed px-4 py-3 text-center text-xs text-muted-foreground transition-[border-color,background-color,box-shadow,color]",
+                        dropTargetId === PM_DIRECT_DROP_TARGET &&
+                          "border-primary bg-primary/10 text-primary ring-2 ring-primary/20",
+                      )}
+                      onDragOver={(event) => {
+                        const sourceId =
+                          draggedMemberId || event.dataTransfer.getData("text/plain");
+                        if (!sourceId || sourceId === hierarchy.projectManagerMemberId) {
+                          event.dataTransfer.dropEffect = "none";
+                          return;
+                        }
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDropTargetId(PM_DIRECT_DROP_TARGET);
+                      }}
+                      onDragLeave={() => {
+                        if (dropTargetId === PM_DIRECT_DROP_TARGET) {
+                          setDropTargetId(null);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        const sourceId =
+                          draggedMemberId || event.dataTransfer.getData("text/plain");
+                        if (!sourceId || sourceId === hierarchy.projectManagerMemberId) return;
+                        event.preventDefault();
+                        moveMember(hierarchy.projectManagerMemberId, sourceId);
+                      }}
+                    >
+                      여기에 놓으면 PM 직속으로 이동합니다
+                    </div>
                   </div>
                 ) : null}
 
@@ -561,7 +641,11 @@ export function OrganizationChartArtifactCard({
                   editable={canGenerate && isEditing}
                   draggedMemberId={draggedMemberId}
                   dropTargetId={dropTargetId}
-                  onDragStart={setDraggedMemberId}
+                  onDragStart={(memberId) => {
+                    setDraggedMemberId(memberId);
+                    setDropTargetId(null);
+                    setHierarchyMessage("");
+                  }}
                   onDragEnd={() => {
                     setDraggedMemberId(null);
                     setDropTargetId(null);

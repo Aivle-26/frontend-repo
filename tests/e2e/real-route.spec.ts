@@ -54,6 +54,47 @@ const organizationChartArtifact = {
   downloadUrl: `/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
 };
 
+const organizationChartHierarchy = {
+  projectId: realProject.projectId,
+  artifactId: organizationChartArtifact.artifactId,
+  version: "1.0",
+  projectManagerMemberId: "PM-REAL",
+  members: [
+    {
+      memberId: "PM-REAL",
+      parentMemberId: null,
+      memberName: "Real Route PM",
+      projectJobFamily: "PROJECT_MANAGER",
+      order: 0,
+      capabilityRegistered: true,
+    },
+    {
+      memberId: "DEV002",
+      parentMemberId: "PM-REAL",
+      memberName: "Lead Member",
+      projectJobFamily: "TECH_LEAD",
+      order: 0,
+      capabilityRegistered: true,
+    },
+    {
+      memberId: "DEV003",
+      parentMemberId: "PM-REAL",
+      memberName: "Backend Member",
+      projectJobFamily: "BACKEND",
+      order: 1,
+      capabilityRegistered: true,
+    },
+    {
+      memberId: "DEV008",
+      parentMemberId: "DEV002",
+      memberName: "Unregistered Member",
+      projectJobFamily: null,
+      order: 0,
+      capabilityRegistered: false,
+    },
+  ],
+};
+
 const uiMockupArtifact = {
   artifactId: 902,
   projectId: realProject.projectId,
@@ -137,6 +178,7 @@ test("generates and previews the required organization chart for PM", async ({
   );
 
   await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
   await page.goto(`/real/projects/${realProject.projectId}/data`);
   await expect(page.getByText("필수 산출물", { exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "조직도 필수 산출물" }))
@@ -146,6 +188,185 @@ test("generates and previews the required organization chart for PM", async ({
   await expect(page.getByAltText("프로젝트 조직도 미리보기")).toBeVisible();
   await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
   expect(generateCalls).toBe(1);
+});
+
+test("PM edits an organization hierarchy and saves a new artifact version", async ({
+  page,
+}) => {
+  let artifact = organizationChartArtifact;
+  let hierarchy = structuredClone(organizationChartHierarchy);
+  let savedBody: {
+    baseVersion: string;
+    members: Array<{ memberId: string; parentMemberId: string | null; order: number }>;
+  } | null = null;
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(artifact),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/structure`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(hierarchy),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/hierarchy`,
+    async (route) => {
+      savedBody = route.request().postDataJSON();
+      hierarchy = {
+        ...hierarchy,
+        version: "1.1",
+        members: hierarchy.members.map((member) => {
+          const saved = savedBody?.members.find((item) => item.memberId === member.memberId);
+          return saved ? { ...member, ...saved } : member;
+        }),
+      };
+      artifact = { ...organizationChartArtifact, artifactId: 903, version: "1.1" };
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(artifact),
+      });
+    },
+  );
+
+  await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  await page.getByRole("button", { name: "계층 편집" }).click();
+  await dragMember(page, "DEV002", "DEV008");
+  await expect(page.locator('[data-member-id="DEV002"]')).toContainText("PM 직속");
+  await dragMember(page, "DEV008", "DEV003");
+  await expect(page.locator('[data-member-id="DEV008"]')).toContainText(
+    "Backend Member 산하",
+  );
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.locator('[data-member-id="DEV008"]')).toContainText(
+    "Lead Member 산하",
+  );
+  await page.getByRole("button", { name: "계층 편집" }).click();
+  await dragMember(page, "DEV008", "DEV003");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+
+  await expect.poll(() => savedBody).not.toBeNull();
+  expect(savedBody?.baseVersion).toBe("1.0");
+  expect(savedBody?.members.find((member) => member.memberId === "DEV008")?.parentMemberId)
+    .toBe("DEV003");
+  await expect(page.getByText("v1.1", { exact: true }).first()).toBeVisible();
+});
+
+test("PM hierarchy save failure keeps the previous artifact and hierarchy", async ({
+  page,
+}) => {
+  await setupProjectData(page, [realDocument], [realRequirement]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(organizationChartArtifact),
+    }),
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/structure`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(organizationChartHierarchy),
+    }),
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "image/jpeg",
+      body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+    }),
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/hierarchy`,
+    async (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "ORGANIZATION_CHART_RENDER_UNAVAILABLE",
+        message: "renderer unavailable",
+      }),
+    }),
+  );
+
+  await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
+  await page.goto(`/real/projects/${realProject.projectId}/data`);
+  await page.getByRole("button", { name: "계층 편집" }).click();
+  await dragMember(page, "DEV008", "DEV003");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+
+  await expect(page.getByLabel("조직도 보고 라인").getByText(
+    "조직도 생성 서버 또는 파일 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+  )).toBeVisible();
+  await expect(page.getByText("v1.0", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.locator('[data-member-id="DEV008"]')).toContainText(
+    "Lead Member 산하",
+  );
+});
+
+test("STAFF sees the structured hierarchy without edit controls", async ({ page }) => {
+  await mockLogin(page, "STAFF");
+  await mockProjectList(page, [realProject]);
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(organizationChartArtifact),
+    }),
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/structure`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(organizationChartHierarchy),
+    }),
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/organization-chart/latest/download`,
+    async (route) => route.fulfill({
+      status: 200,
+      contentType: "image/jpeg",
+      body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+    }),
+  );
+
+  await login(page);
+
+  await expect(page.getByText("보고 라인", { exact: true })).toBeVisible();
+  await expect(page.locator('[data-member-id="DEV008"]')).toContainText("역량 미등록");
+  await expect(page.getByRole("button", { name: "계층 편집" })).toHaveCount(0);
+  await expect(page.locator('[data-member-id="DEV008"]')).toHaveAttribute("draggable", "false");
 });
 
 test("generates previews and downloads a UI mockup for PM", async ({ page }) => {
@@ -1232,6 +1453,16 @@ async function login(page: Page) {
   await page.locator("#email").fill("real-route@example.test");
   await page.locator("#password").fill("local-test-password");
   await page.locator('button[type="submit"]').click();
+}
+
+async function dragMember(page: Page, sourceId: string, targetId: string) {
+  const source = page.locator(`[data-member-id="${sourceId}"]`);
+  const target = page.locator(`[data-member-id="${targetId}"]`);
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("dragstart", { dataTransfer });
+  await target.dispatchEvent("dragover", { dataTransfer });
+  await target.dispatchEvent("drop", { dataTransfer });
+  await source.dispatchEvent("dragend", { dataTransfer });
 }
 
 async function openProjectData(page: Page) {

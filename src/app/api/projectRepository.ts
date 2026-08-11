@@ -157,6 +157,23 @@ export interface OrganizationChartDownload {
   fileName: string;
 }
 
+export interface OrganizationChartHierarchyMember {
+  memberId: string;
+  parentMemberId: string | null;
+  memberName: string;
+  projectJobFamily: string | null;
+  order: number;
+  capabilityRegistered: boolean;
+}
+
+export interface OrganizationChartHierarchy {
+  projectId: number;
+  artifactId: number;
+  version: string;
+  projectManagerMemberId: string;
+  members: OrganizationChartHierarchyMember[];
+}
+
 export interface UiMockupArtifact {
   artifactId: number;
   projectId: number;
@@ -1818,6 +1835,35 @@ export const projectRepository = {
     return apiFetchBlob(
       `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/latest/download`,
       { auth: true },
+    );
+  },
+
+  getLatestOrganizationChartStructure(projectId: string | number) {
+    return apiFetch<OrganizationChartHierarchy>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/latest/structure`,
+      { auth: true },
+    );
+  },
+
+  updateOrganizationChartHierarchy(
+    projectId: string | number,
+    hierarchy: OrganizationChartHierarchy,
+  ) {
+    return apiFetch<OrganizationChartArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/hierarchy`,
+      {
+        method: "PUT",
+        auth: true,
+        expectedStatuses: [201],
+        body: JSON.stringify({
+          baseVersion: hierarchy.version,
+          members: hierarchy.members.map((member) => ({
+            memberId: member.memberId,
+            parentMemberId: member.parentMemberId,
+            order: member.order,
+          })),
+        }),
+      },
     );
   },
 

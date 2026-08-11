@@ -193,6 +193,7 @@ test("generates previews and downloads a UI mockup for PM", async ({ page }) => 
   );
 
   await login(page);
+  await expect(page.locator("#email")).toHaveCount(0);
   await page.goto(`/real/projects/${realProject.projectId}/data`);
   const generateButton = page.getByRole("button", { name: "UI 목업 생성", exact: true });
   await generateButton.click();
@@ -202,6 +203,111 @@ test("generates previews and downloads a UI mockup for PM", async ({ page }) => 
   await page.getByRole("button", { name: "다운로드", exact: true }).last().click();
   await expect.poll(() => downloadCalls).toBeGreaterThanOrEqual(2);
   expect(generateCalls).toBe(1);
+});
+
+test("PM UI prototype menu uses only the canonical artifact flow", async ({
+  page,
+}) => {
+  let generated = false;
+  let assessCalls = 0;
+  let generateCalls = 0;
+  let downloadCalls = 0;
+  let assistantCalls = 0;
+  await mockLogin(page);
+  await mockProjectList(page, [realProject]);
+  page.on("request", (request) => {
+    if (request.url().includes("/assistant/query")) assistantCalls += 1;
+  });
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest`,
+    async (route) => {
+      await route.fulfill({
+        status: generated ? 200 : 404,
+        contentType: "application/json",
+        body: JSON.stringify(
+          generated
+            ? uiMockupArtifact
+            : { code: "UI_MOCKUP_NOT_GENERATED", message: "not generated" },
+        ),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/assess`,
+    async (route) => {
+      assessCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          decision: "NOT_NEEDED",
+          reason: "화면 상호작용이 핵심 요구사항에 포함되지 않았습니다.",
+          evidenceRequirementIds: [realRequirement.requirementId],
+          candidateScreens: [],
+        }),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/generate`,
+    async (route) => {
+      generateCalls += 1;
+      generated = true;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(uiMockupArtifact),
+      });
+    },
+  );
+  await page.route(
+    `**/api/projects/${realProject.projectId}/artifacts/ui-mockup/latest/download`,
+    async (route) => {
+      downloadCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+      });
+    },
+  );
+
+  await page.goto("/");
+  await page.evaluate((projectId) => {
+    localStorage.setItem(
+      `aipm.uiPrototypeArtifact.${projectId}`,
+      JSON.stringify({
+        projectName: "Pmate AI",
+        screens: [{ name: "대시보드", headline: "전체 진행률 68% D-42" }],
+      }),
+    );
+  }, String(realProject.projectId));
+  await page.locator("#email").fill("real-route@example.test");
+  await page.locator("#password").fill("local-test-password");
+  await page.locator('button[type="submit"]').click();
+  await expect(page.locator("#email")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "UI 프로토타입", exact: true }).click();
+  await expect(page.getByRole("button", { name: "AI 필요성 분석", exact: true })).toBeVisible();
+  expect(assessCalls).toBe(0);
+  expect(generateCalls).toBe(0);
+  expect(assistantCalls).toBe(0);
+  for (const staleText of ["전체 진행률", "68%", "D-42", "열린 리스크", "주간 보고서 생성"]) {
+    await expect(page.getByText(staleText, { exact: false })).toHaveCount(0);
+  }
+
+  await page.getByRole("button", { name: "AI 필요성 분석", exact: true }).click();
+  await expect(page.getByText("필요성 낮음", { exact: true })).toBeVisible();
+  await expect(page.getByText("화면 상호작용이 핵심 요구사항에 포함되지 않았습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "그래도 생성하기", exact: true }).click();
+
+  await expect(page.getByAltText("프로젝트 UI 목업 미리보기")).toBeVisible();
+  await expect(page.getByText("v1.0", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "다운로드", exact: true }).click();
+  await expect.poll(() => downloadCalls).toBeGreaterThanOrEqual(2);
+  expect(assessCalls).toBe(1);
+  expect(generateCalls).toBe(1);
+  expect(assistantCalls).toBe(0);
 });
 
 test("UI mockup necessity assessment runs only after an explicit action", async ({

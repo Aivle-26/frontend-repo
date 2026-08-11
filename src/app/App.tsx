@@ -36,7 +36,7 @@ import { PmUpload } from "@/app/components/pm/PmUpload";
 import { PmAssign } from "@/app/components/pm/PmAssign";
 import { PmBudget } from "@/app/components/pm/PmBudget";
 import { PmOrganizationChart } from "@/app/components/pm/PmOrganizationChart";
-import { PmUiPrototype } from "@/app/components/pm/PmUiPrototype";
+import { UiMockupArtifactCard } from "@/app/components/common/UiMockupArtifactCard";
 import { ProjectOverview } from "@/app/components/pm/ProjectOverview";
 import { WeeklyScrum } from "@/app/components/pm/WeeklyScrum";
 import { ProjectDetail } from "@/app/components/pm/ProjectDetail";
@@ -498,7 +498,13 @@ function DemoApplication() {
       body = <PmBudget key={selectedProject?.id} project={selectedProject!} />;
     } else if (pmMenu === "uiPrototype") {
       subtitle = "UI 프로토타입";
-      body = <PmUiPrototype key={selectedProject?.id} project={selectedProject!} />;
+      body = (
+        <UiMockupArtifactCard
+          key={selectedProject?.id}
+          projectId={selectedProject!.id}
+          canGenerate
+        />
+      );
     } else if (pmMenu === "weekly") {
       subtitle = "위클리 스크럼";
       body = <WeeklyScrum key={selectedProject?.id} project={selectedProject!} />;

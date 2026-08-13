@@ -55,8 +55,18 @@ export type LlmStatus =
   | "FALLBACK"
   | "DISABLED";
 
-/** 아직 한 번도 분석하지 않은 프로젝트가 있으므로 상태 구분이 필요하다. */
-export type AnalysisStatus = "COMPLETED" | "PENDING" | "NEVER_ANALYZED";
+/**
+ * 아직 한 번도 분석하지 않은 프로젝트가 있으므로 상태 구분이 필요하다.
+ *
+ * NO_RECENT_MESSAGES는 "분석은 정상적으로 돌았는데 최근 14일 안에 대화가 없었다"는 뜻이다.
+ * NEVER_ANALYZED와 합치면 '분석 시작' 버튼을 다시 띄우게 되는데, 눌러도 결과가 같아서
+ * 사용자에겐 고장으로 보인다.
+ */
+export type AnalysisStatus =
+  | "COMPLETED"
+  | "PENDING"
+  | "NEVER_ANALYZED"
+  | "NO_RECENT_MESSAGES";
 
 export interface EvidenceMessage {
   channelId: string;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -34,6 +34,7 @@ import { demoRepository } from "@/app/data/demoRepository";
 import {
   ApiError,
   projectRepository,
+  waitForWbsGeneration,
   type SaveFinalWbsTask,
   type WbsTask,
 } from "@/app/api/projectRepository";
@@ -128,10 +129,14 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
   const [wbsSaving, setWbsSaving] = useState(false);
   const [wbsError, setWbsError] = useState("");
   const [newWbs, setNewWbs] = useState("");
+  const wbsGenerationAbortRef = useRef<AbortController | null>(null);
 
   // 저장된 WBS를 최초 1회 조회 (없으면 빈 상태)
   useEffect(() => {
     let ignore = false;
+    const controller = new AbortController();
+    wbsGenerationAbortRef.current?.abort();
+    wbsGenerationAbortRef.current = controller;
     setWbsLoading(true);
     setWbsError("");
     projectRepository
@@ -159,18 +164,87 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
       .finally(() => {
         if (!ignore) setWbsLoading(false);
       });
+
+    const restoreGeneration = async () => {
+      try {
+        const latest = await projectRepository.getLatestWbsGeneration(
+          project.id,
+          controller.signal,
+        );
+        if (latest.status === "FAILED") {
+          if (!ignore) {
+            setWbsError(latest.errorMessage || "이전 WBS 생성에 실패했습니다.");
+          }
+          return;
+        }
+        if (latest.status !== "PROCESSING") return;
+
+        if (!ignore) setWbsGenerating(true);
+        const completed = await waitForWbsGeneration(
+          project.id,
+          latest.generationId,
+          { signal: controller.signal },
+        );
+        if (completed.status === "FAILED") {
+          if (!ignore) {
+            setWbsError(completed.errorMessage || "WBS 생성에 실패했습니다.");
+          }
+          return;
+        }
+
+        const result = await projectRepository.getWbs(project.id);
+        if (ignore) return;
+        const source = result.finalTasks?.length
+          ? result.finalTasks
+          : result.aiSuggestionTasks ?? [];
+        setWbsTasks(normalizeWbsTasks(source));
+        toast.success(`진행 중이던 WBS ${source.length}개 작업 생성이 완료됐어요.`);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (!(error instanceof ApiError && error.status === 404) && !ignore) {
+          setWbsError(
+            error instanceof ApiError && error.message
+              ? error.message
+              : "WBS 생성 상태를 확인하지 못했습니다.",
+          );
+        }
+      } finally {
+        if (!ignore && !controller.signal.aborted) setWbsGenerating(false);
+      }
+    };
+
+    void restoreGeneration();
     return () => {
       ignore = true;
+      wbsGenerationAbortRef.current?.abort();
+      if (wbsGenerationAbortRef.current === controller) {
+        wbsGenerationAbortRef.current = null;
+      }
     };
   }, [project.id]);
 
   // [AI 생성] 확정된 요구사항 기반으로 WBS 생성 → 저장된 결과 재조회
   const generateWbs = async () => {
     if (wbsGenerating) return;
+    const controller = new AbortController();
+    wbsGenerationAbortRef.current?.abort();
+    wbsGenerationAbortRef.current = controller;
     setWbsGenerating(true);
     setWbsError("");
     try {
-      await projectRepository.generateWbs(project.id);
+      const started = await projectRepository.generateWbs(project.id);
+      const completed = await waitForWbsGeneration(
+        project.id,
+        started.generationId,
+        { signal: controller.signal },
+      );
+      if (completed.status === "FAILED") {
+        throw new ApiError(
+          502,
+          completed.errorMessage || "WBS 생성에 실패했습니다.",
+          completed,
+        );
+      }
       const result = await projectRepository.getWbs(project.id);
       const source =
         result.finalTasks && result.finalTasks.length > 0
@@ -179,6 +253,7 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
       setWbsTasks(normalizeWbsTasks(source));
       toast.success(`AI가 WBS ${source.length}개 작업을 생성했어요.`);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       const message =
         error instanceof ApiError && error.status === 404
           ? "먼저 요구사항을 확정해 주세요."
@@ -188,7 +263,10 @@ export function ProjectWizard({ project, onBack, onStart }: ProjectWizardProps) 
       setWbsError(message);
       toast.error(message);
     } finally {
-      setWbsGenerating(false);
+      if (wbsGenerationAbortRef.current === controller) {
+        wbsGenerationAbortRef.current = null;
+        setWbsGenerating(false);
+      }
     }
   };
 

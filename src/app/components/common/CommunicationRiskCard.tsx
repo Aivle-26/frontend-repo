@@ -101,7 +101,12 @@ export function CommunicationRiskCard({ projectId }: CommunicationRiskCardProps)
     try {
       const result = await communicationRiskApi.refresh(projectId, currentAccessToken());
       setData(result);
-      toast.success("커뮤니케이션 리스크를 다시 분석했습니다.");
+      // 판정 결과가 없는데 "분석 완료"라고 하면 사용자는 화면이 깨진 걸로 읽는다.
+      if (result.status === "NO_RECENT_MESSAGES") {
+        toast.info("최근 14일 안에 분석할 Slack 대화가 없습니다.");
+      } else {
+        toast.success("커뮤니케이션 리스크를 다시 분석했습니다.");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "재분석에 실패했습니다.");
     } finally {
@@ -148,6 +153,12 @@ export function CommunicationRiskCard({ projectId }: CommunicationRiskCardProps)
           <ErrorState message={error} onRetry={() => void load()} />
         ) : editingChannels || linkedCount === 0 ? (
           <SlackChannelPicker projectId={projectId} onSaved={handleChannelsSaved} />
+        ) : data?.status === "NO_RECENT_MESSAGES" ? (
+          <NoRecentMessagesState
+            onRetry={() => void handleRefresh()}
+            busy={refreshing}
+            onEditChannels={() => setEditingChannels(true)}
+          />
         ) : !data || data.status === "NEVER_ANALYZED" ? (
           <EmptyState onAnalyze={() => void handleRefresh()} busy={refreshing} />
         ) : (
@@ -336,6 +347,44 @@ function ErrorState({
       <Button variant="outline" size="sm" onClick={onRetry}>
         다시 시도
       </Button>
+    </div>
+  );
+}
+
+/**
+ * 분석은 성공했지만 최근 14일 안에 대화가 없는 경우.
+ *
+ * EmptyState와 분리한 이유: 여기서 '분석 시작'을 띄우면 눌러도 같은 화면이 나와서
+ * 사용자가 고장으로 오해한다. 실제로 필요한 행동은 "다른 채널 고르기"다.
+ */
+function NoRecentMessagesState({
+  onRetry,
+  busy,
+  onEditChannels,
+}: {
+  onRetry: () => void;
+  busy: boolean;
+  onEditChannels: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-8 text-center">
+      <MessagesSquare className="size-6 text-muted-foreground" />
+      <div>
+        <p className="text-foreground text-sm">최근 14일 안에 분석할 대화가 없습니다.</p>
+        <p className="mt-1 text-muted-foreground text-xs">
+          연결된 채널이 조용했거나, 다른 채널을 보고 있을 수 있습니다.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onEditChannels} disabled={busy}>
+          <Settings2 className="size-4" />
+          채널 편집
+        </Button>
+        <Button size="sm" onClick={onRetry} disabled={busy}>
+          <RefreshCw className={cn("size-4", busy && "animate-spin")} />
+          다시 분석
+        </Button>
+      </div>
     </div>
   );
 }

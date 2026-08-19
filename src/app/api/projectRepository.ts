@@ -157,6 +157,23 @@ export interface OrganizationChartDownload {
   fileName: string;
 }
 
+export interface OrganizationChartHierarchyMember {
+  memberId: string;
+  parentMemberId: string | null;
+  memberName: string;
+  projectJobFamily: string | null;
+  order: number;
+  capabilityRegistered: boolean;
+}
+
+export interface OrganizationChartHierarchy {
+  projectId: number;
+  artifactId: number;
+  version: string;
+  projectManagerMemberId: string;
+  members: OrganizationChartHierarchyMember[];
+}
+
 export interface UiMockupArtifact {
   artifactId: number;
   projectId: number;
@@ -383,6 +400,28 @@ export interface WbsResult {
   createdAt: string;
   aiSuggestionTasks: WbsTask[];
   finalTasks: WbsTask[];
+}
+
+export type WbsGenerationStatus = "PROCESSING" | "SUCCEEDED" | "FAILED";
+
+export interface WbsGenerationStartResponse {
+  generationId: string;
+  projectId: number;
+  status: WbsGenerationStatus;
+  reused: boolean;
+  requestedAt: string;
+}
+
+export interface WbsGenerationStatusResponse {
+  generationId: string;
+  projectId: number;
+  status: WbsGenerationStatus;
+  wbsResultId: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  requestedAt: string;
+  startedAt: string;
+  completedAt: string | null;
 }
 
 export type ServiceScale = "SMALL" | "MEDIUM" | "LARGE";
@@ -1433,12 +1472,30 @@ export const projectRepository = {
   },
 
   generateWbs(projectId: string | number) {
-    return apiFetch<WbsResult | void>(
+    return apiFetch<WbsGenerationStartResponse>(
       `/projects/${encodeURIComponent(String(projectId))}/wbs/generate`,
       {
         method: "POST",
         auth: true,
       },
+    );
+  },
+
+  getWbsGeneration(
+    projectId: string | number,
+    generationId: string,
+    signal?: AbortSignal,
+  ) {
+    return apiFetch<WbsGenerationStatusResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/generations/${encodeURIComponent(generationId)}`,
+      { auth: true, signal },
+    );
+  },
+
+  getLatestWbsGeneration(projectId: string | number, signal?: AbortSignal) {
+    return apiFetch<WbsGenerationStatusResponse>(
+      `/projects/${encodeURIComponent(String(projectId))}/wbs/generations/latest`,
+      { auth: true, signal },
     );
   },
 
@@ -1821,6 +1878,35 @@ export const projectRepository = {
     );
   },
 
+  getLatestOrganizationChartStructure(projectId: string | number) {
+    return apiFetch<OrganizationChartHierarchy>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/latest/structure`,
+      { auth: true },
+    );
+  },
+
+  updateOrganizationChartHierarchy(
+    projectId: string | number,
+    hierarchy: OrganizationChartHierarchy,
+  ) {
+    return apiFetch<OrganizationChartArtifact>(
+      `/projects/${encodeURIComponent(String(projectId))}/artifacts/organization-chart/hierarchy`,
+      {
+        method: "PUT",
+        auth: true,
+        expectedStatuses: [201],
+        body: JSON.stringify({
+          baseVersion: hierarchy.version,
+          members: hierarchy.members.map((member) => ({
+            memberId: member.memberId,
+            parentMemberId: member.parentMemberId,
+            order: member.order,
+          })),
+        }),
+      },
+    );
+  },
+
   async downloadOrganizationChart(
     projectId: string | number,
     version: string,
@@ -1987,3 +2073,41 @@ export const projectRepository = {
   },
 
 };
+
+function pollingDelay(milliseconds: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Polling aborted", "AbortError"));
+      return;
+    }
+
+    const onAbort = () => {
+      window.clearTimeout(timeoutId);
+      reject(new DOMException("Polling aborted", "AbortError"));
+    };
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+export async function waitForWbsGeneration(
+  projectId: string | number,
+  generationId: string,
+  options: { signal?: AbortSignal; intervalMs?: number } = {},
+) {
+  const { signal, intervalMs = 2500 } = options;
+  while (true) {
+    const generation = await projectRepository.getWbsGeneration(
+      projectId,
+      generationId,
+      signal,
+    );
+    if (generation.status !== "PROCESSING") {
+      return generation;
+    }
+    await pollingDelay(intervalMs, signal);
+  }
+}

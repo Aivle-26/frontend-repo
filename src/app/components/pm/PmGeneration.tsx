@@ -59,6 +59,7 @@ import { cn } from "@/app/components/ui/utils";
 import {
   ApiError,
   projectRepository,
+  waitForWbsGeneration,
   type RequirementResponse,
   type SaveFinalWbsTask,
   type WbsResult,
@@ -260,6 +261,7 @@ export function PmGeneration({
   const scheduleRegistered = useScheduleRegistered(project.id);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const scheduleRef = useRef<HTMLDivElement | null>(null);
+  const wbsGenerationAbortRef = useRef<AbortController | null>(null);
 
   const finalRequirements = useMemo(
     () =>
@@ -280,6 +282,9 @@ export function PmGeneration({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    wbsGenerationAbortRef.current?.abort();
+    wbsGenerationAbortRef.current = controller;
 
     const load = async () => {
       setWbsLoading(true);
@@ -320,12 +325,53 @@ export function PmGeneration({
         );
       }
 
+      try {
+        const latest = await projectRepository.getLatestWbsGeneration(
+          project.id,
+          controller.signal,
+        );
+        if (latest.status === "FAILED") {
+          setWbsError(latest.errorMessage || "이전 WBS 생성에 실패했습니다.");
+        } else if (latest.status === "PROCESSING") {
+          setBusy((current) => ({ ...current, wbs: true }));
+          const completed = await waitForWbsGeneration(
+            project.id,
+            latest.generationId,
+            { signal: controller.signal },
+          );
+          if (completed.status === "FAILED") {
+            setWbsError(completed.errorMessage || "WBS 생성에 실패했습니다.");
+          } else {
+            const restored = normalizeWbs(await projectRepository.getWbs(project.id));
+            if (!cancelled) {
+              setWbs(restored);
+              markGenerated(project.id, "wbs");
+            }
+          }
+        }
+      } catch (error) {
+        if (
+          !(error instanceof DOMException && error.name === "AbortError") &&
+          !(error instanceof ApiError && error.status === 404)
+        ) {
+          setWbsError(errorMessage(error, "WBS 생성 상태를 확인하지 못했습니다."));
+        }
+      } finally {
+        if (!cancelled) {
+          setBusy((current) => ({ ...current, wbs: false }));
+        }
+      }
+
       setWbsLoading(false);
     };
 
     void load();
     return () => {
       cancelled = true;
+      wbsGenerationAbortRef.current?.abort();
+      if (wbsGenerationAbortRef.current === controller) {
+        wbsGenerationAbortRef.current = null;
+      }
     };
   }, [project.id]);
 
@@ -407,10 +453,25 @@ export function PmGeneration({
 
   // [AI 업데이트] 저장된 최종 요구사항 기반으로 WBS를 재생성한다(generateWbs → getWbs).
   const regenerateWbs = async () => {
+    const controller = new AbortController();
+    wbsGenerationAbortRef.current?.abort();
+    wbsGenerationAbortRef.current = controller;
     setBusy((current) => ({ ...current, wbs: true }));
     setWbsError("");
     try {
-      await projectRepository.generateWbs(project.id);
+      const started = await projectRepository.generateWbs(project.id);
+      const completed = await waitForWbsGeneration(
+        project.id,
+        started.generationId,
+        { signal: controller.signal },
+      );
+      if (completed.status === "FAILED") {
+        throw new ApiError(
+          502,
+          completed.errorMessage || "WBS 생성에 실패했습니다.",
+          completed,
+        );
+      }
       await loadWbs();
       setPreviewOpen(true);
       requestAnimationFrame(() =>
@@ -418,6 +479,7 @@ export function PmGeneration({
       );
       toast.success("요구사항 기반으로 WBS를 다시 생성했습니다.");
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       const message =
         error instanceof ApiError && error.status === 404
           ? "먼저 요구사항을 확정해 주세요."
@@ -425,7 +487,10 @@ export function PmGeneration({
       setWbsError(message);
       toast.error(message);
     } finally {
-      setBusy((current) => ({ ...current, wbs: false }));
+      if (wbsGenerationAbortRef.current === controller) {
+        wbsGenerationAbortRef.current = null;
+        setBusy((current) => ({ ...current, wbs: false }));
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   ApiError,
   projectRepository,
+  waitForWbsGeneration,
   type SaveFinalWbsTask,
   type WbsResult,
   type WbsTask,
@@ -29,6 +30,10 @@ import type { ProjectSummary } from "@/app/projects/projectTypes";
 
 function messageOf(error: unknown, fallback: string) {
   return error instanceof ApiError && error.message ? error.message : fallback;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function taskKey(task: WbsTask) {
@@ -86,6 +91,7 @@ export function PmWbs({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [selectedExternalId, setSelectedExternalId] = useState<string | null>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
 
   const loadWbs = async () => {
     setLoading(true);
@@ -116,9 +122,54 @@ export function PmWbs({
   };
 
   useEffect(() => {
+    const controller = new AbortController();
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = controller;
     void loadWbs();
+
+    const restoreGeneration = async () => {
+      try {
+        const latest = await projectRepository.getLatestWbsGeneration(
+          project.id,
+          controller.signal,
+        );
+        if (latest.status === "FAILED") {
+          setError(latest.errorMessage || "이전 AI WBS 생성에 실패했습니다.");
+          return;
+        }
+        if (latest.status !== "PROCESSING") return;
+
+        setGenerating(true);
+        const completed = await waitForWbsGeneration(
+          project.id,
+          latest.generationId,
+          { signal: controller.signal },
+        );
+        if (completed.status === "FAILED") {
+          setError(completed.errorMessage || "AI WBS 생성에 실패했습니다.");
+          return;
+        }
+        await loadWbs();
+        toast.success("진행 중이던 AI WBS 생성이 완료되었습니다.");
+      } catch (caught) {
+        if (isAbortError(caught)) return;
+        if (!(caught instanceof ApiError && caught.status === 404)) {
+          setError(messageOf(caught, "WBS 생성 상태를 확인하지 못했습니다."));
+        }
+      } finally {
+        if (!controller.signal.aborted) setGenerating(false);
+      }
+    };
+
+    void restoreGeneration();
     // project.id가 바뀌면 해당 프로젝트 WBS를 다시 조회합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      generationAbortRef.current?.abort();
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+      }
+    };
   }, [project.id]);
 
   const tasks = useMemo(() => {
@@ -157,25 +208,37 @@ export function PmWbs({
   );
 
   const generateWbs = async () => {
+    const controller = new AbortController();
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = controller;
     setGenerating(true);
     setError("");
     try {
-      const generated = await projectRepository.generateWbs(project.id);
-      const loaded = generated ?? (await projectRepository.getWbs(project.id));
-      setResult(loaded);
-      const visibleTasks = loaded.finalConfirmed
-        ? loaded.finalTasks
-        : loaded.aiSuggestionTasks.length > 0
-          ? loaded.aiSuggestionTasks
-          : loaded.finalTasks;
-      setSelectedExternalId(visibleTasks[0]?.externalTaskId ?? null);
+      const started = await projectRepository.generateWbs(project.id);
+      const completed = await waitForWbsGeneration(
+        project.id,
+        started.generationId,
+        { signal: controller.signal },
+      );
+      if (completed.status === "FAILED") {
+        throw new ApiError(
+          502,
+          completed.errorMessage || "AI WBS 생성에 실패했습니다.",
+          completed,
+        );
+      }
+      await loadWbs();
       toast.success("AI WBS 생성이 완료되었습니다.");
     } catch (caught) {
+      if (isAbortError(caught)) return;
       const message = messageOf(caught, "AI WBS 생성에 실패했습니다.");
       setError(message);
       toast.error(message);
     } finally {
-      setGenerating(false);
+      if (generationAbortRef.current === controller) {
+        generationAbortRef.current = null;
+        setGenerating(false);
+      }
     }
   };
 
@@ -231,10 +294,11 @@ export function PmWbs({
         </Alert>
       ) : null}
 
-      {loading ? (
+      {loading || generating ? (
         <Card>
           <CardContent className="flex min-h-72 items-center justify-center gap-2 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" /> WBS를 불러오는 중입니다.
+            <Loader2 className="size-5 animate-spin" />
+            {generating ? "AI가 WBS를 생성하고 있습니다." : "WBS를 불러오는 중입니다."}
           </CardContent>
         </Card>
       ) : !result || tasks.length === 0 ? (

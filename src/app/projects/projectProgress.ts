@@ -78,8 +78,7 @@ export type PlanningStage =
    );
  }
 
- /** UI 프로토타입 생성 단계 완료 여부 (아직 이 단계를 뒷받침하는 백엔드가 없어 예산 완료와 같은
-  * localStorage 방식으로 추적한다). */
+ /** 서버 조회가 불가능할 때 사용하는 UI 프로토타입 완료 여부 폴백 값 */
  export function isProjectUiPrototypeCompleted(
    projectId: string | number,
  ): boolean {
@@ -185,6 +184,24 @@ async function isBudgetSavedOnServer(
 }
 
 /**
+ * UI 프로토타입 완료 여부를 서버의 최신 UI 목업 존재 여부로 판단한다.
+ * 조회 자체가 실패하면 기존 localStorage 플래그로 폴백한다.
+ */
+async function isUiPrototypeSavedOnServer(
+  projectId: string | number,
+): Promise<boolean> {
+  try {
+    const artifact = await projectRepository.getLatestUiMockup(projectId);
+    return artifact != null && artifact.artifactId != null;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return false;
+    }
+    return isProjectUiPrototypeCompleted(projectId);
+  }
+}
+
+/**
  * 서버 실데이터를 가장 뒤 단계부터 확인합니다.
  *
  * - 모든 WBS leaf task가 실제 업무로 배정됨: 계획 완료 → 기존 운영 대시보드
@@ -208,7 +225,7 @@ export async function getProjectPlanningProgress(
       if (!(await isBudgetSavedOnServer(projectId))) {
         return STAGE_META.budget;
       }
-      return isProjectUiPrototypeCompleted(projectId)
+      return (await isUiPrototypeSavedOnServer(projectId))
         ? DASHBOARD_PROGRESS
         : STAGE_META.uiPrototype;
     }

@@ -85,18 +85,10 @@ export function PmBudget({ project }: PmBudgetProps) {
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
   const initialized = useRef(false);
-  const detailedJobsByEmployee = useRef<Map<string, string>>(new Map());
-
-  const withStoredDetailedJobs = useCallback((rows: KosaPersonnel[]) => (
-    rows.map((row) => ({
-      ...row,
-      detailedJob: detailedJobsByEmployee.current.get(row.employeeNumber) ?? row.detailedJob,
-    }))
-  ), []);
 
   const hydrate = useCallback((data: KosaCostResponse, keepEvidence = false) => {
     setResult(data);
-    setPersonnel(withStoredDetailedJobs(data.personnel ?? []));
+    setPersonnel(data.personnel ?? []);
     setExpenses(data.expenseItems ?? []);
     setOverheadRate(data.overheadRate ?? 30);
     setTechnicalFeeRate(data.technicalFeeRate ?? 10);
@@ -107,19 +99,13 @@ export function PmBudget({ project }: PmBudgetProps) {
     if (!keepEvidence) {
       setEvidence(data.wbsEfforts ?? data.personnel.flatMap((row) => row.wbsEvidence ?? []));
     }
-  }, [withStoredDetailedJobs]);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     initialized.current = false;
     try {
-      const members = await projectRepository.getProjectMembers(project.id).catch(() => []);
-      detailedJobsByEmployee.current = new Map(
-        members
-          .map((member) => [member.employeeNumber, member.roles.join(" ").trim()] as const)
-          .filter((entry): entry is readonly [string, string] => entry[1].length > 0),
-      );
       try {
         const saved = await projectRepository.getEditedKosaCost(project.id);
         hydrate(saved);
@@ -140,7 +126,7 @@ export function PmBudget({ project }: PmBudgetProps) {
   useEffect(() => { void load(); }, [load]);
 
   const buildRequestFrom = useCallback((data: KosaCostResponse): KosaCostRequestBody => ({
-    personnel: withStoredDetailedJobs(data.personnel).map((row) => ({
+    personnel: data.personnel.map((row) => ({
       employeeNumber: row.employeeNumber,
       kosaJobCategory: row.kosaJobCategory,
       detailedJob: row.detailedJob,
@@ -156,7 +142,7 @@ export function PmBudget({ project }: PmBudgetProps) {
     discountAmount: data.discountAmount ?? 0,
     includeVat: data.includeVat ?? true,
     note: data.note ?? "2026년 KOSA 평균임금 기준",
-  }), [withStoredDetailedJobs]);
+  }), []);
 
   const generateEstimate = async () => {
     setGenerating(true);
@@ -398,7 +384,7 @@ export function PmBudget({ project }: PmBudgetProps) {
             </tr></thead>
             <tbody>{personnel.map((row, index) => (
               <tr
-                key={`${row.employeeNumber}-${index}`}
+                key={`${row.employeeNumber}-${row.detailedJob}-${index}`}
                 className={cn(
                   "border-b border-border/80 bg-card align-middle hover:bg-muted/20",
                   utilizationWarningEmployeeNumbers.has(row.employeeNumber) &&

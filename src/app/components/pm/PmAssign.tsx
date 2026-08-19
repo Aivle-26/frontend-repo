@@ -296,6 +296,9 @@ export function PmAssign({
   ]);
 
   const assignmentRows = useMemo(() => {
+    const taskByExternalId = new Map(
+      finalWbsTasks.map((task) => [task.externalTaskId, task]),
+    );
     const parentExternalIds = new Set(
       finalWbsTasks
         .map((task) => task.parentExternalTaskId)
@@ -321,6 +324,9 @@ export function PmAssign({
         return {
           wbsId,
           wbs,
+          parentTaskName: wbs.parentExternalTaskId
+            ? taskByExternalId.get(wbs.parentExternalTaskId)?.taskName ?? null
+            : null,
           recommendation,
           recommendedMembers: recommendation?.recommendedMembers ?? [],
           unassigned: backendUnassignedIds.has(wbsId) || !hasRecommendedMember,
@@ -808,16 +814,36 @@ export function PmAssign({
                     return (
                       <TableRow key={row.wbsId}>
                         <TableCell>
-                          <div className="text-foreground">{row.wbs.taskName}</div>
+                          <div className="text-foreground">
+                            {row.parentTaskName ? (
+                              <>
+                                <span className="text-muted-foreground">{row.parentTaskName}</span>
+                                <span className="mx-1.5 text-muted-foreground">›</span>
+                              </>
+                            ) : null}
+                            {row.wbs.taskName}
+                          </div>
                           <div className="text-muted-foreground text-xs">
                             {rec?.estimatedHours ?? row.wbs.estimatedHours}시간 · {(rec?.estimatedMm ?? row.wbs.estimatedHours / 160).toFixed(2)} MM
                             {row.unassigned && " · AI 추천 없음 · 직접 배정 필요"}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-normal">
-                            {(rec?.requiredRoleCode ?? row.wbs.requiredSkills.join(", ")) || "-"}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {(row.wbs.requiredSkills.length > 0
+                              ? row.wbs.requiredSkills
+                              : rec?.requiredRoleCode
+                                ? [rec.requiredRoleCode]
+                                : []
+                            ).map((skill) => (
+                              <Badge key={skill} variant="outline" className="font-normal">
+                                {skill}
+                              </Badge>
+                            ))}
+                            {row.wbs.requiredSkills.length === 0 && !rec?.requiredRoleCode && (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Select

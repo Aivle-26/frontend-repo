@@ -405,7 +405,17 @@ export function PmWbs({
                         : "API 반환 없음"
                     }
                   />
-                  <Meta label="필요 기술" value={selectedTask?.requiredSkills.join(", ") || "-"} />
+                  <div>
+                    <div className="text-xs text-muted-foreground">필요 기술</div>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {(selectedTask?.requiredSkills ?? []).map((skill) => (
+                        <Badge key={skill} variant="outline">{skill}</Badge>
+                      ))}
+                      {(selectedTask?.requiredSkills.length ?? 0) === 0 && (
+                        <span className="text-sm text-foreground">-</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

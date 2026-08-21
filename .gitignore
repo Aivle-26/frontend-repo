@@ -1,5 +1,7 @@
 node_modules/
 dist/
+playwright-report/
+test-results/
 .pnpm-store/
 vite-dev.log
 *.local
@@ -7,3 +9,9 @@ vite-dev.log
 .env.*
 !.env.example
 
+# IDE 로컬 설정 (사람마다 달라 머지 충돌 유발)
+.idea/
+.vscode/
+.DS_Store
+
+.npm-cache/

@@ -1,3 +1,4 @@
+import { useEffect, useState, type ReactNode } from "react";
 import {
   TrendingUp,
   CalendarClock,
@@ -15,6 +16,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/app/components/ui/card";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Progress } from "@/app/components/ui/progress";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -27,9 +29,13 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import {
+  ApiError,
   projectRepository,
+  type ProjectSummary,
 } from "@/app/api/projectRepository";
+import { demoRepository } from "@/app/data/demoRepository";
 import { WorkflowFooter } from "@/app/components/common/WorkflowFooter";
+import { CountUp } from "@/app/components/common/CountUp";
 
 function priorityVariant(p: string) {
   if (p === "높음") return "destructive" as const;
@@ -39,7 +45,35 @@ function priorityVariant(p: string) {
 
 export function PmDashboard() {
   const { kpis, aiSummary, requirements, team, risks } =
-    projectRepository.getPmDashboard();
+    demoRepository.getPmDashboard();
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projectStatus, setProjectStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const [projectError, setProjectError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    setProjectStatus("loading");
+    setProjectError("");
+    projectRepository
+      .listProjects()
+      .then((items) => {
+        if (ignore) return;
+        setProjects(items);
+        setProjectStatus("ready");
+      })
+      .catch((caught) => {
+        if (ignore) return;
+        setProjectError(getProjectListError(caught));
+        setProjectStatus("error");
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -78,7 +112,7 @@ export function PmDashboard() {
           <CardContent>
             <div
               onClick={async () => {
-                await projectRepository.uploadRfp();
+                await demoRepository.uploadRfp();
                 toast.success("공고문 업로드 흐름을 확인했습니다.");
               }}
               className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 py-12 text-center transition-colors hover:bg-muted"
@@ -95,7 +129,7 @@ export function PmDashboard() {
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="size-4" /> AI 분석 요약
             </CardTitle>
-            <CardDescription>도시인프라-rfp-2024.pdf 분석 결과</CardDescription>
+            <CardDescription>사내-협업툴-개발-rfp-2026.pdf 분석 결과</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
@@ -109,6 +143,68 @@ export function PmDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>프로젝트 목록</CardTitle>
+          <CardDescription>인증된 사용자의 GET /api/projects 응답입니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {projectStatus === "loading" && (
+            <p className="text-sm text-muted-foreground">프로젝트 목록을 불러오는 중입니다.</p>
+          )}
+
+          {projectStatus === "error" && (
+            <Alert variant="destructive">
+              <AlertDescription>{projectError}</AlertDescription>
+            </Alert>
+          )}
+
+          {projectStatus === "ready" && projects.length === 0 && (
+            <p className="text-sm text-muted-foreground">등록된 프로젝트가 없습니다.</p>
+          )}
+
+          {projectStatus === "ready" && projects.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">ID</TableHead>
+                  <TableHead>프로젝트명</TableHead>
+                  <TableHead className="w-28">상태</TableHead>
+                  <TableHead className="w-36">PM</TableHead>
+                  <TableHead className="w-48">기간</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map((project) => (
+                  <TableRow key={project.projectId}>
+                    <TableCell className="text-muted-foreground">
+                      {project.projectId}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{project.name}</div>
+                      {project.description && (
+                        <div className="text-xs text-muted-foreground">
+                          {project.description}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{project.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {project.pmEmployeeNumber}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatProjectPeriod(project)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Requirements preview */}
       <Card>
@@ -210,10 +306,10 @@ export function PmDashboard() {
 }
 
 interface KpiCardProps {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
-  extra?: React.ReactNode;
+  extra?: ReactNode;
 }
 
 function KpiCard({ icon, label, value, extra }: KpiCardProps) {
@@ -224,9 +320,32 @@ function KpiCard({ icon, label, value, extra }: KpiCardProps) {
           <span className="text-muted-foreground text-sm">{label}</span>
           <span className="text-muted-foreground">{icon}</span>
         </div>
-        <div className="mt-2 text-foreground text-2xl">{value}</div>
+        <div className="mt-2 text-foreground text-2xl">
+          <CountUp value={value} />
+        </div>
         {extra}
       </CardContent>
     </Card>
   );
+}
+
+function formatProjectPeriod(project: ProjectSummary) {
+  if (!project.plannedStartDate && !project.plannedEndDate) {
+    return "-";
+  }
+  return `${project.plannedStartDate ?? "-"} ~ ${project.plannedEndDate ?? "-"}`;
+}
+
+function getProjectListError(caught: unknown) {
+  if (caught instanceof ApiError) {
+    if (caught.status === 401) {
+      return "로그인이 만료되었습니다. 다시 로그인해주세요.";
+    }
+    if (caught.status === 403) {
+      return "프로젝트 목록을 조회할 권한이 없습니다.";
+    }
+    return caught.message || "프로젝트 목록을 불러오지 못했습니다.";
+  }
+
+  return "프로젝트 목록을 불러오지 못했습니다.";
 }

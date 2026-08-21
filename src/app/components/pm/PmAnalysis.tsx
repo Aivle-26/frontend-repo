@@ -1,258 +1,227 @@
 import { useState } from "react";
-import { FileText, RefreshCw, AlertTriangle } from "lucide-react";
+import { ExternalLink, Globe2, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
-import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
-import { Textarea } from "@/app/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table";
-import { projectRepository } from "@/app/api/projectRepository";
+import type { ProjectSummary } from "@/app/data/demoData";
 
-function priorityVariant(p: string) {
-  if (p === "높음") return "destructive" as const;
-  if (p === "중간") return "secondary" as const;
+type SimilarProject = {
+  id: number;
+  title: string;
+  organization: string;
+  year: string;
+  similarity: number;
+  summary: string;
+  tags: string[];
+  source: string;
+};
+
+const INITIAL_SIMILAR_PROJECTS: SimilarProject[] = [
+  {
+    id: 1,
+    title: "공공 클라우드 이중화 및 재해복구 체계 구축",
+    organization: "한국지역정보개발원",
+    year: "2025",
+    similarity: 94,
+    summary:
+      "30분 이내 복구, 이중화 구성, 운영 로그 보관 요구사항이 현재 공고와 유사합니다.",
+    tags: ["이중화", "재해복구", "로그관리"],
+    source: "나라장터",
+  },
+  {
+    id: 2,
+    title: "통합 업무시스템 고도화 및 접근성 개선",
+    organization: "공공기관 정보화사업",
+    year: "2024",
+    similarity: 88,
+    summary:
+      "WCAG 2.1 AA 준수, 다국어 지원, 감사 로그 요구사항을 참고할 수 있습니다.",
+    tags: ["WCAG", "다국어", "감사로그"],
+    source: "공공데이터포털",
+  },
+  {
+    id: 3,
+    title: "협업 플랫폼 연동 및 운영 자동화 구축",
+    organization: "디지털서비스 발주기관",
+    year: "2025",
+    similarity: 81,
+    summary:
+      "Slack·Jira 연동과 알림 자동화 범위가 현재 프로젝트의 외부 협업 요구와 유사합니다.",
+    tags: ["Slack", "Jira", "알림자동화"],
+    source: "나라장터",
+  },
+];
+
+function similarityBadgeVariant(similarity: number) {
+  if (similarity >= 90) return "default" as const;
+  if (similarity >= 80) return "secondary" as const;
   return "outline" as const;
 }
 
-export function PmAnalysis() {
-  const { requirements, risks, assignees } = projectRepository.getPmAnalysis();
-  const [selectedId, setSelectedId] = useState<number | null>(requirements[0].id);
-  const [assignee, setAssignee] = useState<string>("");
-  const [due, setDue] = useState<string>("");
-  const [memo, setMemo] = useState<string>("");
+export function PmAnalysis({
+  project,
+  variant = "full",
+}: {
+  project: ProjectSummary;
+  /** "full": 독립 화면(3열 그리드) · "panel": 요구사항 화면 우측 사이드 패널(단일 열) */
+  variant?: "full" | "panel";
+}) {
+  const isPanel = variant === "panel";
+  const [query, setQuery] = useState(project.name);
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [lastCrawledAt, setLastCrawledAt] = useState("방금 전");
+  const [similarProjects, setSimilarProjects] = useState<SimilarProject[]>(
+    INITIAL_SIMILAR_PROJECTS,
+  );
 
-  const selected = requirements.find((r) => r.id === selectedId) ?? null;
+  const handleCrawl = async () => {
+    const keyword = query.trim();
+    if (!keyword) {
+      toast.error("검색어를 입력하세요.");
+      return;
+    }
 
-  const handleAssign = async () => {
-    if (!selected) return toast.error("요구사항을 선택하세요.");
-    if (!assignee) return toast.error("담당자를 지정하세요.");
-    await projectRepository.assignRequirement({
-      requirementId: selected.id,
-      assignee,
-      dueDate: due,
-      memo,
-    });
-    toast.success(`"${selected.text.slice(0, 16)}…" 업무를 ${assignee}에게 배정했습니다.`);
+    setIsCrawling(true);
+
+    try {
+      // 현재는 UI 확인용 동작입니다. 실제 검색 결과는 백엔드 API 응답으로 교체합니다.
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+
+      setSimilarProjects(
+        INITIAL_SIMILAR_PROJECTS.map((item, index) => ({
+          ...item,
+          similarity: Math.max(72, item.similarity - index),
+          summary:
+            index === 0
+              ? `“${keyword.slice(0, 28)}${keyword.length > 28 ? "…" : ""}”와 가장 유사한 참고 사례입니다.`
+              : item.summary,
+        })),
+      );
+      setLastCrawledAt("방금 전");
+      toast.success("유사 프로젝트 검색을 완료했습니다.");
+    } finally {
+      setIsCrawling(false);
+    }
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      <div className="xl:col-span-2 space-y-6">
-        {/* File info */}
-        <Card>
-          <CardContent className="pt-6 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-md bg-muted">
-                <FileText className="size-5 text-muted-foreground" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-foreground">도시인프라-rfp-2024.pdf</div>
-                <div className="text-muted-foreground text-xs">
-                  4.2MB · 24개 요구사항 추출 완료
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10">
+              <Globe2 className="size-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>유사 프로젝트 참고 추천</CardTitle>
+              <CardDescription className="mt-1">
+                공개 발주·사업 데이터에서 현재 프로젝트와 유사한 참고 사례를 찾습니다.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void handleCrawl();
+              }}
+              placeholder="프로젝트명 또는 핵심 키워드"
+            />
+            <Button
+              type="button"
+              onClick={() => void handleCrawl()}
+              disabled={isCrawling}
+              className="shrink-0"
+            >
+              {isCrawling ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Search className="size-4" />
+              )}
+              {isCrawling ? "검색 중" : "유사 프로젝트 검색"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+            <span>추천 {similarProjects.length}건</span>
+            <span>최근 검색 {lastCrawledAt}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div
+        className={
+          isPanel
+            ? "grid grid-cols-1 gap-3"
+            : "grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+        }
+      >
+        {similarProjects.map((item) => (
+          <Card key={item.id} className="h-full">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <CardTitle className="text-base leading-6">
+                    {item.title}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {item.organization} · {item.year}
+                  </CardDescription>
                 </div>
+                <Badge
+                  className="shrink-0"
+                  variant={similarityBadgeVariant(item.similarity)}
+                >
+                  {item.similarity}%
+                </Badge>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await projectRepository.uploadRfp();
-                  toast("공고문 업로드 흐름을 다시 시작했습니다.");
-                }}
-              >
-                다시 업로드
-              </Button>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  await projectRepository.reanalyzeRfp();
-                  toast.success("AI 재분석을 시작했습니다.");
-                }}
-              >
-                <RefreshCw className="size-4" /> 다시 분석
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
 
-        {/* Requirements table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>AI 추출 요구사항</CardTitle>
-            <CardDescription>요구사항을 선택해 우측에서 업무로 배정하세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead className="w-8">#</TableHead>
-                  <TableHead>요구사항</TableHead>
-                  <TableHead className="w-20">분류</TableHead>
-                  <TableHead className="w-20">우선순위</TableHead>
-                  <TableHead className="w-16">난이도</TableHead>
-                  <TableHead className="w-24">추천 담당자</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {requirements.map((r) => (
-                  <TableRow
-                    key={r.id}
-                    data-state={selectedId === r.id ? "selected" : undefined}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedId(r.id);
-                      setAssignee(r.recommendedOwner);
-                    }}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedId === r.id}
-                        onCheckedChange={() => {
-                          setSelectedId(r.id);
-                          setAssignee(r.recommendedOwner);
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{r.id}</TableCell>
-                    <TableCell>{r.text}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{r.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={priorityVariant(r.priority)}>{r.priority}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{r.difficulty}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {r.recommendedOwner}
-                    </TableCell>
-                  </TableRow>
+            <CardContent className="flex h-full flex-col pt-0">
+              <p className="text-sm leading-6 text-muted-foreground">
+                {item.summary}
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {item.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-[11px]">
+                    {tag}
+                  </Badge>
                 ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Risk cards */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="size-4 text-destructive" />
-            <span className="text-foreground">AI 리스크 분석</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {risks.map((risk) => (
-              <Card key={risk.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>{risk.title}</CardTitle>
-                    <Badge
-                      variant={risk.level === "높음" ? "destructive" : "secondary"}
-                    >
-                      {risk.level}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm">{risk.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Assignment panel */}
-      <div className="xl:col-span-1">
-        <Card className="sticky top-6">
-          <CardHeader>
-            <CardTitle>업무 배정</CardTitle>
-            <CardDescription>선택한 요구사항을 담당자에게 배정합니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>선택한 요구사항</Label>
-              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground min-h-16">
-                {selected ? selected.text : "요구사항을 선택하세요."}
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label>담당자 지정</Label>
-              <Select value={assignee} onValueChange={setAssignee}>
-                <SelectTrigger>
-                  <SelectValue placeholder="담당자를 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignees.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="due">마감일 설정</Label>
-              <Input
-                id="due"
-                type="date"
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="memo">업무 메모</Label>
-              <Textarea
-                id="memo"
-                placeholder="담당자에게 전달할 메모를 입력하세요."
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                rows={4}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <Button className="flex-1" onClick={handleAssign}>
-                업무 배정하기
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await projectRepository.requestReview();
-                  toast.success("검토 요청을 보냈습니다.");
-                }}
-              >
-                검토 요청
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="mt-auto flex items-center justify-between border-t border-border pt-4">
+                <span className="text-xs text-muted-foreground">
+                  출처: {item.source}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() =>
+                    toast("백엔드 검색 API 연결 후 원문을 엽니다.")
+                  }
+                >
+                  원문 보기
+                  <ExternalLink className="size-3" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );

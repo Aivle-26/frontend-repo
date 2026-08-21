@@ -5,20 +5,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "!bg-gradient-to-r !from-cyan-600 !to-teal-600 !text-white shadow-sm shadow-cyan-900/15 hover:!from-cyan-700 hover:!to-teal-700 focus-visible:!ring-cyan-500/35 dark:!from-violet-600 dark:!to-purple-700 dark:!text-white dark:shadow-purple-950/45 dark:hover:!from-violet-500 dark:hover:!to-fuchsia-600 dark:focus-visible:!ring-violet-500/45",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "!border-cyan-300 !bg-white/70 !text-teal-700 hover:!border-cyan-400 hover:!bg-cyan-50 hover:!text-teal-800 focus-visible:!ring-cyan-500/30 dark:!border-violet-800/80 dark:!bg-black/30 dark:!text-violet-300 dark:hover:!border-violet-600 dark:hover:!bg-violet-950/65 dark:hover:!text-violet-100 dark:focus-visible:!ring-violet-500/35",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "!bg-cyan-50 !text-teal-800 hover:!bg-cyan-100 focus-visible:!ring-cyan-500/30 dark:!bg-violet-950/65 dark:!text-violet-200 dark:hover:!bg-violet-900/75 dark:focus-visible:!ring-violet-500/35",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "!text-teal-700 hover:!bg-cyan-50 hover:!text-teal-800 focus-visible:!ring-cyan-500/25 dark:!text-violet-300 dark:hover:!bg-violet-950/60 dark:hover:!text-violet-100 dark:focus-visible:!ring-violet-500/30",
+        link:
+          "!text-teal-700 underline-offset-4 hover:!text-teal-800 hover:underline dark:!text-violet-300 dark:hover:!text-fuchsia-200",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
